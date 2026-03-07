@@ -1,25 +1,39 @@
+/// <reference types="vite/client" />
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getAnalytics } from "firebase/analytics";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBUj2RJ8ASOY7sQovBeRkQWs7wOMJpIQq4",
-  authDomain: "beehive-20.firebaseapp.com",
-  projectId: "beehive-20",
-  storageBucket: "beehive-20.firebasestorage.app",
-  messagingSenderId: "47279612001",
-  appId: "1:47279612001:web:add43bda63b756a9668a20",
-  measurementId: "G-2MJM2J6518"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
-const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+// Validate config
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'] as const;
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
 
-export { app, auth, db, storage, analytics };
+let app;
+
+if (missingKeys.length > 0) {
+  const errorMessage = `Firebase configuration error: Missing required environment variables: ${missingKeys.map(k => `VITE_FIREBASE_${k.toUpperCase()}`).join(', ')}`;
+  console.error(errorMessage);
+  console.warn('Please ensure you have set these variables in your environment configuration.');
+  // Create a dummy app or just throw a more descriptive error
+  throw new Error(errorMessage);
+} else {
+  // Initialize Firebase
+  app = initializeApp(firebaseConfig);
+}
+
+// Initialize Services
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+
+export default app;

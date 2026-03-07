@@ -17,19 +17,29 @@ import {
   UserCheck,
   FileText,
   CreditCard,
-  Headphones
+  Headphones,
+  LogOut
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useAuth } from '../../hooks/useAuth';
+import { auth } from '../../lib/firebase';
 
 export const LandingPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [loanAmount, setLoanAmount] = useState(500000);
   const [loanDuration, setLoanDuration] = useState(12);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { currency, formatAmount } = useCurrency();
+
+  const handleSignOut = () => {
+    auth.signOut();
+    navigate('/');
+  };
 
   // Calculator Logic
   const interestRate = 0.15; // 15% annual interest
@@ -81,8 +91,23 @@ export const LandingPage = () => {
 
           <div className="hidden md:flex items-center gap-4">
             <ThemeToggle />
-            <Link to="/auth/login" className="font-bold hover:text-accent transition-colors dark:text-white">Login</Link>
-            <Link to="/auth/signup" className="btn-primary">Get Started</Link>
+            {user ? (
+              <>
+                <Link to="/dashboard" className="font-bold hover:text-accent transition-colors dark:text-white">Dashboard</Link>
+                <button 
+                  onClick={handleSignOut}
+                  className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all border border-gray-100 dark:border-zinc-900"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/auth/login" className="font-bold hover:text-accent transition-colors dark:text-white">Login</Link>
+                <Link to="/auth/signup" className="btn-primary">Get Started</Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Toggle */}
@@ -108,8 +133,25 @@ export const LandingPage = () => {
               <NavLink href="#how-it-works" onClick={() => setIsMenuOpen(false)}>How It Works</NavLink>
               <NavLink href="#faq" onClick={() => setIsMenuOpen(false)}>FAQ</NavLink>
               <hr className="border-gray-100 dark:border-zinc-800" />
-              <Link to="/auth/login" className="font-bold dark:text-white">Login</Link>
-              <Link to="/auth/signup" className="btn-primary text-center">Get Started</Link>
+              {user ? (
+                <>
+                  <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="font-bold dark:text-white">Dashboard</Link>
+                  <button 
+                    onClick={() => {
+                      handleSignOut();
+                      setIsMenuOpen(false);
+                    }} 
+                    className="font-bold text-red-500 text-left"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link to="/auth/login" onClick={() => setIsMenuOpen(false)} className="font-bold dark:text-white">Login</Link>
+                  <Link to="/auth/signup" onClick={() => setIsMenuOpen(false)} className="btn-primary text-center">Get Started</Link>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

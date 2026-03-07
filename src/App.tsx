@@ -8,13 +8,15 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { LandingPage } from './app/landing/page';
 import { LoginPage } from './app/auth/login';
 import { SignupPage } from './app/auth/signup';
+import { VerifyEmailPage } from './app/auth/verify-email';
 import { DashboardPage } from './app/dashboard/page';
 import { AdminPage } from './app/admin/page';
+import { AdminLoginPage } from './app/admin/login';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, emailVerified } = useAuth();
 
   if (loading) return (
     <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-primary">
@@ -22,8 +24,17 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     </div>
   );
 
-  if (!user) return <Navigate to="/auth/login" />;
-  if (adminOnly && !isAdmin) return <Navigate to="/dashboard" />;
+  if (!user) {
+    return <Navigate to={adminOnly ? "/admin/login" : "/auth/login"} />;
+  }
+
+  if (!emailVerified && !adminOnly) {
+    return <Navigate to="/auth/login" />;
+  }
+
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/admin/login" />;
+  }
 
   return <>{children}</>;
 };
@@ -37,6 +48,8 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/signup" element={<SignupPage />} />
+            <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route 
               path="/dashboard" 
               element={

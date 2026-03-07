@@ -14,13 +14,22 @@ import {
   Search,
   Filter,
   ArrowUpRight,
-  ShieldCheck
+  ShieldCheck,
+  LogOut
 } from 'lucide-react';
+import { auth } from '../../lib/firebase';
+import { useNavigate } from 'react-router-dom';
 
 export const AdminPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleSignOut = () => {
+    auth.signOut();
+    navigate('/');
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'loans'));
@@ -70,6 +79,13 @@ export const AdminPage = () => {
               <div className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center font-black">
                 {user?.email?.[0].toUpperCase()}
               </div>
+              <button 
+                onClick={handleSignOut}
+                className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all border border-gray-200 dark:border-zinc-800"
+                title="Sign Out"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>

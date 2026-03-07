@@ -142,17 +142,24 @@ export const DashboardPage = () => {
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-secondary flex items-center gap-2 px-4 py-2 rounded-lg text-sm"
             >
-              {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {uploading ? 'Uploading...' : 'Upload ID'}
             </button>
             <button 
               onClick={() => setIsApplying(true)}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg text-sm"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               New Loan
+            </button>
+            <button 
+              onClick={handleSignOut}
+              className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all border border-gray-200 dark:border-zinc-800"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </header>
@@ -172,7 +179,7 @@ export const DashboardPage = () => {
           <StatCard 
             icon={<TrendingUp className="text-blue-500" />}
             label="Credit Score"
-            value="742"
+            value={loans.length > 0 ? "742" : "0"}
           />
         </div>
 
@@ -265,7 +272,7 @@ export const DashboardPage = () => {
                 </button>
                 <button 
                   type="submit"
-                  className="btn-primary flex-grow"
+                  className="btn-primary flex-grow py-2.5 rounded-lg"
                 >
                   Submit Application
                 </button>
