@@ -51,7 +51,18 @@ export const AdminLoginPage = () => {
         await signOut(auth);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to log in');
+      console.error('Admin login error:', err);
+      let msg = 'Failed to log in';
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+      
+      if (errCode === 'auth/user-not-found' || errMsg.includes('user-not-found')) msg = 'No admin account found with this email.';
+      else if (errCode === 'auth/wrong-password' || errMsg.includes('wrong-password')) msg = 'Incorrect password.';
+      else if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) msg = 'Invalid email or password.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. Please check your internet connection or Firebase configuration.';
+      else msg = errMsg || msg;
+      
+      setError(msg);
     } finally {
       setLoading(false);
     }

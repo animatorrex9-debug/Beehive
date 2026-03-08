@@ -1,6 +1,12 @@
 /// <reference types="vite/client" />
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { 
+  getAuth, 
+  initializeAuth, 
+  browserLocalPersistence, 
+  browserPopupRedirectResolver,
+  indexedDBLocalPersistence
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -15,25 +21,45 @@ const firebaseConfig = {
 };
 
 // Validate config
-const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'] as const;
-const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+const requiredKeys = {
+  apiKey: 'VITE_FIREBASE_API_KEY',
+  authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
+  projectId: 'VITE_FIREBASE_PROJECT_ID',
+  appId: 'VITE_FIREBASE_APP_ID'
+} as const;
 
-let app;
+const missingKeys = (Object.keys(requiredKeys) as Array<keyof typeof requiredKeys>)
+  .filter(key => !firebaseConfig[key]);
+
+let app: any;
+let auth: any;
+let db: any;
+let storage: any;
+let isConfigured = false;
 
 if (missingKeys.length > 0) {
-  const errorMessage = `Firebase configuration error: Missing required environment variables: ${missingKeys.map(k => `VITE_FIREBASE_${k.toUpperCase()}`).join(', ')}`;
+  const errorMessage = `Firebase configuration error: Missing required environment variables: ${missingKeys.map(k => requiredKeys[k]).join(', ')}`;
   console.error(errorMessage);
   console.warn('Please ensure you have set these variables in your environment configuration.');
-  // Create a dummy app or just throw a more descriptive error
-  throw new Error(errorMessage);
 } else {
   // Initialize Firebase
   app = initializeApp(firebaseConfig);
+  
+  // Use initializeAuth with explicit persistence for better iframe support
+  try {
+    auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch (e) {
+    // Fallback if already initialized
+    auth = getAuth(app);
+  }
+  
+  db = getFirestore(app);
+  storage = getStorage(app);
+  isConfigured = true;
 }
 
-// Initialize Services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-
+export { auth, db, storage, isConfigured };
 export default app;

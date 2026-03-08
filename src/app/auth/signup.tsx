@@ -10,14 +10,15 @@ import {
   signOut
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
+import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
 import { ArrowLeft, Mail, Lock, User, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export const SignupPage = () => {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -132,7 +133,19 @@ export const SignupPage = () => {
       setAcceptTerms(false);
 
     } catch (err: any) {
-      setError(err.message || 'Failed to sign up');
+      console.error('Signup error:', err);
+      let msg = 'Failed to sign up';
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+      
+      if (errCode === 'auth/email-already-in-use' || errMsg.includes('email-already-in-use')) msg = 'An account already exists with this email.';
+      else if (errCode === 'auth/weak-password' || errMsg.includes('weak-password')) msg = 'Password is too weak.';
+      else if (errCode === 'auth/invalid-email' || errMsg.includes('invalid-email')) msg = 'Invalid email address.';
+      else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. This is often caused by ad-blockers, VPNs, or incorrect Firebase settings. Please try disabling extensions or use Incognito mode.';
+      else msg = errMsg || msg;
+      
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -171,6 +184,8 @@ export const SignupPage = () => {
       setLoading(false);
     }
   };
+
+  if (!isConfigured) return <FirebaseSetupGuide />;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-primary py-12">

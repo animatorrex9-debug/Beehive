@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+import { auth, isConfigured } from '../../lib/firebase';
 import { sendEmailVerification } from 'firebase/auth';
 import { Logo } from '../../components/Logo';
+import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
 
 export const VerifyEmailPage = () => {
+  if (!isConfigured) return <FirebaseSetupGuide />;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -25,7 +28,17 @@ export const VerifyEmailPage = () => {
       await sendEmailVerification(auth.currentUser);
       setSuccess('Verification email resent! Please check your inbox.');
     } catch (err: any) {
-      setError(err.message || 'Failed to resend verification email.');
+      console.error('Resend verification error:', err);
+      let msg = 'Failed to resend verification email.';
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+      
+      if (errCode === 'auth/too-many-requests' || errMsg.includes('too-many-requests')) msg = 'Too many requests. Please wait a few minutes before trying again.';
+      else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. Please check your connection.';
+      else msg = errMsg || msg;
+      
+      setError(msg);
     } finally {
       setLoading(false);
     }

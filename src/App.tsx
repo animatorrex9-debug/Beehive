@@ -14,9 +14,12 @@ import { AdminPage } from './app/admin/page';
 import { AdminLoginPage } from './app/admin/login';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
+import { FirebaseSetupGuide } from './components/FirebaseSetupGuide';
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
-  const { user, loading, isAdmin, emailVerified } = useAuth();
+  const { user, loading, isAdmin, emailVerified, isConfigured } = useAuth();
+
+  if (!isConfigured) return <FirebaseSetupGuide />;
 
   if (loading) return (
     <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-primary">

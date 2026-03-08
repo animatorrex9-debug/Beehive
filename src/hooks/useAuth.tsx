@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, isConfigured } from '../lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   emailVerified: boolean;
+  isConfigured: boolean;
   reloadUser: () => Promise<void>;
 }
 
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true, 
   isAdmin: false, 
   emailVerified: false,
+  isConfigured: false,
   reloadUser: async () => {} 
 });
 
@@ -29,7 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [emailVerified, setEmailVerified] = useState(false);
 
   const reloadUser = async () => {
-    if (auth.currentUser) {
+    if (isConfigured && auth.currentUser) {
       await auth.currentUser.reload();
       setUser({ ...auth.currentUser });
       setEmailVerified(auth.currentUser.emailVerified);
@@ -44,6 +46,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    if (!isConfigured) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setEmailVerified(user?.emailVerified || false);
@@ -81,7 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, userData, loading, isAdmin, emailVerified, reloadUser }}>
+    <AuthContext.Provider value={{ user, userData, loading, isAdmin, emailVerified, isConfigured, reloadUser }}>
       {children}
     </AuthContext.Provider>
   );

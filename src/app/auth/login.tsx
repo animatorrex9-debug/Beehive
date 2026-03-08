@@ -10,14 +10,15 @@ import {
   sendEmailVerification
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
+import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
 import { ArrowLeft, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -69,7 +70,21 @@ export const LoginPage = () => {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to log in');
+      console.error('Login error:', err);
+      let msg = 'Failed to log in';
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+      
+      if (errCode === 'auth/user-not-found' || errMsg.includes('user-not-found')) msg = 'No account found with this email.';
+      else if (errCode === 'auth/wrong-password' || errMsg.includes('wrong-password')) msg = 'Incorrect password.';
+      else if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) msg = 'Invalid email or password.';
+      else if (errCode === 'auth/too-many-requests' || errMsg.includes('too-many-requests')) msg = 'Too many failed attempts. Please try again later.';
+      else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. This is often caused by ad-blockers, VPNs, or incorrect Firebase Auth Domain settings. Please try disabling extensions or use Incognito mode.';
+      else if (errCode === 'auth/internal-error' || errMsg.includes('internal-error')) msg = 'Internal Firebase error. This often happens if the API key is invalid.';
+      else msg = errMsg || msg;
+      
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -129,6 +144,8 @@ export const LoginPage = () => {
       setLoading(false);
     }
   };
+
+  if (!isConfigured) return <FirebaseSetupGuide />;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-primary">
