@@ -51,49 +51,66 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setEmailVerified(user?.emailVerified || false);
       
-      let unsubscribeDoc: (() => void) | null = null;
+      // Clean up previous document listener if it exists
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
 
       if (user) {
         // Use onSnapshot for real-time updates to userData
-        unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), async (userDoc) => {
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            setUserData(data);
-            setIsAdmin(data?.role === 'admin' || data?.role === 'account_manager');
-            
-            // Sync email verification status if it changed
-            if (user.emailVerified && !data.emailVerified) {
-              await updateDoc(doc(db, 'users', user.uid), {
-                emailVerified: true
-              });
+        try {
+          unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), async (userDoc) => {
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              setUserData(data);
+              setIsAdmin(data?.role === 'admin' || data?.role === 'account_manager');
+              
+              // Sync email verification status if it changed
+              if (user.emailVerified && !data.emailVerified) {
+                try {
+                  await updateDoc(doc(db, 'users', user.uid), {
+                    emailVerified: true
+                  });
+                } catch (updateErr) {
+                  console.error('Error syncing email verification:', updateErr);
+                }
+              }
+            } else {
+              setUserData(null);
+              setIsAdmin(false);
             }
-          } else {
+            setLoading(false);
+          }, (err) => {
+            // Only log if it's not a permission error during logout/login transition
+            if (err.code !== 'permission-denied' || auth.currentUser) {
+              console.error('Error fetching user data:', err);
+            }
             setUserData(null);
             setIsAdmin(false);
-          }
+            setLoading(false);
+          });
+        } catch (snapErr) {
+          console.error('Error setting up user data listener:', snapErr);
           setLoading(false);
-        }, (err) => {
-          console.error('Error fetching user data:', err);
-          setUserData(null);
-          setIsAdmin(false);
-          setLoading(false);
-        });
+        }
       } else {
         setUserData(null);
         setIsAdmin(false);
         setLoading(false);
       }
-
-      return () => {
-        if (unsubscribeDoc) unsubscribeDoc();
-      };
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
   }, []);
 
   return (

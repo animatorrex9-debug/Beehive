@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { 
   Wallet, 
@@ -16,6 +16,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 
 export const LoanApplicationPage = () => {
   const { user, userData } = useAuth();
+  const { activeLoan } = useOutletContext<{ activeLoan: any }>();
   const { formatAmount } = useCurrency();
   const navigate = useNavigate();
   const [amount, setAmount] = useState(50000);
@@ -24,6 +25,29 @@ export const LoanApplicationPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const kycStatus = userData?.kycStatus || 'unverified';
+
+  // If already has an active loan that is not disbursed/completed, prevent new application
+  const hasActiveApplication = activeLoan && !['disbursed', 'completed', 'rejected'].includes(activeLoan.status);
+
+  if (hasActiveApplication) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center">
+        <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Wallet className="w-10 h-10 text-accent" />
+        </div>
+        <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-4 uppercase">Application in Progress</h2>
+        <p className="text-gray-500 mb-8 max-w-md mx-auto">
+          You already have an active loan application. Please complete the current process before applying for a new one.
+        </p>
+        <button 
+          onClick={() => navigate('/dashboard/loan-status')}
+          className="btn-primary px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest"
+        >
+          View Status
+        </button>
+      </div>
+    );
+  }
 
   // If not verified, redirect back to dashboard or show message
   if (kycStatus !== 'verified') {

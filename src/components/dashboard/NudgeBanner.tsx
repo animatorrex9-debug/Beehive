@@ -12,6 +12,13 @@ export const NudgeBanner: React.FC<NudgeBannerProps> = ({ status }) => {
 
   const getBannerContent = () => {
     switch (status) {
+      case 'pending':
+        return {
+          step: 1,
+          message: "Step 1 of 4: Application received! Connect your bank account now to speed up your disbursement.",
+          action: () => navigate('/dashboard/loan-status'),
+          buttonText: "Connect Bank"
+        };
       case 'approved':
         return {
           step: 1,
@@ -22,9 +29,9 @@ export const NudgeBanner: React.FC<NudgeBannerProps> = ({ status }) => {
       case 'bank_details_submitted':
         return {
           step: 2,
-          message: "Step 2 of 4: Bank verification in progress. Please wait for confirmation.",
-          action: null,
-          buttonText: "View Status"
+          message: "Step 2 of 4: Additional verification required. Please provide your IBAN and other details.",
+          action: () => navigate('/dashboard/loan-status'),
+          buttonText: "Verify Now"
         };
       case 'pin_sent':
         return {

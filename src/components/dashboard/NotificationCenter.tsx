@@ -37,15 +37,27 @@ export const NotificationCenter: React.FC = () => {
       orderBy('createdAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Notification[];
-      setNotifications(items);
-    });
+    let unsubscribe: (() => void) | null = null;
 
-    return () => unsubscribe();
+    try {
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Notification[];
+        setNotifications(items);
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          console.error('Error fetching notifications:', err);
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up notifications listener:', err);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [user]);
 
   useEffect(() => {

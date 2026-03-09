@@ -24,20 +24,30 @@ export const DashboardLayout: React.FC = () => {
       limit(1)
     );
     
-    const unsubscribeLoans = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        setActiveLoan(snapshot.docs[0].data());
-      } else {
-        setActiveLoan(null);
-      }
-    });
+    let unsubscribeLoans: (() => void) | null = null;
+
+    try {
+      unsubscribeLoans = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          setActiveLoan({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+        } else {
+          setActiveLoan(null);
+        }
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          console.error('Error fetching active loan:', err);
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up loans listener:', err);
+    }
 
     // Fetch unread messages count (mock for now or implement if chat exists)
     // For now, let's just set it to 0
     setUnreadMessages(0);
 
     return () => {
-      unsubscribeLoans();
+      if (unsubscribeLoans) unsubscribeLoans();
     };
   }, [user]);
 
