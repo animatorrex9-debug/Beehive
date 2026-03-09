@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, isConfigured } from '../lib/firebase';
 
 interface AuthContextType {
@@ -54,9 +54,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setEmailVerified(user?.emailVerified || false);
+      
+      let unsubscribeDoc: (() => void) | null = null;
+
       if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
+        // Use onSnapshot for real-time updates to userData
+        unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), async (userDoc) => {
           if (userDoc.exists()) {
             const data = userDoc.data();
             setUserData(data);
@@ -72,16 +75,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUserData(null);
             setIsAdmin(false);
           }
-        } catch (err) {
+          setLoading(false);
+        }, (err) => {
           console.error('Error fetching user data:', err);
           setUserData(null);
           setIsAdmin(false);
-        }
+          setLoading(false);
+        });
       } else {
         setUserData(null);
         setIsAdmin(false);
+        setLoading(false);
       }
-      setLoading(false);
+
+      return () => {
+        if (unsubscribeDoc) unsubscribeDoc();
+      };
     });
 
     return () => unsubscribe();

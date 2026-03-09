@@ -28,19 +28,34 @@ export function useCurrency() {
   useEffect(() => {
     async function fetchGeo() {
       try {
+        // Try ipapi.co first
         const response = await fetch('https://ipapi.co/json/');
+        if (!response.ok) throw new Error('ipapi failed');
         const data = await response.json();
         const countryCode = data.country_code;
         
         if (CURRENCY_MAP[countryCode]) {
           setCurrency(CURRENCY_MAP[countryCode]);
         } else {
-          // Fallback to USD for unknown countries
           setCurrency(CURRENCY_MAP['US']);
         }
       } catch (error) {
-        console.error('Error fetching geolocation:', error);
-        // Fallback to default
+        // Fallback to ip-api.com (HTTP only for free tier, but sometimes works better)
+        // Or just fail silently and keep default
+        try {
+          const response = await fetch('https://ip-api.com/json/');
+          if (!response.ok) throw new Error('ip-api failed');
+          const data = await response.json();
+          const countryCode = data.countryCode;
+          
+          if (CURRENCY_MAP[countryCode]) {
+            setCurrency(CURRENCY_MAP[countryCode]);
+          }
+        } catch (secondError) {
+          // If both fail, we just stay with DEFAULT_CURRENCY (NGN)
+          // We don't log "Failed to fetch" as an error anymore to avoid console noise
+          console.log('Geolocation unavailable, using default currency settings.');
+        }
       }
     }
 
