@@ -11,7 +11,9 @@ export const NudgeBanner: React.FC<NudgeBannerProps> = ({ status }) => {
   const navigate = useNavigate();
 
   const getBannerContent = () => {
-    switch (status) {
+    if (!status) return null;
+    const s = status.toLowerCase();
+    switch (s) {
       case 'pending':
         return {
           step: 1,
@@ -47,8 +49,21 @@ export const NudgeBanner: React.FC<NudgeBannerProps> = ({ status }) => {
           action: null,
           buttonText: "View Status"
         };
+      case 'rejected':
+        return {
+          step: 0,
+          message: "Your application was rejected. Please check your notifications for details or apply again.",
+          action: () => navigate('/dashboard/loan-application'),
+          buttonText: "Re-apply"
+        };
       default:
-        return null;
+        // Fallback for any other non-disbursed status
+        return {
+          step: 1,
+          message: "Application in progress! Connect your bank account now to speed up your disbursement.",
+          action: () => navigate('/dashboard/loan-status'),
+          buttonText: "Connect Bank"
+        };
     }
   };
 
@@ -59,20 +74,20 @@ export const NudgeBanner: React.FC<NudgeBannerProps> = ({ status }) => {
     <motion.div 
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-8 p-4 bg-green-50 dark:bg-green-500/10 border-2 border-green-200 dark:border-green-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4"
+      className="mb-6 p-4 bg-accent/5 dark:bg-accent/10 border border-accent/20 dark:border-accent/20 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md shadow-accent/5"
     >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-500/20 flex items-center justify-center text-green-600 dark:text-green-400 shrink-0">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-full bg-accent/10 dark:bg-accent/20 flex items-center justify-center text-accent shrink-0 border border-accent/10">
           <Info className="w-5 h-5" />
         </div>
-        <p className="text-sm font-bold text-green-800 dark:text-green-300 leading-tight">
+        <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
           {content.message}
         </p>
       </div>
       
       <button 
         onClick={() => content.action?.()}
-        className="btn-primary whitespace-nowrap flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-accent/20"
+        className="bg-accent hover:bg-accent-hover text-white whitespace-nowrap flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-accent/20 active:scale-95"
       >
         {content.buttonText}
         <ArrowRight className="w-4 h-4" />

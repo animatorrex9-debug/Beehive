@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { useCurrency } from '../../../hooks/useCurrency';
 
 export const LoanApplicationPage = () => {
@@ -78,7 +78,7 @@ export const LoanApplicationPage = () => {
     setError(null);
 
     try {
-      await addDoc(collection(db, 'loans'), {
+      const loanRef = await addDoc(collection(db, 'loans'), {
         userId: user.uid,
         userEmail: user.email,
         userName: userData?.fullName || user.email?.split('@')[0],
@@ -94,12 +94,19 @@ export const LoanApplicationPage = () => {
       // Notify user
       await addDoc(collection(db, 'notifications', user.uid, 'items'), {
         type: 'loan_application',
-        title: 'Application Submitted',
-        message: `Your loan application for ${formatAmount(amount)} has been received and is under review.`,
+        title: 'Application Received',
+        message: `Your loan application for ${formatAmount(amount)} has been received and is awaiting approval. We will notify you once it's processed.`,
         createdAt: serverTimestamp(),
         read: false,
       });
 
+      // Update user document with active loan status for instant UI feedback
+      await updateDoc(doc(db, 'users', user.uid), {
+        activeLoanStatus: 'pending',
+        updatedAt: serverTimestamp()
+      });
+
+      // Navigate to dashboard immediately to show the nudge banner
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Error submitting loan:', err);
@@ -232,6 +239,8 @@ export const LoanApplicationPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Success Modal removed - navigating to dashboard instead */}
     </div>
   );
 };

@@ -69,7 +69,7 @@ export const LandingPage = () => {
       a: "We understand that life happens. If you think you'll miss a payment, please contact your Personal Account Manager immediately to discuss options."
     },
     {
-      q: "Is my data secure with Beehive?",
+      q: "Is my data secure with beehide?",
       a: "Absolutely. We use bank-level 256-bit encryption and follow strict data protection protocols to ensure your information is always safe."
     }
   ];
@@ -348,14 +348,14 @@ export const LandingPage = () => {
             <div className="max-w-2xl">
               <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">
                 WHY CHOOSE <br />
-                <span className="text-accent">BEEHIVE LOANS?</span>
+                <span className="text-accent uppercase">beehide loans?</span>
               </h2>
               <p className="text-xl text-gray-400">
                 We've redesigned the lending experience from the ground up to be 
                 fair, fast, and focused on your needs.
               </p>
             </div>
-            <Link to="/auth/signup" className="btn-primary px-8 py-4">Join Beehive Today</Link>
+            <Link to="/auth/signup" className="btn-primary px-8 py-4">Join beehide Today</Link>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -393,7 +393,7 @@ export const LandingPage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             <TestimonialCard 
               name="Ahmed Mansour"
-              quote="Beehive saved my business when I needed urgent stock. The process was so smooth, I couldn't believe it."
+              quote="beehide saved my business when I needed urgent stock. The process was so smooth, I couldn't believe it."
               image="https://picsum.photos/seed/ahmed/100/100"
             />
             <TestimonialCard 
@@ -403,7 +403,7 @@ export const LandingPage = () => {
             />
             <TestimonialCard 
               name="Omar Hassan"
-              quote="I've tried many apps, but Beehive is the fastest. Funds were in my account in less than 30 minutes."
+              quote="I've tried many apps, but beehide is the fastest. Funds were in my account in less than 30 minutes."
               image="https://picsum.photos/seed/omar/100/100"
             />
           </div>
@@ -488,7 +488,7 @@ export const LandingPage = () => {
           </div>
 
           <div className="pt-12 border-t border-gray-100 dark:border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
-            <p className="text-gray-400 text-sm">© 2026 Beehive Loans. All rights reserved.</p>
+            <p className="text-gray-400 text-sm">© 2026 beehide Loans. All rights reserved.</p>
             <div className="flex gap-8 text-sm font-bold text-gray-400">
               <a href="#" className="hover:text-accent transition-colors">Privacy Policy</a>
               <a href="#" className="hover:text-accent transition-colors">Terms of Service</a>

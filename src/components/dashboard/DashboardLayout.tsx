@@ -3,56 +3,58 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { Header } from './Header';
-import { collection, query, where, onSnapshot, limit, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, limit, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { NudgeBanner } from './NudgeBanner';
+import { Toast } from './Toast';
 
 export const DashboardLayout: React.FC = () => {
-  const { user } = useAuth();
-  const [activeLoan, setActiveLoan] = useState<any>(null);
+  const { user, userData, activeLoan, loanLoading } = useAuth();
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [latestNotification, setLatestNotification] = useState<any>(null);
   const location = useLocation();
 
   useEffect(() => {
     if (!user) return;
 
-    // Fetch active loan for status indicators
-    const q = query(
-      collection(db, 'loans'), 
-      where('userId', '==', user.uid),
+    // Listen for new notifications to show toasts
+    const notificationsQuery = query(
+      collection(db, 'notifications', user.uid, 'items'),
       orderBy('createdAt', 'desc'),
       limit(1)
     );
-    
-    let unsubscribeLoans: (() => void) | null = null;
+
+    let unsubscribeNotifications: (() => void) | null = null;
 
     try {
-      unsubscribeLoans = onSnapshot(q, (snapshot) => {
+      unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
         if (!snapshot.empty) {
-          setActiveLoan({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
-        } else {
-          setActiveLoan(null);
-        }
-      }, (err) => {
-        if (err.code !== 'permission-denied') {
-          console.error('Error fetching active loan:', err);
+          const notification = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() as any };
+          
+          // Only show toast if it's very recent (within last 10 seconds)
+          const createdAt = notification.createdAt?.toMillis?.() || Date.now();
+          const now = Date.now();
+          if (now - createdAt < 10000 && !notification.read) {
+            setLatestNotification(notification);
+          }
         }
       });
     } catch (err) {
-      console.error('Error setting up loans listener:', err);
+      console.error('Error setting up notifications listener:', err);
     }
 
-    // Fetch unread messages count (mock for now or implement if chat exists)
-    // For now, let's just set it to 0
     setUnreadMessages(0);
 
     return () => {
-      if (unsubscribeLoans) unsubscribeLoans();
+      if (unsubscribeNotifications) unsubscribeNotifications();
     };
   }, [user]);
 
-  const loanStatusActionRequired = ['approved', 'pin_sent'].includes(activeLoan?.status);
-  const isLoanDisbursed = activeLoan?.status === 'disbursed';
+  const loanStatus = activeLoan?.status || userData?.activeLoanStatus;
+  const loanStatusActionRequired = ['approved', 'pending', 'bank_details_submitted', 'pin_sent'].includes(loanStatus);
+  const isLoanDisbursed = loanStatus === 'disbursed';
+  const showBanner = loanStatus && loanStatus !== 'disbursed' && loanStatus !== 'completed';
 
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-primary">
@@ -67,10 +69,26 @@ export const DashboardLayout: React.FC = () => {
         
         <main className="flex-grow p-4 sm:p-6 lg:p-10 pb-24 lg:pb-10 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
-            <Outlet context={{ activeLoan }} />
+            {showBanner && (
+              <div className="mb-8">
+                <NudgeBanner status={loanStatus} />
+              </div>
+            )}
+            {loanLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <Outlet context={{ activeLoan }} />
+            )}
           </div>
         </main>
       </div>
+
+      <Toast 
+        notification={latestNotification} 
+        onClose={() => setLatestNotification(null)} 
+      />
 
       <MobileNav 
         loanStatusActionRequired={loanStatusActionRequired}

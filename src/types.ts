@@ -9,6 +9,7 @@ export interface UserProfile {
   phone: string;
   role: UserRole;
   kycStatus: KYCStatus;
+  walletBalance: number;
   createdAt: string;
   emailVerified: boolean;
   photoURL?: string;

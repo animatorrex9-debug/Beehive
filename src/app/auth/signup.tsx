@@ -115,6 +115,7 @@ export const SignupPage = () => {
         phone,
         role: 'user',
         kycStatus: 'unverified',
+        walletBalance: 0,
         createdAt: new Date().toISOString(),
         emailVerified: false,
       });
@@ -172,6 +173,7 @@ export const SignupPage = () => {
           phone: user.phoneNumber || '',
           role: 'user',
           kycStatus: 'unverified',
+          walletBalance: 0,
           createdAt: new Date().toISOString(),
           emailVerified: user.emailVerified,
         });

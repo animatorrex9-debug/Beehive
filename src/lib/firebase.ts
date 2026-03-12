@@ -40,7 +40,7 @@ let isConfigured = false;
 if (missingKeys.length > 0) {
   const errorMessage = `Firebase configuration error: Missing required environment variables: ${missingKeys.map(k => requiredKeys[k]).join(', ')}`;
   console.error(errorMessage);
-  console.warn('Please ensure you have set these variables in your environment configuration.');
+  console.warn('To fix this, please create a /.env file and add your Firebase project credentials. See /.env.example for the required format.');
 } else {
   // Initialize Firebase
   app = initializeApp(firebaseConfig);
