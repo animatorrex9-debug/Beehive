@@ -103,8 +103,13 @@ export const LoanApplicationPage = () => {
       // Update user document with active loan status for instant UI feedback
       await updateDoc(doc(db, 'users', user.uid), {
         activeLoanStatus: 'pending',
+        activeLoanId: loanRef.id,
         updatedAt: serverTimestamp()
       });
+
+      // Also store in localStorage for redundancy
+      localStorage.setItem(`loan_active_id_${user.uid}`, loanRef.id);
+      localStorage.setItem(`loan_local_status_${user.uid}`, 'pending');
 
       // Navigate to dashboard immediately to show the nudge banner
       navigate('/dashboard');

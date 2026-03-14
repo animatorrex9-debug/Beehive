@@ -7,11 +7,14 @@ interface AuthContextType {
   user: User | null;
   userData: any | null;
   activeLoan: any | null;
+  activeLoanId: string | null;
   loading: boolean;
   loanLoading: boolean;
   isAdmin: boolean;
   emailVerified: boolean;
   isConfigured: boolean;
+  localStatus: string | null;
+  setLocalStatus: (status: string | null) => void;
   reloadUser: () => Promise<void>;
 }
 
@@ -19,11 +22,14 @@ const AuthContext = createContext<AuthContextType>({
   user: null, 
   userData: null, 
   activeLoan: null,
+  activeLoanId: null,
   loading: true, 
   loanLoading: true,
   isAdmin: false, 
   emailVerified: false,
   isConfigured: false,
+  localStatus: null,
+  setLocalStatus: () => {},
   reloadUser: async () => {} 
 });
 
@@ -31,10 +37,70 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any | null>(null);
   const [activeLoan, setActiveLoan] = useState<any | null>(null);
+  const [activeLoanId, setActiveLoanId] = useState<string | null>(null);
+
+  // Load activeLoanId when user changes
+  useEffect(() => {
+    if (user) {
+      const stored = localStorage.getItem(`loan_active_id_${user.uid}`);
+      setActiveLoanId(stored);
+    } else {
+      setActiveLoanId(null);
+    }
+  }, [user]);
+
   const [loading, setLoading] = useState(true);
   const [loanLoading, setLoanLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+
+  // Load localStatus when user changes
+  useEffect(() => {
+    if (user) {
+      const stored = localStorage.getItem(`loan_local_status_${user.uid}`);
+      setLocalStatus(stored);
+    } else {
+      setLocalStatus(null);
+    }
+  }, [user]);
+
+  // Sync localStatus with localStorage
+  useEffect(() => {
+    if (user) {
+      if (localStatus) {
+        localStorage.setItem(`loan_local_status_${user.uid}`, localStatus);
+      } else {
+        localStorage.removeItem(`loan_local_status_${user.uid}`);
+      }
+    }
+  }, [localStatus, user]);
+
+  // Sync activeLoanId with localStorage
+  useEffect(() => {
+    if (user && !loanLoading) {
+      if (activeLoanId) {
+        localStorage.setItem(`loan_active_id_${user.uid}`, activeLoanId);
+      } else if (activeLoanId === null) {
+        // Only remove if we've finished loading and confirmed no loan
+        localStorage.removeItem(`loan_active_id_${user.uid}`);
+      }
+    }
+  }, [activeLoanId, loanLoading, user]);
+
+  // Sync activeLoanId with activeLoan
+  useEffect(() => {
+    if (activeLoan?.id) {
+      setActiveLoanId(activeLoan.id);
+    }
+  }, [activeLoan?.id]);
+
+  // Clear localStatus when activeLoan status matches
+  useEffect(() => {
+    if (activeLoan?.status === localStatus) {
+      setLocalStatus(null);
+    }
+  }, [activeLoan?.status, localStatus]);
 
   const reloadUser = async () => {
     if (isConfigured && auth.currentUser) {
@@ -114,7 +180,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             where('userId', '==', user.uid)
           );
 
-          unsubscribeLoans = onSnapshot(loansQuery, { includeMetadataChanges: true }, (snapshot) => {
+          unsubscribeLoans = onSnapshot(loansQuery, { includeMetadataChanges: true }, async (snapshot) => {
             if (!snapshot.empty) {
               const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() as any }));
               // Sort by createdAt descending
@@ -124,10 +190,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 return timeB - timeA;
               });
               setActiveLoan(docs[0]);
+              setActiveLoanId(docs[0].id);
+              setLoanLoading(false);
             } else {
-              setActiveLoan(null);
+              // If query is empty, check if we have a specific ID from userData or localStorage
+              const idToTry = userData?.activeLoanId || localStorage.getItem(`loan_active_id_${user.uid}`);
+              if (idToTry) {
+                try {
+                  const directDoc = await getDoc(doc(db, 'loans', idToTry));
+                  if (directDoc.exists()) {
+                    setActiveLoan({ id: directDoc.id, ...directDoc.data() });
+                    setActiveLoanId(directDoc.id);
+                  } else {
+                    setActiveLoan(null);
+                    setActiveLoanId(null);
+                  }
+                } catch (err) {
+                  console.error('Error fetching loan by ID:', err);
+                  setActiveLoan(null);
+                  setActiveLoanId(null);
+                }
+              } else {
+                setActiveLoan(null);
+                setActiveLoanId(null);
+              }
+              setLoanLoading(false);
             }
-            setLoanLoading(false);
           }, (err) => {
             if (err.code !== 'permission-denied') {
               console.error('Error fetching active loan:', err);
@@ -161,11 +249,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user, 
       userData, 
       activeLoan,
+      activeLoanId,
       loading, 
       loanLoading,
       isAdmin, 
       emailVerified, 
       isConfigured, 
+      localStatus,
+      setLocalStatus,
       reloadUser 
     }}>
       {children}

@@ -10,7 +10,7 @@ import { NudgeBanner } from './NudgeBanner';
 import { Toast } from './Toast';
 
 export const DashboardLayout: React.FC = () => {
-  const { user, userData, activeLoan, loanLoading } = useAuth();
+  const { user, userData, activeLoan, loanLoading, localStatus } = useAuth();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [latestNotification, setLatestNotification] = useState<any>(null);
   const location = useLocation();
@@ -51,7 +51,7 @@ export const DashboardLayout: React.FC = () => {
     };
   }, [user]);
 
-  const loanStatus = activeLoan?.status || userData?.activeLoanStatus;
+  const loanStatus = localStatus || activeLoan?.status || userData?.activeLoanStatus;
   const loanStatusActionRequired = ['approved', 'pending', 'bank_details_submitted', 'pin_sent'].includes(loanStatus);
   const isLoanDisbursed = loanStatus === 'disbursed';
   const showBanner = loanStatus && loanStatus !== 'disbursed' && loanStatus !== 'completed';
