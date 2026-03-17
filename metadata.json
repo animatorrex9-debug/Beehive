@@ -1,5 +1,5 @@
 {
-  "name": "beehide",
-  "description": "A modern, clean, and bold loan platform inspired by CashApp, built with React and Firebase.",
+  "name": "Beehive",
+  "description": "A full-featured online banking platform where users can borrow loans, deposit, send, receive money, invest, swap currencies, and more.",
   "requestFramePermissions": []
 }

@@ -16,6 +16,15 @@ import { ChatPage } from './app/dashboard/chat/page';
 import { RepaymentPage } from './app/dashboard/repayment/page';
 import { HistoryPage } from './app/dashboard/history/page';
 import { KYCPage } from './app/dashboard/kyc/page';
+import { AccountsPage } from './app/dashboard/accounts/page';
+import { DepositPage } from './app/dashboard/deposit/page';
+import { SendPage } from './app/dashboard/send/page';
+import { CardsPage } from './app/dashboard/cards/page';
+import { InvestPage } from './app/dashboard/invest/page';
+import { SwapPage } from './app/dashboard/swap/page';
+import { TaxPage } from './app/dashboard/tax/page';
+import { CharityPage } from './app/dashboard/charity/page';
+import { GrantsPage } from './app/dashboard/grants/page';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
 import { AdminPage } from './app/admin/page';
 import { AdminLoginPage } from './app/admin/login';
@@ -70,6 +79,15 @@ export default function App() {
               }
             >
               <Route index element={<DashboardPage />} />
+              <Route path="accounts" element={<AccountsPage />} />
+              <Route path="deposit" element={<DepositPage />} />
+              <Route path="send" element={<SendPage />} />
+              <Route path="cards" element={<CardsPage />} />
+              <Route path="invest" element={<InvestPage />} />
+              <Route path="swap" element={<SwapPage />} />
+              <Route path="tax" element={<TaxPage />} />
+              <Route path="charity" element={<CharityPage />} />
+              <Route path="grants" element={<GrantsPage />} />
               <Route path="loan-application" element={<LoanApplicationPage />} />
               <Route path="loan-status" element={<LoanStatusPage />} />
               <Route path="chat" element={<ChatPage />} />

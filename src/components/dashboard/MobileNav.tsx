@@ -5,6 +5,7 @@ import {
   FileText, 
   CheckCircle, 
   MessageSquare, 
+  Wallet,
   History
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -24,6 +25,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
+    { to: '/dashboard/accounts', icon: Wallet, label: 'Wallet' },
     { 
       to: '/dashboard/loan-application', 
       icon: FileText, 

@@ -116,6 +116,8 @@ export const SignupPage = () => {
         role: 'user',
         kycStatus: 'unverified',
         walletBalance: 0,
+        savings: 0,
+        activeCards: 1,
         createdAt: new Date().toISOString(),
         emailVerified: false,
       });
@@ -174,6 +176,8 @@ export const SignupPage = () => {
           role: 'user',
           kycStatus: 'unverified',
           walletBalance: 0,
+          savings: 0,
+          activeCards: 1,
           createdAt: new Date().toISOString(),
           emailVerified: user.emailVerified,
         });

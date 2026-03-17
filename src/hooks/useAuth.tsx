@@ -144,7 +144,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (user) {
         // Use onSnapshot for real-time updates to userData
         try {
-          unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), { includeMetadataChanges: true }, async (userDoc) => {
+          unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), (userDoc) => {
             if (userDoc.exists()) {
               const data = userDoc.data();
               setUserData(data);
@@ -152,13 +152,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               
               // Sync email verification status if it changed
               if (user.emailVerified && !data.emailVerified) {
-                try {
-                  await updateDoc(doc(db, 'users', user.uid), {
-                    emailVerified: true
-                  });
-                } catch (updateErr) {
+                updateDoc(doc(db, 'users', user.uid), {
+                  emailVerified: true
+                }).catch(updateErr => {
                   console.error('Error syncing email verification:', updateErr);
-                }
+                });
               }
             } else {
               setUserData(null);
@@ -180,7 +178,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             where('userId', '==', user.uid)
           );
 
-          unsubscribeLoans = onSnapshot(loansQuery, { includeMetadataChanges: true }, async (snapshot) => {
+          unsubscribeLoans = onSnapshot(loansQuery, (snapshot) => {
             if (!snapshot.empty) {
               const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() as any }));
               // Sort by createdAt descending
@@ -196,8 +194,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               // If query is empty, check if we have a specific ID from userData or localStorage
               const idToTry = userData?.activeLoanId || localStorage.getItem(`loan_active_id_${user.uid}`);
               if (idToTry) {
-                try {
-                  const directDoc = await getDoc(doc(db, 'loans', idToTry));
+                getDoc(doc(db, 'loans', idToTry)).then(directDoc => {
                   if (directDoc.exists()) {
                     setActiveLoan({ id: directDoc.id, ...directDoc.data() });
                     setActiveLoanId(directDoc.id);
@@ -205,16 +202,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     setActiveLoan(null);
                     setActiveLoanId(null);
                   }
-                } catch (err) {
+                  setLoanLoading(false);
+                }).catch(err => {
                   console.error('Error fetching loan by ID:', err);
                   setActiveLoan(null);
                   setActiveLoanId(null);
-                }
+                  setLoanLoading(false);
+                });
               } else {
                 setActiveLoan(null);
                 setActiveLoanId(null);
+                setLoanLoading(false);
               }
-              setLoanLoading(false);
             }
           }, (err) => {
             if (err.code !== 'permission-denied') {

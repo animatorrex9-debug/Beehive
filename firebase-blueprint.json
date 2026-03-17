@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Extended user profile with banking details",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "kycStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"] },
+        "walletBalance": { "type": "number" },
+        "savings": { "type": "number" },
+        "activeCards": { "type": "number" },
+        "activeLoanId": { "type": "string" }
+      },
+      "required": ["fullName", "email"]
+    },
+    "Transaction": {
+      "title": "Banking Transaction",
+      "description": "Record of a financial transaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["deposit", "send", "receive", "swap", "investment", "loan_repayment", "loan_disbursement"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["userId", "type", "amount", "status", "timestamp"]
+    },
+    "Loan": {
+      "title": "Loan Application",
+      "description": "Details of a loan request",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "duration": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "disbursed", "repaid"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "duration", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Global transaction history"
+    },
+    "/loans/{loanId}": {
+      "schema": "Loan",
+      "description": "Loan applications"
+    }
+  }
+}

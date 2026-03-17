@@ -25,16 +25,24 @@ import { auth } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 
 export const AdminPage = () => {
-  const { user } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loans, setLoans] = useState<any[]>([]);
   const [pendingKYCs, setPendingKYCs] = useState<any[]>([]);
+  const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'loans' | 'kyc'>('loans');
+  const [activeTab, setActiveTab] = useState<'loans' | 'kyc' | 'deposits'>('loans');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
+  const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !isAdmin && user) {
+      navigate('/dashboard');
+    }
+  }, [isAdmin, authLoading, navigate, user]);
 
   const handleSignOut = () => {
     auth.signOut();
@@ -42,6 +50,8 @@ export const AdminPage = () => {
   };
 
   useEffect(() => {
+    if (!user || !isAdmin) return;
+
     // Listen for loans
     let unsubscribeLoans: (() => void) | null = null;
     try {
@@ -77,11 +87,32 @@ export const AdminPage = () => {
       setLoading(false);
     }
 
+    // Listen for pending deposits
+    let unsubscribeDeposits: (() => void) | null = null;
+    try {
+      const depositsQuery = query(
+        collection(db, 'transactions'), 
+        where('type', '==', 'deposit'),
+        where('status', '==', 'pending')
+      );
+      unsubscribeDeposits = onSnapshot(depositsQuery, (snapshot) => {
+        const depositData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPendingDeposits(depositData);
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          console.error('Error fetching pending deposits for admin:', err);
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up admin deposits listener:', err);
+    }
+
     return () => {
       if (unsubscribeLoans) unsubscribeLoans();
       if (unsubscribeKYC) unsubscribeKYC();
+      if (unsubscribeDeposits) unsubscribeDeposits();
     };
-  }, []);
+  }, [user]);
 
   const handleLoanStatusUpdate = async (loanId: string, status: string) => {
     try {
@@ -171,10 +202,63 @@ export const AdminPage = () => {
     }
   };
 
+  const handleDepositUpdate = async (depositId: string, status: 'completed' | 'rejected') => {
+    try {
+      const deposit = pendingDeposits.find(d => d.id === depositId);
+      if (!deposit) return;
+
+      // Update transaction status
+      await updateDoc(doc(db, 'transactions', depositId), {
+        status,
+        reviewedAt: serverTimestamp(),
+        reviewedBy: user?.email,
+      });
+
+      if (status === 'completed') {
+        // Add money to user account
+        await updateDoc(doc(db, 'users', deposit.userId), {
+          walletBalance: increment(deposit.amount),
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Notify user
+      try {
+        await addDoc(collection(db, 'notifications', deposit.userId, 'items'), {
+          type: 'deposit_update',
+          title: status === 'completed' ? 'Deposit Approved' : 'Deposit Rejected',
+          message: status === 'completed' 
+            ? `Your deposit of $${deposit.amount.toLocaleString()} has been approved and added to your balance.` 
+            : `Your deposit of $${deposit.amount.toLocaleString()} was rejected. Please contact support for more information.`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+      } catch (notifyErr) {
+        console.error('Error sending notification:', notifyErr);
+      }
+
+      alert(`Deposit ${status === 'completed' ? 'approved' : 'rejected'} successfully!`);
+      setSelectedDeposit(null);
+    } catch (err: any) {
+      console.error('Error updating deposit status:', err);
+      alert(`Failed to update deposit status: ${err.message}`);
+    }
+  };
+
   const pendingLoans = loans.filter(l => l.status === 'pending');
   const inProgressLoans = loans.filter(l => ['bank_details_submitted', 'pin_sent'].includes(l.status));
   const pinVerificationLoans = loans.filter(l => l.status === 'pin_submitted');
   const totalVolume = loans.reduce((acc, l) => acc + (l.status === 'approved' || l.status === 'disbursed' ? l.amount : 0), 0);
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'N/A';
+    try {
+      if (timestamp.toDate) return timestamp.toDate().toLocaleString();
+      return new Date(timestamp).toLocaleString();
+    } catch (e) {
+      return 'N/A';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary">
@@ -262,6 +346,20 @@ export const AdminPage = () => {
             {pendingKYCs.length > 0 && (
               <span className="ml-2 bg-accent text-white text-[10px] px-1.5 py-0.5 rounded-full">
                 {pendingKYCs.length}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={() => setActiveTab('deposits')}
+            className={`pb-4 px-2 font-black uppercase tracking-widest text-sm transition-all relative ${
+              activeTab === 'deposits' ? 'text-accent' : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            Deposits
+            {activeTab === 'deposits' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-accent rounded-t-full" />}
+            {pendingDeposits.length > 0 && (
+              <span className="ml-2 bg-accent text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                {pendingDeposits.length}
               </span>
             )}
           </button>
@@ -501,6 +599,126 @@ export const AdminPage = () => {
               </div>
             </div>
           </div>
+        ) : activeTab === 'deposits' ? (
+          <div className="space-y-6">
+            <div className="card">
+              <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
+                Pending Deposits
+                <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-black">
+                  {pendingDeposits.length}
+                </span>
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-sm uppercase tracking-wider">
+                      <th className="pb-4 font-bold">User</th>
+                      <th className="pb-4 font-bold">Amount</th>
+                      <th className="pb-4 font-bold">Method</th>
+                      <th className="pb-4 font-bold">Date</th>
+                      <th className="pb-4 font-bold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                    {pendingDeposits.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-10 text-center text-gray-500">
+                          No pending deposits to review.
+                        </td>
+                      </tr>
+                    ) : (
+                      pendingDeposits.map((deposit) => (
+                        <tr key={deposit.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="py-4">
+                            <div className="font-bold dark:text-white">{deposit.userEmail}</div>
+                            <div className="text-xs text-gray-400 font-mono">{deposit.userId}</div>
+                          </td>
+                          <td className="py-4 font-bold text-accent">${deposit.amount.toLocaleString()}</td>
+                          <td className="py-4 text-gray-500">{deposit.method}</td>
+                          <td className="py-4 text-gray-500">{formatDate(deposit.createdAt)}</td>
+                          <td className="py-4 text-right">
+                            <button 
+                              onClick={() => setSelectedDeposit(deposit)}
+                              className="btn-secondary px-4 py-2 text-xs flex items-center gap-2 ml-auto"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Review Proof
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Deposit Review Detail */}
+            <AnimatePresence>
+              {selectedDeposit && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className="card border-2 border-accent/20"
+                >
+                  <div className="flex justify-between items-start mb-8">
+                    <div>
+                      <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">Reviewing Deposit: ${selectedDeposit.amount}</h3>
+                      <p className="text-gray-500">User: {selectedDeposit.userEmail} | Method: {selectedDeposit.method}</p>
+                    </div>
+                    <button onClick={() => setSelectedDeposit(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
+                      <XCircle className="w-6 h-6 text-gray-400" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-accent">Transaction Details</h4>
+                      <div className="bg-gray-50 dark:bg-zinc-900 p-6 rounded-2xl space-y-4 border border-gray-100 dark:border-zinc-800">
+                        <DetailItem label="Amount" value={`$${selectedDeposit.amount.toLocaleString()}`} />
+                        <DetailItem label="Method" value={selectedDeposit.method} />
+                        <DetailItem label="User Email" value={selectedDeposit.userEmail} />
+                        <DetailItem label="Date Submitted" value={formatDate(selectedDeposit.createdAt)} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-accent">Proof of Payment</h4>
+                      <div className="bg-gray-50 dark:bg-zinc-900 p-2 rounded-2xl border border-gray-100 dark:border-zinc-800 overflow-hidden">
+                        {selectedDeposit.proofOfPayment ? (
+                          <img 
+                            src={selectedDeposit.proofOfPayment} 
+                            alt="Proof of Payment" 
+                            className="w-full h-auto rounded-xl shadow-lg cursor-zoom-in"
+                            onClick={() => window.open(selectedDeposit.proofOfPayment, '_blank')}
+                          />
+                        ) : (
+                          <div className="py-20 text-center text-gray-400 italic">No proof image provided</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-4 pt-8 border-t border-gray-100 dark:border-zinc-800">
+                    <button 
+                      onClick={() => handleDepositUpdate(selectedDeposit.id, 'rejected')}
+                      className="btn-secondary px-8 py-3 text-red-500 border-red-100 hover:bg-red-50"
+                    >
+                      Reject Deposit
+                    </button>
+                    <button 
+                      onClick={() => handleDepositUpdate(selectedDeposit.id, 'completed')}
+                      className="btn-primary px-8 py-3 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20"
+                    >
+                      Approve & Add Funds
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         ) : (
           <div className="space-y-6">
             <div className="card">
@@ -543,7 +761,7 @@ export const AdminPage = () => {
                           </td>
                           <td className="py-4 font-bold dark:text-white">{kyc.fullName}</td>
                           <td className="py-4 text-gray-500">
-                            {kyc.kycSubmittedAt ? new Date(kyc.kycSubmittedAt).toLocaleDateString() : 'N/A'}
+                            {kyc.kycSubmittedAt?.toDate ? kyc.kycSubmittedAt.toDate().toLocaleDateString() : kyc.kycSubmittedAt ? new Date(kyc.kycSubmittedAt).toLocaleDateString() : 'N/A'}
                           </td>
                           <td className="py-4 text-right">
                             <button 
@@ -672,9 +890,9 @@ export const AdminPage = () => {
                 </DetailSection>
 
                 <DetailSection title="Timestamps">
-                  <DetailItem label="Applied" value={selectedLoan.createdAt?.toDate?.().toLocaleString()} />
-                  <DetailItem label="Bank Submitted" value={selectedLoan.bankSubmittedAt?.toDate?.().toLocaleString()} />
-                  <DetailItem label="PIN Verified" value={selectedLoan.pinSubmittedAt?.toDate?.().toLocaleString()} />
+                  <DetailItem label="Applied" value={formatDate(selectedLoan.createdAt)} />
+                  <DetailItem label="Bank Submitted" value={formatDate(selectedLoan.bankSubmittedAt)} />
+                  <DetailItem label="PIN Verified" value={formatDate(selectedLoan.pinSubmittedAt)} />
                 </DetailSection>
               </div>
 

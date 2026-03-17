@@ -7,7 +7,7 @@ import {
   browserPopupRedirectResolver,
   indexedDBLocalPersistence
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -56,7 +56,11 @@ if (missingKeys.length > 0) {
     auth = getAuth(app);
   }
   
-  db = getFirestore(app);
+  // Initialize Firestore with settings to prevent internal assertion failures in iframe/proxy environments
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  });
+  
   storage = getStorage(app);
   isConfigured = true;
 }

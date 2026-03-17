@@ -69,7 +69,7 @@ export const LandingPage = () => {
       a: "We understand that life happens. If you think you'll miss a payment, please contact your Personal Account Manager immediately to discuss options."
     },
     {
-      q: "Is my data secure with beehide?",
+      q: "Is my data secure with Beehive?",
       a: "Absolutely. We use bank-level 256-bit encryption and follow strict data protection protocols to ensure your information is always safe."
     }
   ];
@@ -173,8 +173,8 @@ export const LandingPage = () => {
             transition={{ delay: 0.1 }}
             className="text-5xl md:text-8xl font-black tracking-tighter mb-6 leading-none dark:text-white max-w-4xl"
           >
-            FAST, SIMPLE <br />
-            <span className="text-accent">PERSONAL LOANS</span>
+            YOUR COMPLETE <br />
+            <span className="text-accent">DIGITAL BANK</span>
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
@@ -182,8 +182,8 @@ export const LandingPage = () => {
             transition={{ delay: 0.2 }}
             className="text-xl md:text-2xl text-gray-500 mb-10 max-w-2xl"
           >
-            Get approved in 24 hours. Funds delivered straight to your account. 
-            No paperwork, no stress.
+            Save, invest, borrow, and swap. Beehive is the only financial app you'll ever need. 
+            From instant loans to global currency swaps.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -322,20 +322,20 @@ export const LandingPage = () => {
             <Step 
               number="01"
               icon={<UserCheck className="w-10 h-10" />}
-              title="Create Account"
-              description="Sign up in seconds with just your basic details and identification."
+              title="Open Account"
+              description="Sign up in seconds and get your virtual card instantly."
             />
             <Step 
               number="02"
-              icon={<FileText className="w-10 h-10" />}
-              title="Apply for Loan"
-              description="Choose your amount and duration. No paperwork required."
+              icon={<DollarSign className="w-10 h-10" />}
+              title="Manage Wealth"
+              description="Deposit, invest, or swap currencies with zero hidden fees."
             />
             <Step 
               number="03"
               icon={<CreditCard className="w-10 h-10" />}
-              title="Receive Funds"
-              description="Once approved, money is sent instantly to your bank account."
+              title="Spend & Borrow"
+              description="Use your card globally or apply for instant loans when you need them."
             />
           </div>
         </div>
@@ -348,14 +348,14 @@ export const LandingPage = () => {
             <div className="max-w-2xl">
               <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">
                 WHY CHOOSE <br />
-                <span className="text-accent uppercase">beehide loans?</span>
+                <span className="text-accent uppercase">Beehive Bank?</span>
               </h2>
               <p className="text-xl text-gray-400">
-                We've redesigned the lending experience from the ground up to be 
-                fair, fast, and focused on your needs.
+                We've redesigned the banking experience from the ground up to be 
+                fair, fast, and focused on your financial freedom.
               </p>
             </div>
-            <Link to="/auth/signup" className="btn-primary px-8 py-4">Join beehide Today</Link>
+            <Link to="/auth/signup" className="btn-primary px-8 py-4">Join Beehive Today</Link>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -393,17 +393,17 @@ export const LandingPage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             <TestimonialCard 
               name="Ahmed Mansour"
-              quote="beehide saved my business when I needed urgent stock. The process was so smooth, I couldn't believe it."
+              quote="Beehive saved my business when I needed urgent stock. The process was so smooth, I couldn't believe it."
               image="https://picsum.photos/seed/ahmed/100/100"
             />
             <TestimonialCard 
               name="Fatima Al-Sayed"
-              quote="Finally, a loan app that doesn't harass you. The interest rates are fair and the support team is amazing."
+              quote="Finally, a bank app that doesn't harass you. The currency swap and investments are game changers."
               image="https://picsum.photos/seed/fatima/100/100"
             />
             <TestimonialCard 
               name="Omar Hassan"
-              quote="I've tried many apps, but beehide is the fastest. Funds were in my account in less than 30 minutes."
+              quote="I've tried many apps, but Beehive is the fastest. Swapping currency and sending money is instant."
               image="https://picsum.photos/seed/omar/100/100"
             />
           </div>
@@ -488,7 +488,7 @@ export const LandingPage = () => {
           </div>
 
           <div className="pt-12 border-t border-gray-100 dark:border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
-            <p className="text-gray-400 text-sm">© 2026 beehide Loans. All rights reserved.</p>
+            <p className="text-gray-400 text-sm">© 2026 Beehive Bank. All rights reserved.</p>
             <div className="flex gap-8 text-sm font-bold text-gray-400">
               <a href="#" className="hover:text-accent transition-colors">Privacy Policy</a>
               <a href="#" className="hover:text-accent transition-colors">Terms of Service</a>

@@ -9,7 +9,13 @@ import {
   ShieldAlert, 
   ShieldEllipsis,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  ArrowUpRight,
+  ArrowDownLeft,
+  CreditCard,
+  RefreshCw,
+  Award,
+  Heart
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -30,16 +36,16 @@ export const DashboardPage = () => {
       bg: 'bg-accent/10'
     },
     {
-      label: 'Loan Status',
-      value: activeLoan ? activeLoan.status.replace('_', ' ').toUpperCase() : 'NO ACTIVE LOAN',
-      icon: Clock,
-      color: 'text-yellow-500',
-      bg: 'bg-yellow-500/10'
+      label: 'Savings',
+      value: userData?.savings !== undefined ? `$${userData.savings.toLocaleString()}` : '$0',
+      icon: TrendingUp,
+      color: 'text-green-500',
+      bg: 'bg-green-500/10'
     },
     {
-      label: 'Loan Amount',
-      value: activeLoan ? `$${activeLoan.amount.toLocaleString()}` : '$0',
-      icon: TrendingUp,
+      label: 'Active Cards',
+      value: userData?.activeCards || '1',
+      icon: CreditCard,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10'
     }
@@ -104,16 +110,16 @@ export const DashboardPage = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <button 
-                onClick={() => navigate('/dashboard/repayment')}
-                className="py-4 rounded-2xl bg-white text-accent font-black uppercase tracking-widest text-xs hover:bg-opacity-90 transition-all shadow-lg shadow-black/10"
+                onClick={() => navigate('/dashboard/deposit')}
+                className="py-4 rounded-2xl bg-white text-accent font-black uppercase tracking-widest text-xs hover:bg-opacity-90 transition-all shadow-lg shadow-black/10 flex items-center justify-center gap-2"
               >
-                Withdraw
+                <ArrowDownLeft className="w-4 h-4" /> Deposit
               </button>
               <button 
-                onClick={() => navigate('/dashboard/repayment')}
-                className="py-4 rounded-2xl bg-white/20 text-white font-black uppercase tracking-widest text-xs hover:bg-white/30 transition-all backdrop-blur-md"
+                onClick={() => navigate('/dashboard/send')}
+                className="py-4 rounded-2xl bg-white/20 text-white font-black uppercase tracking-widest text-xs hover:bg-white/30 transition-all backdrop-blur-md flex items-center justify-center gap-2"
               >
-                Transfer
+                <ArrowUpRight className="w-4 h-4" /> Send
               </button>
             </div>
           </div>
@@ -221,7 +227,7 @@ export const DashboardPage = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                   <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Principal</span>
-                  <span className="text-lg font-black dark:text-white">${activeLoan.amount.toLocaleString()}</span>
+                  <span className="text-lg font-black dark:text-white">${activeLoan.amount?.toLocaleString() || '0'}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                   <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Next Action</span>
@@ -265,7 +271,34 @@ export const DashboardPage = () => {
             </button>
           )}
         </motion.div>
+
+        {/* Banking Quick Links */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4"
+        >
+          <QuickLink icon={<RefreshCw />} label="Swap" to="/dashboard/swap" />
+          <QuickLink icon={<Award />} label="Grants" to="/dashboard/grants" />
+          <QuickLink icon={<Heart />} label="Charity" to="/dashboard/charity" />
+          <QuickLink icon={<TrendingUp />} label="Invest" to="/dashboard/invest" />
+        </motion.div>
       </div>
     </div>
+  );
+};
+
+const QuickLink = ({ icon, label, to }: { icon: React.ReactNode, label: string, to: string }) => {
+  const navigate = useNavigate();
+  return (
+    <button 
+      onClick={() => navigate(to)}
+      className="card p-6 flex flex-col items-center gap-3 hover:border-accent transition-all group"
+    >
+      <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-zinc-900 flex items-center justify-center text-gray-400 group-hover:text-accent group-hover:scale-110 transition-all">
+        {icon}
+      </div>
+      <span className="text-xs font-black uppercase tracking-widest dark:text-white">{label}</span>
+    </button>
   );
 };

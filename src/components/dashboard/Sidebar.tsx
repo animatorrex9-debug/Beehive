@@ -8,7 +8,16 @@ import {
   Calendar, 
   History, 
   LogOut,
-  User
+  User,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  CreditCard,
+  TrendingUp,
+  Heart,
+  FileCheck,
+  Award,
+  RefreshCw,
+  Wallet
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { ThemeToggle } from '../ThemeToggle';
@@ -36,6 +45,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/dashboard/accounts', icon: Wallet, label: 'Accounts & Balance' },
+    { to: '/dashboard/deposit', icon: ArrowDownCircle, label: 'Deposit Money' },
+    { to: '/dashboard/send', icon: ArrowUpCircle, label: 'Send Money' },
+    { to: '/dashboard/cards', icon: CreditCard, label: 'Virtual Cards' },
+    { to: '/dashboard/invest', icon: TrendingUp, label: 'Invest' },
+    { to: '/dashboard/swap', icon: RefreshCw, label: 'Currency Swap' },
+    { to: '/dashboard/tax', icon: FileCheck, label: 'Tax Refunds' },
+    { to: '/dashboard/charity', icon: Heart, label: 'Donate to Charity' },
+    { to: '/dashboard/grants', icon: Award, label: 'Grants' },
     { to: '/dashboard/loan-application', icon: FileText, label: 'Loan Application' },
     { 
       to: '/dashboard/loan-status', 

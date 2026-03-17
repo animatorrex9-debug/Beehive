@@ -92,7 +92,24 @@ export const NotificationCenter: React.FC = () => {
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return 'Just now';
-    const date = timestamp.toDate();
+    
+    let date: Date;
+    if (typeof timestamp.toDate === 'function') {
+      date = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      date = timestamp;
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else if (timestamp.seconds) {
+      date = new Date(timestamp.seconds * 1000);
+    } else {
+      return 'Recently';
+    }
+
+    if (isNaN(date.getTime())) return 'Recently';
+
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
