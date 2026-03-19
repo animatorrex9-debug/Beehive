@@ -25,7 +25,16 @@ export const DashboardPage = () => {
   const { activeLoan } = useOutletContext<{ activeLoan: any }>();
   const navigate = useNavigate();
 
+  const [message, setMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
   const kycStatus = userData?.kycStatus || 'unverified';
+
+  React.useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   const stats = [
     {
@@ -54,11 +63,25 @@ export const DashboardPage = () => {
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="lg:hidden"
-      >
+      <div className="flex flex-col gap-4">
+        {message && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`p-4 rounded-2xl text-sm font-bold uppercase tracking-widest flex items-center gap-3 ${
+              message.type === 'success' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+            }`}
+          >
+            {message.type === 'success' ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+            {message.text}
+          </motion.div>
+        )}
+
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:hidden"
+        >
         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
           Welcome back,
         </p>
@@ -66,6 +89,7 @@ export const DashboardPage = () => {
           {userData?.fullName || user?.email?.split('@')[0]}
         </h2>
       </motion.div>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -119,7 +143,7 @@ export const DashboardPage = () => {
                 onClick={() => navigate('/dashboard/send')}
                 className="py-4 rounded-2xl bg-white/20 text-white font-black uppercase tracking-widest text-xs hover:bg-white/30 transition-all backdrop-blur-md flex items-center justify-center gap-2"
               >
-                <ArrowUpRight className="w-4 h-4" /> Send
+                <ArrowUpRight className="w-4 h-4" /> Transfer
               </button>
             </div>
           </div>
@@ -248,8 +272,8 @@ export const DashboardPage = () => {
                     if (kycStatus === 'verified') {
                       navigate('/dashboard/loan-application');
                     } else {
-                      alert('Please complete your Identity Verification (KYC) before applying for a loan.');
-                      navigate('/dashboard/kyc');
+                      setMessage({ text: 'Please complete your Identity Verification (KYC) before applying for a loan.', type: 'error' });
+                      setTimeout(() => navigate('/dashboard/kyc'), 2000);
                     }
                   }}
                   className="btn-primary px-8 py-3 rounded-2xl text-sm flex items-center gap-2 mx-auto"

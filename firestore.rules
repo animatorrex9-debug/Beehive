@@ -14,18 +14,18 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == "animatorrex9@gmail.com" ||
+        (request.auth.token.email == "animatorrex9@gmail.com" && request.auth.token.email_verified == true) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    function isDocOwner(data) {
+      return isAuthenticated() && request.auth.uid == data.userId;
     }
 
-    function isRequestOwner() {
-      return isAuthenticated() && request.auth.uid == request.resource.data.userId;
+    function isRequestOwner(data) {
+      return isAuthenticated() && request.auth.uid == data.userId;
     }
 
     // ===============================================================
@@ -34,27 +34,52 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) || isAdmin();
       allow update: if isOwner(userId) || isAdmin();
     }
 
     match /transactions/{transactionId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isDocOwner(resource.data) || isAdmin();
+      allow create: if isRequestOwner(request.resource.data) || isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /loans/{loanId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow read: if isDocOwner(resource.data) || isAdmin();
+      allow create: if isRequestOwner(request.resource.data) || isAdmin();
+      allow update: if isDocOwner(resource.data) || isAdmin();
       allow delete: if isAdmin();
     }
 
+    match /notifications/{userId}/items/{itemId} {
+      allow read: if isOwner(userId) || isAdmin() || userId == 'admin';
+      allow create: if isOwner(userId) || isAdmin() || userId == 'admin';
+      allow update: if isOwner(userId) || isAdmin() || userId == 'admin';
+      allow delete: if isAdmin();
+    }
+
+    match /grants/{grantId} {
+      allow read: if isDocOwner(resource.data) || isAdmin();
+      allow create: if isRequestOwner(request.resource.data) || isAdmin();
+      allow update: if isAdmin();
+    }
+
+    match /tax_filings/{filingId} {
+      allow read: if isDocOwner(resource.data) || isAdmin();
+      allow create: if isRequestOwner(request.resource.data) || isAdmin();
+      allow update: if isAdmin();
+    }
+
+    match /donations/{donationId} {
+      allow read: if isDocOwner(resource.data) || isAdmin();
+      allow create: if isRequestOwner(request.resource.data) || isAdmin();
+      allow update: if isAdmin();
+    }
+
     match /messages/{messageId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isDocOwner(resource.data) || isAdmin();
+      allow create: if isRequestOwner(request.resource.data) || isAdmin();
     }
   }
 }

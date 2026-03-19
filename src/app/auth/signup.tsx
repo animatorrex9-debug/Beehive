@@ -29,6 +29,7 @@ export const SignupPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export const SignupPage = () => {
         fullName,
         email,
         phone,
-        role: 'user',
+        role: email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
         kycStatus: 'unverified',
         walletBalance: 0,
         savings: 0,
@@ -145,7 +146,10 @@ export const SignupPage = () => {
       else if (errCode === 'auth/weak-password' || errMsg.includes('weak-password')) msg = 'Password is too weak.';
       else if (errCode === 'auth/invalid-email' || errMsg.includes('invalid-email')) msg = 'Invalid email address.';
       else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
-      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. This is often caused by ad-blockers, VPNs, or incorrect Firebase settings. Please try disabling extensions or use Incognito mode.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) {
+        msg = 'Network error. This is often caused by incorrect Firebase settings or missing Authorized Domains in your Firebase console.';
+        setShowSetupGuide(true);
+      }
       else msg = errMsg || msg;
       
       setError(msg);
@@ -173,7 +177,7 @@ export const SignupPage = () => {
           fullName: user.displayName || '',
           email: user.email || '',
           phone: user.phoneNumber || '',
-          role: 'user',
+          role: user.email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
           kycStatus: 'unverified',
           walletBalance: 0,
           savings: 0,
@@ -191,7 +195,20 @@ export const SignupPage = () => {
     }
   };
 
-  if (!isConfigured) return <FirebaseSetupGuide />;
+  if (!isConfigured || showSetupGuide) return (
+    <div className="relative">
+      {showSetupGuide && (
+        <button 
+          onClick={() => setShowSetupGuide(false)}
+          className="absolute top-6 left-6 z-50 bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl backdrop-blur-sm transition-colors flex items-center gap-2 font-bold"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to Signup
+        </button>
+      )}
+      <FirebaseSetupGuide />
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-primary py-12">

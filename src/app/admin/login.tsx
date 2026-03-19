@@ -3,18 +3,20 @@ import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
-import { Mail, Lock, AlertCircle, ShieldCheck } from 'lucide-react';
+import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
+import { Mail, Lock, AlertCircle, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 export const AdminLoginPage = () => {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,7 +61,10 @@ export const AdminLoginPage = () => {
       if (errCode === 'auth/user-not-found' || errMsg.includes('user-not-found')) msg = 'No admin account found with this email.';
       else if (errCode === 'auth/wrong-password' || errMsg.includes('wrong-password')) msg = 'Incorrect password.';
       else if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) msg = 'Invalid email or password.';
-      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. Please check your internet connection or Firebase configuration.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) {
+        msg = 'Network error. This is often caused by incorrect Firebase configuration or missing Authorized Domains.';
+        setShowSetupGuide(true);
+      }
       else msg = errMsg || msg;
       
       setError(msg);
@@ -68,6 +73,21 @@ export const AdminLoginPage = () => {
     }
   };
 
+  if (!isConfigured || showSetupGuide) return (
+    <div className="relative">
+      {showSetupGuide && (
+        <button 
+          onClick={() => setShowSetupGuide(false)}
+          className="absolute top-6 left-6 z-50 bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl backdrop-blur-sm transition-colors flex items-center gap-2 font-bold"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to Admin Login
+        </button>
+      )}
+      <FirebaseSetupGuide />
+    </div>
+  );
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-primary">
       <div className="absolute top-6 left-6">

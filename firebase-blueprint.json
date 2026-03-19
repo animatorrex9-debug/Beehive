@@ -11,7 +11,25 @@
         "walletBalance": { "type": "number" },
         "savings": { "type": "number" },
         "activeCards": { "type": "number" },
-        "activeLoanId": { "type": "string" }
+        "activeLoanId": { "type": "string" },
+        "bankDetails": {
+          "type": "object",
+          "properties": {
+            "bankName": { "type": "string" },
+            "accountNumber": { "type": "string" },
+            "accountName": { "type": "string" },
+            "routingNumber": { "type": "string" }
+          }
+        },
+        "cardDetails": {
+          "type": "object",
+          "properties": {
+            "cardNumber": { "type": "string" },
+            "expiryDate": { "type": "string" },
+            "cvv": { "type": "string" },
+            "pin": { "type": "string" }
+          }
+        }
       },
       "required": ["fullName", "email"]
     },

@@ -11,19 +11,21 @@ export const DebugControls = () => {
   const { user, isAdmin, reloadUser } = useAuth();
   const navigate = useNavigate();
   const [isPromoting, setIsPromoting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   const promoteToAdmin = async () => {
     if (!user) return;
     setIsPromoting(true);
+    setMessage(null);
     try {
       await updateDoc(doc(db, 'users', user.uid), {
         role: 'admin'
       });
       await reloadUser();
-      alert('User promoted to Admin! You can now access the admin panel.');
+      setMessage('User promoted to Admin! You can now access the admin panel.');
     } catch (err) {
       console.error('Error promoting user:', err);
-      alert('Failed to promote user. Make sure you are logged in.');
+      setMessage('Failed to promote user. Make sure you are logged in.');
     } finally {
       setIsPromoting(false);
     }
@@ -50,6 +52,13 @@ export const DebugControls = () => {
             </div>
 
             <div className="space-y-2">
+              {message && (
+                <div className={`p-3 rounded-xl text-[10px] font-bold uppercase tracking-wider mb-2 ${
+                  message.includes('Failed') ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'
+                }`}>
+                  {message}
+                </div>
+              )}
               <button
                 onClick={() => {
                   navigate('/admin/login');

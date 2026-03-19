@@ -39,6 +39,12 @@ export const DashboardLayout: React.FC = () => {
             setLatestNotification(notification);
           }
         }
+      }, (err) => {
+        if (err.code === 'permission-denied') {
+          console.warn('Permission denied for notifications listener. This is expected if the user document is not yet fully initialized.');
+          return;
+        }
+        console.error('Error in notifications snapshot listener:', err);
       });
     } catch (err) {
       console.error('Error setting up notifications listener:', err);

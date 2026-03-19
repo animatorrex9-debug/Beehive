@@ -17,7 +17,8 @@ import {
   FileCheck,
   Award,
   RefreshCw,
-  Wallet
+  Wallet,
+  Settings
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { ThemeToggle } from '../ThemeToggle';
@@ -78,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       locked: !isLoanDisbursed
     },
     { to: '/dashboard/history', icon: History, label: 'Loan History' },
+    { to: '/dashboard/settings', icon: Settings, label: 'Profile Settings' },
   ];
 
   const kycStatus = userData?.kycStatus || 'unverified';

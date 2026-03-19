@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, 
   FileText, 
   CheckCircle, 
   MessageSquare, 
   Wallet,
-  History
+  History,
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -21,7 +24,15 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 }) => {
   const { userData } = useAuth();
   const navigate = useNavigate();
+  const [message, setMessage] = useState<string | null>(null);
   const kycStatus = userData?.kycStatus || 'unverified';
+
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
@@ -33,8 +44,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       onClick: (e: React.MouseEvent) => {
         if (kycStatus !== 'verified') {
           e.preventDefault();
-          alert('Please complete your Identity Verification (KYC) before applying for a loan.');
-          navigate('/dashboard/kyc');
+          setMessage('Please complete your Identity Verification (KYC) before applying for a loan.');
+          setTimeout(() => navigate('/dashboard/kyc'), 2000);
         }
       }
     },
@@ -54,11 +65,26 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         </span>
       ) : null
     },
-    { to: '/dashboard/history', icon: History, label: 'History' },
+    { to: '/dashboard/settings', icon: Settings, label: 'Settings' },
   ];
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-950 border-t border-gray-200 dark:border-zinc-800 px-2 py-2 flex justify-around items-center z-50 pb-safe">
+    <>
+      <AnimatePresence>
+        {message && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="lg:hidden fixed bottom-20 left-4 right-4 bg-red-500 text-white p-4 rounded-2xl shadow-2xl z-[60] flex items-center gap-3 text-xs font-bold uppercase tracking-widest"
+          >
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            {message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-950 border-t border-gray-200 dark:border-zinc-800 px-2 py-2 flex justify-around items-center z-50 pb-safe">
       {navItems.map((item) => (
         <NavLink
           key={item.to}
@@ -79,5 +105,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         </NavLink>
       ))}
     </nav>
+    </>
   );
 };

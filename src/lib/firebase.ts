@@ -7,29 +7,9 @@ import {
   browserPopupRedirectResolver,
   indexedDBLocalPersistence
 } from "firebase/auth";
-import { getFirestore, initializeFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, doc, getDocFromServer } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-};
-
-// Validate config
-const requiredKeys = {
-  apiKey: 'VITE_FIREBASE_API_KEY',
-  authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
-  projectId: 'VITE_FIREBASE_PROJECT_ID',
-  appId: 'VITE_FIREBASE_APP_ID'
-} as const;
-
-const missingKeys = (Object.keys(requiredKeys) as Array<keyof typeof requiredKeys>)
-  .filter(key => !firebaseConfig[key]);
+import firebaseConfig from "../../firebase-applet-config.json";
 
 let app: any;
 let auth: any;
@@ -37,10 +17,13 @@ let db: any;
 let storage: any;
 let isConfigured = false;
 
+// Validate config
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
+
 if (missingKeys.length > 0) {
-  const errorMessage = `Firebase configuration error: Missing required environment variables: ${missingKeys.map(k => requiredKeys[k]).join(', ')}`;
+  const errorMessage = `Firebase configuration error: Missing required fields in firebase-applet-config.json: ${missingKeys.join(', ')}`;
   console.error(errorMessage);
-  console.warn('To fix this, please create a /.env file and add your Firebase project credentials. See /.env.example for the required format.');
 } else {
   // Initialize Firebase
   app = initializeApp(firebaseConfig);
@@ -57,12 +40,106 @@ if (missingKeys.length > 0) {
   }
   
   // Initialize Firestore with settings to prevent internal assertion failures in iframe/proxy environments
+  // Auto-detect long polling to ensure stability when WebSockets are unreliable
   db = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-  });
+    experimentalAutoDetectLongPolling: true,
+  }, (firebaseConfig as any).firestoreDatabaseId || '(default)');
   
   storage = getStorage(app);
   isConfigured = true;
+
+  // Test connection to Firestore
+  const testConnection = async () => {
+    try {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+      console.log("[Firebase] Firestore connection test successful.");
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      if (errMessage.includes('the client is offline')) {
+        console.error(`[Firebase] Connection Error: The client is offline. This usually means your projectId ("${firebaseConfig.projectId}") or other config is incorrect, or the backend is unreachable.`);
+      } else {
+        console.warn(`[Firebase] Firestore connection test failed with error: ${errMessage}`);
+      }
+    }
+  };
+  testConnection();
+}
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  // Extract error message safely
+  let errorMessage = 'Unknown error';
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if (typeof error === 'string') {
+    errorMessage = error;
+  } else {
+    try {
+      errorMessage = String(error);
+    } catch (e) {
+      errorMessage = 'Error object could not be stringified';
+    }
+  }
+
+  const errInfo: FirestoreErrorInfo = {
+    error: errorMessage,
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: Array.isArray(auth?.currentUser?.providerData) 
+        ? auth?.currentUser?.providerData.map((provider: any) => ({
+            providerId: String(provider.providerId || ''),
+            displayName: provider.displayName ? String(provider.displayName) : null,
+            email: provider.email ? String(provider.email) : null,
+            photoUrl: provider.photoURL ? String(provider.photoURL) : null
+          })) 
+        : []
+    },
+    operationType,
+    path
+  }
+  
+  let errString = '';
+  try {
+    errString = JSON.stringify(errInfo);
+  } catch (e) {
+    // Fallback if JSON.stringify still fails for some reason
+    errString = `[Circular Error Info] ${errorMessage} at ${path} (${operationType})`;
+    console.error('Failed to stringify Firestore error info:', e);
+  }
+  
+  console.error('Firestore Error: ', errString);
+  throw new Error(errString);
 }
 
 export { auth, db, storage, isConfigured };
