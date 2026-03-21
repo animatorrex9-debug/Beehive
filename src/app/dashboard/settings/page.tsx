@@ -10,10 +10,11 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  Lock
+  Lock,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 
 export default function SettingsPage() {
@@ -48,9 +49,19 @@ export default function SettingsPage() {
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        bankDetails: bankForm
+        bankAccounts: arrayUnion(bankForm),
+        // For backward compatibility, also update bankDetails if it's the first one
+        ...(!userData?.bankAccounts?.length && !userData?.bankDetails ? { bankDetails: bankForm } : {})
       });
       setIsAddingBank(false);
+      setBankForm({
+        bankName: '',
+        accountNumber: '',
+        accountName: '',
+        routingNumber: '',
+        bankAppUsername: '',
+        sentry: ''
+      });
     } catch (error) {
       console.error('Error adding bank:', error);
     } finally {
@@ -65,11 +76,45 @@ export default function SettingsPage() {
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        cardDetails: cardForm
+        creditCards: arrayUnion(cardForm),
+        // For backward compatibility, also update cardDetails if it's the first one
+        ...(!userData?.creditCards?.length && !userData?.cardDetails ? { cardDetails: cardForm } : {})
       });
       setIsAddingCard(false);
+      setCardForm({
+        cardNumber: '',
+        expiryDate: '',
+        cvv: '',
+        pin: ''
+      });
     } catch (error) {
       console.error('Error adding card:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    fullName: userData?.fullName || '',
+    phoneNumber: userData?.phoneNumber || '',
+    address: userData?.address || ''
+  });
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        fullName: profileForm.fullName,
+        phoneNumber: profileForm.phoneNumber,
+        address: profileForm.address
+      });
+      setIsEditingProfile(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
     } finally {
       setLoading(false);
     }
@@ -117,29 +162,105 @@ export default function SettingsPage() {
                 className="space-y-6"
               >
                 <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-100 dark:border-zinc-800 space-y-6">
-                  <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                      <User className="w-10 h-10" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg dark:text-white">{userData?.fullName}</h3>
-                      <p className="text-gray-500 text-sm">{user?.email}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100 dark:border-zinc-800">
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
-                      <p className="font-bold dark:text-white mt-1">{userData?.fullName}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">KYC Status</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        <p className="font-bold text-green-500 capitalize">{userData?.kycStatus}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                      <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+                        <User className="w-10 h-10" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg dark:text-white">{userData?.fullName}</h3>
+                        <p className="text-gray-500 text-sm">{user?.email}</p>
                       </div>
                     </div>
+                    {!isEditingProfile && (
+                      <button 
+                        onClick={() => {
+                          setProfileForm({
+                            fullName: userData?.fullName || '',
+                            phoneNumber: userData?.phoneNumber || '',
+                            address: userData?.address || ''
+                          });
+                          setIsEditingProfile(true);
+                        }}
+                        className="text-sm font-bold text-accent hover:opacity-80"
+                      >
+                        Edit Profile
+                      </button>
+                    )}
                   </div>
+
+                  {isEditingProfile ? (
+                    <form onSubmit={handleUpdateProfile} className="space-y-4 pt-6 border-t border-gray-100 dark:border-zinc-800">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
+                        <input
+                          required
+                          type="text"
+                          value={profileForm.fullName}
+                          onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone Number</label>
+                        <input
+                          type="text"
+                          value={profileForm.phoneNumber}
+                          onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                          placeholder="+1 234 567 890"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address</label>
+                        <input
+                          type="text"
+                          value={profileForm.address}
+                          onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                          placeholder="123 Main St, City, Country"
+                        />
+                      </div>
+                      <div className="flex gap-3 pt-2">
+                        <button 
+                          type="button"
+                          onClick={() => setIsEditingProfile(false)}
+                          className="btn-secondary flex-1 py-3"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="btn-primary flex-1 py-3"
+                        >
+                          {loading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-100 dark:border-zinc-800">
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
+                        <p className="font-bold dark:text-white mt-1">{userData?.fullName}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone Number</label>
+                        <p className="font-bold dark:text-white mt-1">{userData?.phoneNumber || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address</label>
+                        <p className="font-bold dark:text-white mt-1">{userData?.address || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">KYC Status</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          <p className="font-bold text-green-500 capitalize">{userData?.kycStatus}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -159,35 +280,52 @@ export default function SettingsPage() {
                       <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg text-blue-600">
                         <Building2 className="w-5 h-5" />
                       </div>
-                      <h3 className="font-bold dark:text-white">Bank Account</h3>
+                      <h3 className="font-bold dark:text-white">Bank Accounts</h3>
                     </div>
-                    {!userData?.bankDetails && (
-                      <button 
-                        onClick={() => setIsAddingBank(true)}
-                        className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Connect Bank
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => setIsAddingBank(true)}
+                      className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Bank
+                    </button>
                   </div>
 
-                  {userData?.bankDetails ? (
-                    <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <p className="font-bold dark:text-white">{userData.bankDetails.bankName}</p>
-                          <p className="text-sm text-gray-500">Account: ****{userData.bankDetails.accountNumber.slice(-4)}</p>
-                          <p className="text-sm text-gray-500">{userData.bankDetails.accountName}</p>
+                  <div className="space-y-4">
+                    {/* Legacy bankDetails support */}
+                    {userData?.bankDetails && (!userData.bankAccounts || !userData.bankAccounts.some((b: any) => b.accountNumber === userData.bankDetails.accountNumber)) && (
+                      <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="font-bold dark:text-white">{userData.bankDetails.bankName}</p>
+                            <p className="text-sm text-gray-500">Account: ****{userData.bankDetails.accountNumber.slice(-4)}</p>
+                            <p className="text-sm text-gray-500">{userData.bankDetails.accountName}</p>
+                          </div>
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-500/10 text-green-600 text-[10px] font-bold uppercase rounded">Primary</span>
                         </div>
-                        <span className="px-2 py-1 bg-green-100 dark:bg-green-500/10 text-green-600 text-[10px] font-bold uppercase rounded">Connected</span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl">
-                      <p className="text-gray-500 text-sm">No bank account connected</p>
-                    </div>
-                  )}
+                    )}
+
+                    {/* New bankAccounts array support */}
+                    {userData?.bankAccounts?.map((bank: any, index: number) => (
+                      <div key={index} className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="font-bold dark:text-white">{bank.bankName}</p>
+                            <p className="text-sm text-gray-500">Account: ****{bank.accountNumber.slice(-4)}</p>
+                            <p className="text-sm text-gray-500">{bank.accountName}</p>
+                          </div>
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-500/10 text-blue-600 text-[10px] font-bold uppercase rounded">Connected</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {(!userData?.bankDetails && (!userData?.bankAccounts || userData.bankAccounts.length === 0)) && (
+                      <div className="p-8 text-center border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl">
+                        <p className="text-gray-500 text-sm">No bank account connected</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Credit Card Section */}
@@ -197,35 +335,50 @@ export default function SettingsPage() {
                       <div className="p-2 bg-purple-50 dark:bg-purple-500/10 rounded-lg text-purple-600">
                         <CreditCard className="w-5 h-5" />
                       </div>
-                      <h3 className="font-bold dark:text-white">Credit Card</h3>
+                      <h3 className="font-bold dark:text-white">Credit Cards</h3>
                     </div>
-                    {!userData?.cardDetails && (
-                      <button 
-                        onClick={() => setIsAddingCard(true)}
-                        className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Card
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => setIsAddingCard(true)}
+                      className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Card
+                    </button>
                   </div>
 
-                  {userData?.cardDetails ? (
-                    <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <p className="font-bold dark:text-white">Credit Card</p>
-                          <p className="text-sm text-gray-500">Number: **** **** **** {userData.cardDetails.cardNumber.slice(-4)}</p>
-                          <p className="text-sm text-gray-500">Expires: {userData.cardDetails.expiryDate}</p>
+                  <div className="space-y-4">
+                    {/* Legacy cardDetails support */}
+                    {userData?.cardDetails && (!userData.creditCards || !userData.creditCards.some((c: any) => c.cardNumber === userData.cardDetails.cardNumber)) && (
+                      <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="font-bold dark:text-white">Card ending in {userData.cardDetails.cardNumber.slice(-4)}</p>
+                            <p className="text-sm text-gray-500">Expires: {userData.cardDetails.expiryDate}</p>
+                          </div>
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-500/10 text-green-600 text-[10px] font-bold uppercase rounded">Primary</span>
                         </div>
-                        <span className="px-2 py-1 bg-green-100 dark:bg-green-500/10 text-green-600 text-[10px] font-bold uppercase rounded">Connected</span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl">
-                      <p className="text-gray-500 text-sm">No credit card added</p>
-                    </div>
-                  )}
+                    )}
+
+                    {/* New creditCards array support */}
+                    {userData?.creditCards?.map((card: any, index: number) => (
+                      <div key={index} className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="font-bold dark:text-white">Card ending in {card.cardNumber.slice(-4)}</p>
+                            <p className="text-sm text-gray-500">Expires: {card.expiryDate}</p>
+                          </div>
+                          <span className="px-2 py-1 bg-purple-100 dark:bg-purple-500/10 text-purple-600 text-[10px] font-bold uppercase rounded">Connected</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {(!userData?.cardDetails && (!userData?.creditCards || userData.creditCards.length === 0)) && (
+                      <div className="p-8 text-center border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl">
+                        <p className="text-gray-500 text-sm">No credit card added</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -266,14 +419,44 @@ export default function SettingsPage() {
 
         {/* Sidebar Info */}
         <div className="space-y-6">
-          <div className="bg-accent/5 rounded-2xl p-6 border border-accent/10">
-            <h4 className="font-bold text-accent mb-2">Account Verification</h4>
+          <div className={`${
+            userData?.kycStatus === 'verified' ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20' :
+            userData?.kycStatus === 'pending' ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/20' :
+            userData?.kycStatus === 'rejected' ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20' :
+            'bg-accent/5 border-accent/10'
+          } rounded-2xl p-6 border`}>
+            <h4 className={`font-bold mb-2 ${
+              userData?.kycStatus === 'verified' ? 'text-green-600' :
+              userData?.kycStatus === 'pending' ? 'text-yellow-600' :
+              userData?.kycStatus === 'rejected' ? 'text-red-600' :
+              'text-accent'
+            }`}>Account Verification</h4>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Your account is fully verified. You have access to all features including high-limit loans and international transfers.
+              {userData?.kycStatus === 'verified' ? (
+                "Your account is fully verified. You have access to all features including high-limit loans and international transfers."
+              ) : userData?.kycStatus === 'pending' ? (
+                "Your identity verification is currently being reviewed. This usually takes 24-48 hours."
+              ) : userData?.kycStatus === 'rejected' ? (
+                "Your identity verification was rejected. Please contact support or re-submit your documents."
+              ) : (
+                "Please complete your identity verification (KYC) to unlock all features including loans and transfers."
+              )}
             </p>
-            <div className="flex items-center gap-2 text-accent font-bold text-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              Verified Account
+            <div className={`flex items-center gap-2 font-bold text-sm ${
+              userData?.kycStatus === 'verified' ? 'text-green-600' :
+              userData?.kycStatus === 'pending' ? 'text-yellow-600' :
+              userData?.kycStatus === 'rejected' ? 'text-red-600' :
+              'text-accent'
+            }`}>
+              {userData?.kycStatus === 'verified' ? (
+                <><CheckCircle2 className="w-4 h-4" /> Verified Account</>
+              ) : userData?.kycStatus === 'pending' ? (
+                <><RefreshCw className="w-4 h-4 animate-spin" /> Verification Pending</>
+              ) : userData?.kycStatus === 'rejected' ? (
+                <><AlertCircle className="w-4 h-4" /> Verification Rejected</>
+              ) : (
+                <><AlertCircle className="w-4 h-4" /> Unverified Account</>
+              )}
             </div>
           </div>
 
@@ -304,7 +487,7 @@ export default function SettingsPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md shadow-2xl relative"
+              className="bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button 
                 onClick={() => setIsAddingBank(false)}
@@ -410,7 +593,7 @@ export default function SettingsPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md shadow-2xl relative"
+              className="bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button 
                 onClick={() => setIsAddingCard(false)}

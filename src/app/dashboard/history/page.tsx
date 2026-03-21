@@ -40,14 +40,21 @@ export const HistoryPage = () => {
       try {
         const q = query(
           collection(db, 'transactions'),
-          where('userId', '==', user.uid),
-          orderBy('timestamp', 'desc')
+          where('userId', '==', user.uid)
         );
         const querySnapshot = await getDocs(q);
         const txs: Transaction[] = [];
         querySnapshot.forEach((doc) => {
           txs.push({ id: doc.id, ...doc.data() } as Transaction);
         });
+        
+        // Sort client-side to avoid index requirement
+        txs.sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        });
+        
         setTransactions(txs);
       } catch (err) {
         console.error('Error fetching transactions:', err);

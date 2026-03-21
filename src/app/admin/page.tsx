@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
@@ -50,6 +50,11 @@ export const AdminPage = () => {
   const [walletSuccess, setWalletSuccess] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
+  // Global Settings State
+  const [usdtAddress, setUsdtAddress] = useState('');
+  const [btcAddress, setBtcAddress] = useState('');
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+
   useEffect(() => {
     if (message) {
       const timer = setTimeout(() => setMessage(null), 5000);
@@ -70,6 +75,15 @@ export const AdminPage = () => {
 
   useEffect(() => {
     if (!user || !isAdmin) return;
+
+    // Listen for settings
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'wallets'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setUsdtAddress(data.usdt_address || '');
+        setBtcAddress(data.btc_address || '');
+      }
+    });
 
     // Listen for all users
     let unsubscribeUsers: (() => void) | null = null;
@@ -147,6 +161,7 @@ export const AdminPage = () => {
       if (unsubscribeLoans) unsubscribeLoans();
       if (unsubscribeKYC) unsubscribeKYC();
       if (unsubscribeDeposits) unsubscribeDeposits();
+      if (unsubscribeSettings) unsubscribeSettings();
     };
   }, [user]);
 
@@ -325,6 +340,27 @@ export const AdminPage = () => {
       setMessage({ text: `Failed to adjust wallet: ${err.message}`, type: 'error' });
     } finally {
       setIsAdjusting(false);
+    }
+  };
+
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || isUpdatingSettings) return;
+
+    setIsUpdatingSettings(true);
+    try {
+      await setDoc(doc(db, 'settings', 'wallets'), {
+        usdt_address: usdtAddress,
+        btc_address: btcAddress,
+        updatedAt: serverTimestamp(),
+        updatedBy: user?.email
+      }, { merge: true });
+      setMessage({ text: 'Wallet addresses updated successfully!', type: 'success' });
+    } catch (err: any) {
+      console.error('Error updating settings:', err);
+      setMessage({ text: `Failed to update settings: ${err.message}`, type: 'error' });
+    } finally {
+      setIsUpdatingSettings(false);
     }
   };
 
@@ -693,6 +729,59 @@ export const AdminPage = () => {
                 </motion.div>
               )}
             </form>
+
+            <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
+                  <Plus className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Deposit Wallet Addresses</h2>
+                  <p className="text-gray-500 text-sm">Update the addresses shown to users for USDT and BTC deposits</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateSettings} className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">USDT (TRC20) Address</label>
+                  <input 
+                    type="text"
+                    value={usdtAddress}
+                    onChange={(e) => setUsdtAddress(e.target.value)}
+                    placeholder="Enter TRC20 address"
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Bitcoin (BTC) Address</label>
+                  <input 
+                    type="text"
+                    value={btcAddress}
+                    onChange={(e) => setBtcAddress(e.target.value)}
+                    placeholder="Enter BTC address"
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
+                    required
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={isUpdatingSettings}
+                  className="w-full py-4 bg-accent hover:bg-accent/90 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isUpdatingSettings ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      Update Addresses
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         ) : activeTab === 'loans' ? (
           <div className="space-y-8">

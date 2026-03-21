@@ -9,7 +9,7 @@ import {
   signOut,
   sendEmailVerification
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
@@ -124,15 +124,34 @@ export const LoginPage = () => {
       let role = 'user';
 
       if (!userDoc.exists()) {
-        await setDoc(doc(db, 'users', user.uid), {
-          fullName: user.displayName || '',
-          email: user.email || '',
-          phone: user.phoneNumber || '',
-          role: 'user',
-          kycStatus: 'unverified',
-          createdAt: new Date().toISOString(),
-          emailVerified: user.emailVerified,
-        });
+        // Check if another account exists with this email but different UID
+        const q = query(collection(db, 'users'), where('email', '==', user.email));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const existingDoc = querySnapshot.docs[0];
+          console.warn(`Account mismatch detected. Email ${user.email} already has a profile with UID ${existingDoc.id}, but current UID is ${user.uid}.`);
+          // We'll use the existing profile data as a template if it's a new account, 
+          // but we still need to create a doc for the new UID because of security rules.
+          const existingData = existingDoc.data();
+          await setDoc(doc(db, 'users', user.uid), {
+            ...existingData,
+            uid: user.uid, // Ensure UID is correct for the new doc
+            createdAt: new Date().toISOString(),
+            emailVerified: user.emailVerified,
+          });
+          role = existingData.role || 'user';
+        } else {
+          await setDoc(doc(db, 'users', user.uid), {
+            fullName: user.displayName || '',
+            email: user.email || '',
+            phone: user.phoneNumber || '',
+            role: 'user',
+            kycStatus: 'unverified',
+            createdAt: new Date().toISOString(),
+            emailVerified: user.emailVerified,
+          });
+        }
       } else {
         role = userDoc.data().role;
       }

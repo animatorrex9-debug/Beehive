@@ -81,5 +81,10 @@ service cloud.firestore {
       allow read: if isDocOwner(resource.data) || isAdmin();
       allow create: if isRequestOwner(request.resource.data) || isAdmin();
     }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
   }
 }

@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDownCircle, Banknote, CreditCard, QrCode, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Bitcoin, DollarSign, Landmark, RefreshCw } from 'lucide-react';
+import { ArrowDownCircle, Banknote, CreditCard, QrCode, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Bitcoin, DollarSign, Landmark, RefreshCw, Copy } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 
@@ -17,10 +17,26 @@ export const DepositPage = () => {
   const [success, setSuccess] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [step, setStep] = useState<'method' | 'connect' | 'amount' | 'proof'>('method');
+  const [step, setStep] = useState<'method' | 'connect' | 'select' | 'amount' | 'proof'>('method');
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Global Settings
+  const [usdtAddress, setUsdtAddress] = useState('');
+  const [btcAddress, setBtcAddress] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'wallets'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setUsdtAddress(data.usdt_address || '');
+        setBtcAddress(data.btc_address || '');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Bank Form State
   const [bankForm, setBankForm] = useState({
@@ -43,17 +59,39 @@ export const DepositPage = () => {
   const handleMethodSelect = (selectedMethod: string) => {
     setMethod(selectedMethod);
     if (selectedMethod === 'Bank Transfer') {
-      if (userData?.bankDetails && userData.bankDetails.bankName) {
+      const accounts = userData?.bankAccounts || [];
+      const legacy = userData?.bankDetails;
+      const allAccounts = [...accounts];
+      if (legacy && !accounts.some((a: any) => a.accountNumber === legacy.accountNumber)) {
+        allAccounts.unshift(legacy);
+      }
+
+      if (allAccounts.length > 1) {
+        setStep('select');
+      } else if (allAccounts.length === 1) {
+        setSelectedAccount(allAccounts[0]);
         setStep('amount');
       } else {
         setStep('connect');
       }
     } else if (selectedMethod === 'Credit Card') {
-      if (userData?.cardDetails && userData.cardDetails.cardNumber) {
+      const cards = userData?.creditCards || [];
+      const legacy = userData?.cardDetails;
+      const allCards = [...cards];
+      if (legacy && !cards.some((c: any) => c.cardNumber === legacy.cardNumber)) {
+        allCards.unshift(legacy);
+      }
+
+      if (allCards.length > 1) {
+        setStep('select');
+      } else if (allCards.length === 1) {
+        setSelectedAccount(allCards[0]);
         setStep('amount');
       } else {
         setStep('connect');
       }
+    } else if (selectedMethod === 'USDT' || selectedMethod === 'Bitcoin') {
+      setStep('amount');
     } else {
       setStep('amount');
     }
@@ -65,11 +103,20 @@ export const DepositPage = () => {
     setLoading(true);
     try {
       const userRef = doc(db, 'users', user.uid);
+      const details = method === 'Bank Transfer' ? bankForm : cardForm;
+      
       if (method === 'Bank Transfer') {
-        await updateDoc(userRef, { bankDetails: bankForm });
+        await updateDoc(userRef, { 
+          bankAccounts: arrayUnion(details),
+          ...(!userData?.bankAccounts?.length && !userData?.bankDetails ? { bankDetails: details } : {})
+        });
       } else if (method === 'Credit Card') {
-        await updateDoc(userRef, { cardDetails: cardForm });
+        await updateDoc(userRef, { 
+          creditCards: arrayUnion(details),
+          ...(!userData?.creditCards?.length && !userData?.cardDetails ? { cardDetails: details } : {})
+        });
       }
+      setSelectedAccount(details);
       setStep('amount');
     } catch (err) {
       console.error('Connection error:', err);
@@ -142,6 +189,7 @@ export const DepositPage = () => {
         description: `Deposit via ${method}`,
         proofOfPayment: publicUrl || null,
         storagePath: filePath || null,
+        accountDetails: selectedAccount || null,
         createdAt: serverTimestamp(),
         timestamp: new Date().toISOString()
       });
@@ -181,7 +229,7 @@ export const DepositPage = () => {
             <RefreshCw className="w-10 h-10" />
           </motion.div>
           <h2 className="text-3xl font-black mb-4 dark:text-white">Transaction Processing</h2>
-          <p className="text-gray-500 mb-8">Your deposit is currently being processed by our system. Please wait up to 5 minutes for the funds to reflect in your balance. If you don't see it after 5 minutes, please contact our support team.</p>
+          <p className="text-gray-500 mb-8">Your deposit is currently being processed by our system. If you don't see it after 5 minutes, please contact our support team.</p>
           <button 
             onClick={() => setProcessing(false)}
             className="btn-primary w-full py-4"
@@ -205,7 +253,7 @@ export const DepositPage = () => {
             <CheckCircle2 className="w-10 h-10" />
           </div>
           <h2 className="text-3xl font-black mb-4 dark:text-white">Request Sent!</h2>
-          <p className="text-gray-500 mb-8">Your deposit request has been submitted for approval. Funds will be added to your balance once the admin verifies your payment proof.</p>
+          <p className="text-gray-500 mb-8">Your deposit request has been submitted for approval. Your transaction is currently under review and you'll be notified once it's done. Your balance will be updated automatically. If you have any issues or haven't seen the money after some time, please contact support.</p>
           <button 
             onClick={() => setSuccess(false)}
             className="btn-primary w-full py-4"
@@ -225,13 +273,13 @@ export const DepositPage = () => {
     >
       <div className="max-w-4xl mx-auto">
         {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-4 mb-12">
+        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-12 overflow-x-auto pb-4 no-scrollbar">
           <StepCircle num={1} active={step === 'method'} completed={!!method} label="Method" />
-          <div className="w-12 h-0.5 bg-gray-200 dark:bg-zinc-800" />
-          <StepCircle num={2} active={step === 'connect'} completed={step === 'amount' || step === 'proof'} label="Connect" />
-          <div className="w-12 h-0.5 bg-gray-200 dark:bg-zinc-800" />
+          <div className="w-8 sm:w-12 h-0.5 bg-gray-200 dark:bg-zinc-800 shrink-0" />
+          <StepCircle num={2} active={step === 'connect' || step === 'select'} completed={step === 'amount' || step === 'proof'} label="Connect" />
+          <div className="w-8 sm:w-12 h-0.5 bg-gray-200 dark:bg-zinc-800 shrink-0" />
           <StepCircle num={3} active={step === 'amount'} completed={parseFloat(amount) > 0} label="Amount" />
-          <div className="w-12 h-0.5 bg-gray-200 dark:bg-zinc-800" />
+          <div className="w-8 sm:w-12 h-0.5 bg-gray-200 dark:bg-zinc-800 shrink-0" />
           <StepCircle num={4} active={step === 'proof'} completed={!!proofImage} label="Proof" />
         </div>
 
@@ -263,17 +311,110 @@ export const DepositPage = () => {
                 onClick={() => handleMethodSelect('USDT')}
               />
               <DepositMethod 
-                icon={<ImageIcon className="w-8 h-8" />}
-                title="PayPal"
-                description="Secure payment via PayPal balance"
-                onClick={() => handleMethodSelect('PayPal')}
-              />
-              <DepositMethod 
                 icon={<Bitcoin className="w-8 h-8" />}
                 title="Bitcoin (BTC)"
                 description="Decentralized digital currency deposit"
                 onClick={() => handleMethodSelect('Bitcoin')}
               />
+            </motion.div>
+          )}
+
+          {step === 'select' && (
+            <motion.div 
+              key="select"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="max-w-md mx-auto w-full bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-gray-100 dark:border-zinc-800 shadow-xl"
+            >
+              <div className="mb-8">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
+                  method === 'Bank Transfer' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
+                }`}>
+                  {method === 'Bank Transfer' ? <Landmark className="w-6 h-6" /> : <CreditCard className="w-6 h-6" />}
+                </div>
+                <h2 className="text-2xl font-bold dark:text-white">Select {method}</h2>
+                <p className="text-gray-500 text-sm">Choose which account to use for this deposit</p>
+              </div>
+
+              <div className="space-y-4 mb-8">
+                {method === 'Bank Transfer' ? (
+                  <>
+                    {/* Legacy bankDetails */}
+                    {userData?.bankDetails && (!userData.bankAccounts || !userData.bankAccounts.some((b: any) => b.accountNumber === userData.bankDetails.accountNumber)) && (
+                      <button
+                        onClick={() => {
+                          setSelectedAccount(userData.bankDetails);
+                          setStep('amount');
+                        }}
+                        className="w-full p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-accent transition-all text-left group"
+                      >
+                        <p className="font-bold dark:text-white group-hover:text-accent">{userData.bankDetails.bankName}</p>
+                        <p className="text-sm text-gray-500">****{userData.bankDetails.accountNumber.slice(-4)}</p>
+                      </button>
+                    )}
+                    {/* bankAccounts array */}
+                    {userData?.bankAccounts?.map((bank: any, index: number) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setSelectedAccount(bank);
+                          setStep('amount');
+                        }}
+                        className="w-full p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-accent transition-all text-left group"
+                      >
+                        <p className="font-bold dark:text-white group-hover:text-accent">{bank.bankName}</p>
+                        <p className="text-sm text-gray-500">****{bank.accountNumber.slice(-4)}</p>
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {/* Legacy cardDetails */}
+                    {userData?.cardDetails && (!userData.creditCards || !userData.creditCards.some((c: any) => c.cardNumber === userData.cardDetails.cardNumber)) && (
+                      <button
+                        onClick={() => {
+                          setSelectedAccount(userData.cardDetails);
+                          setStep('amount');
+                        }}
+                        className="w-full p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-accent transition-all text-left group"
+                      >
+                        <p className="font-bold dark:text-white group-hover:text-accent">Card ending in {userData.cardDetails.cardNumber.slice(-4)}</p>
+                        <p className="text-sm text-gray-500">Expires: {userData.cardDetails.expiryDate}</p>
+                      </button>
+                    )}
+                    {/* creditCards array */}
+                    {userData?.creditCards?.map((card: any, index: number) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setSelectedAccount(card);
+                          setStep('amount');
+                        }}
+                        className="w-full p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-accent transition-all text-left group"
+                      >
+                        <p className="font-bold dark:text-white group-hover:text-accent">Card ending in {card.cardNumber.slice(-4)}</p>
+                        <p className="text-sm text-gray-500">Expires: {card.expiryDate}</p>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setStep('method')}
+                  className="btn-secondary flex-1 py-4"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setStep('connect')}
+                  className="btn-primary flex-[2] py-4"
+                >
+                  Add New
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -447,6 +588,49 @@ export const DepositPage = () => {
               className="max-w-md mx-auto w-full bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-gray-100 dark:border-zinc-800 shadow-xl"
             >
               <h3 className="text-xl font-black mb-6 dark:text-white">Enter Amount ({method})</h3>
+              
+              {selectedAccount && (
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Using Account:</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
+                      {method === 'Bank Transfer' ? <Landmark className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold dark:text-white">
+                        {method === 'Bank Transfer' ? selectedAccount.bankName : `Card ending in ${selectedAccount.cardNumber.slice(-4)}`}
+                      </p>
+                      <p className="text-[10px] text-gray-500 uppercase font-bold">
+                        {method === 'Bank Transfer' ? `****${selectedAccount.accountNumber.slice(-4)}` : `Expires: ${selectedAccount.expiryDate}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {(method === 'USDT' || method === 'Bitcoin') && (
+                <div className="mb-8 p-6 bg-accent/5 rounded-2xl border border-accent/10">
+                  <p className="text-xs font-black text-accent uppercase tracking-widest mb-4">Transfer to this address:</p>
+                  <div className="flex items-center gap-3 p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700 mb-4">
+                    <p className="text-sm font-mono break-all dark:text-white flex-1">
+                      {method === 'USDT' ? usdtAddress : btcAddress}
+                    </p>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(method === 'USDT' ? usdtAddress : btcAddress);
+                        // Optional: show toast
+                      }}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-lg transition-colors text-accent"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-500 leading-relaxed uppercase font-bold tracking-tighter">
+                    Please ensure you send the exact amount using the correct network ({method === 'USDT' ? 'TRC20' : 'BTC Network'}). Transfers to the wrong network will result in permanent loss of funds.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold dark:text-white">Amount (USD)</label>
@@ -463,7 +647,12 @@ export const DepositPage = () => {
                 </div>
                 <div className="flex gap-4">
                   <button 
-                    onClick={() => setStep('method')}
+                    onClick={() => {
+                      const accounts = method === 'Bank Transfer' ? (userData?.bankAccounts || []) : (userData?.creditCards || []);
+                      const legacy = method === 'Bank Transfer' ? userData?.bankDetails : userData?.cardDetails;
+                      const hasMultiple = (accounts.length + (legacy ? 1 : 0)) > 1;
+                      setStep(hasMultiple ? 'select' : 'method');
+                    }}
                     className="btn-secondary flex-1 py-4"
                   >
                     Back
@@ -564,19 +753,19 @@ const StepCircle = ({ num, active, completed, label }: { num: number, active: bo
     }`}>
       {completed ? <CheckCircle2 className="w-5 h-5" /> : num}
     </div>
-    <span className={`text-[10px] font-black uppercase tracking-widest ${active ? 'text-accent' : 'text-gray-400'}`}>{label}</span>
+    <span className={`hidden sm:block text-[10px] font-black uppercase tracking-widest ${active ? 'text-accent' : 'text-gray-400'}`}>{label}</span>
   </div>
 );
 
 const DepositMethod = ({ icon, title, description, onClick }: { icon: React.ReactNode, title: string, description: string, onClick: () => void }) => (
   <button 
     onClick={onClick}
-    className="p-8 rounded-3xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 hover:border-accent/50 transition-all text-left group"
+    className="p-6 sm:p-8 rounded-3xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 hover:border-accent/50 transition-all text-left group w-full"
   >
-    <div className="w-16 h-16 rounded-2xl bg-white dark:bg-zinc-900 text-accent shadow-sm flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
+    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white dark:bg-zinc-900 text-accent shadow-sm flex items-center justify-center mb-4 sm:mb-6 transition-transform group-hover:scale-110">
       {icon}
     </div>
-    <h3 className="text-xl font-black mb-2 dark:text-white">{title}</h3>
-    <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
+    <h3 className="text-lg sm:text-xl font-black mb-2 dark:text-white">{title}</h3>
+    <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">{description}</p>
   </button>
 );

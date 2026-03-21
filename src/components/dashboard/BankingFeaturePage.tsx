@@ -25,7 +25,7 @@ export const BankingFeaturePage: React.FC<BankingFeaturePageProps> = ({ title, d
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card p-8 md:p-12 min-h-[400px] flex flex-col"
+        className="card p-4 sm:p-8 md:p-12 min-h-[400px] flex flex-col"
       >
         {children || (
           <div className="flex-grow flex flex-col items-center justify-center text-center space-y-6">

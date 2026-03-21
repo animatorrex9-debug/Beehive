@@ -16,6 +16,7 @@ import { ChatPage } from './app/dashboard/chat/page';
 import { RepaymentPage } from './app/dashboard/repayment/page';
 import { HistoryPage } from './app/dashboard/history/page';
 import { KYCPage } from './app/dashboard/kyc/page';
+import SettingsPage from './app/dashboard/settings/page';
 import { AccountsPage } from './app/dashboard/accounts/page';
 import { DepositPage } from './app/dashboard/deposit/page';
 import { SendPage } from './app/dashboard/send/page';
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="repayment" element={<RepaymentPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="kyc" element={<KYCPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route 
               path="/admin" 

@@ -2,30 +2,58 @@ import React, { useState } from 'react';
 import { RefreshCw, ArrowRightLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCryptoPrices } from '../../../hooks/useCryptoPrices';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
+import { ChevronDown } from 'lucide-react';
 
 export const SwapPage = () => {
   const { user, userData } = useAuth();
+  const { btcPrice, usdtPrice } = useCryptoPrices();
   const [fromAmount, setFromAmount] = useState('100');
   const [fromCurrency, setFromCurrency] = useState('USD');
-  const [toCurrency, setToCurrency] = useState('EUR');
+  const [toCurrency, setToCurrency] = useState('BTC');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  const exchangeRate = 0.92;
-  const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(2);
+  const currencies = [
+    { code: 'USD', name: 'US Dollar', icon: '$' },
+    { code: 'BTC', name: 'Bitcoin', icon: '₿' },
+    { code: 'USDT', name: 'Tether', icon: '₮' },
+    { code: 'EUR', name: 'Euro', icon: '€' },
+    { code: 'GBP', name: 'British Pound', icon: '£' },
+  ];
+
+  const getPrice = (code: string) => {
+    if (code === 'USD') return 1;
+    if (code === 'BTC') return btcPrice;
+    if (code === 'USDT') return usdtPrice;
+    if (code === 'EUR') return 1.08; // Fixed for now
+    if (code === 'GBP') return 1.27; // Fixed for now
+    return 1;
+  };
+
+  const exchangeRate = getPrice(fromCurrency) / getPrice(toCurrency);
+  const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(fromCurrency === 'USD' && toCurrency === 'BTC' ? 8 : 2);
+
+  const getBalance = (code: string) => {
+    if (code === 'USD') return userData?.walletBalance || 0;
+    if (code === 'BTC') return userData?.btcBalance || 0;
+    if (code === 'USDT') return userData?.usdtBalance || 0;
+    return 0;
+  };
 
   const handleSwap = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !fromAmount || parseFloat(fromAmount) <= 0) return;
 
     const swapAmount = parseFloat(fromAmount);
+    const currentBalance = getBalance(fromCurrency);
     
-    if (userData?.walletBalance < swapAmount) {
-      setError('Insufficient funds in your wallet.');
+    if (currentBalance < swapAmount) {
+      setError(`Insufficient ${fromCurrency} balance.`);
       return;
     }
 
@@ -33,11 +61,21 @@ export const SwapPage = () => {
     setError('');
 
     try {
-      // Update user balance (simulating swap by deducting USD and adding to a virtual "EUR" balance or just updating USD)
-      // For this demo, we'll just deduct the USD and record the swap
-      await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-swapAmount)
-      });
+      const userRef = doc(db, 'users', user.uid);
+      const updates: any = {};
+
+      // Deduct from source
+      if (fromCurrency === 'USD') updates.walletBalance = increment(-swapAmount);
+      else if (fromCurrency === 'BTC') updates.btcBalance = increment(-swapAmount);
+      else if (fromCurrency === 'USDT') updates.usdtBalance = increment(-swapAmount);
+
+      // Add to destination
+      const receivedAmount = parseFloat(toAmount);
+      if (toCurrency === 'USD') updates.walletBalance = increment(receivedAmount);
+      else if (toCurrency === 'BTC') updates.btcBalance = increment(receivedAmount);
+      else if (toCurrency === 'USDT') updates.usdtBalance = increment(receivedAmount);
+
+      await updateDoc(userRef, updates);
 
       // Record transaction
       await addDoc(collection(db, 'transactions'), {
@@ -109,17 +147,26 @@ export const SwapPage = () => {
               <input 
                 type="number" 
                 required
-                min="1"
-                step="0.01"
+                min="0.00000001"
+                step="any"
                 value={fromAmount}
                 onChange={(e) => setFromAmount(e.target.value)}
-                className="input-field py-6 text-2xl font-black pr-24"
+                className="input-field py-6 text-2xl font-black pr-32"
               />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-gray-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl dark:text-white font-bold">
-                <span>{fromCurrency}</span>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <select 
+                  value={fromCurrency}
+                  onChange={(e) => setFromCurrency(e.target.value)}
+                  className="bg-gray-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl dark:text-white font-bold outline-none appearance-none cursor-pointer pr-8"
+                >
+                  {currencies.map(c => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none dark:text-white" />
               </div>
             </div>
-            <p className="text-xs text-gray-400">Available: ${userData?.walletBalance?.toLocaleString() || '0.00'}</p>
+            <p className="text-xs text-gray-400">Available: {getBalance(fromCurrency).toLocaleString()} {fromCurrency}</p>
           </div>
 
           <div className="flex justify-center">
@@ -143,10 +190,19 @@ export const SwapPage = () => {
                 type="number" 
                 value={toAmount}
                 readOnly
-                className="input-field py-6 text-2xl font-black pr-24 bg-gray-50 dark:bg-zinc-800/50"
+                className="input-field py-6 text-2xl font-black pr-32 bg-gray-50 dark:bg-zinc-800/50"
               />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-gray-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl dark:text-white font-bold">
-                <span>{toCurrency}</span>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <select 
+                  value={toCurrency}
+                  onChange={(e) => setToCurrency(e.target.value)}
+                  className="bg-gray-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl dark:text-white font-bold outline-none appearance-none cursor-pointer pr-8"
+                >
+                  {currencies.map(c => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none dark:text-white" />
               </div>
             </div>
           </div>

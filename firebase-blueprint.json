@@ -61,6 +61,15 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "amount", "duration", "status"]
+    },
+    "Settings": {
+      "title": "App Settings",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "usdt_address": { "type": "string" },
+        "btc_address": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -75,6 +84,10 @@
     "/loans/{loanId}": {
       "schema": "Loan",
       "description": "Loan applications"
+    },
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Global app settings"
     }
   }
 }

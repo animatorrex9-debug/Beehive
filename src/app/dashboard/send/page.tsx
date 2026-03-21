@@ -46,18 +46,27 @@ export const SendPage = () => {
       const q = query(
         collection(db, path),
         where('userId', '==', user.uid),
-        where('type', '==', 'send'),
-        orderBy('timestamp', 'desc'),
-        limit(5)
+        where('type', '==', 'send')
       );
       const querySnapshot = await getDocs(q);
+      const txsData: any[] = [];
+      querySnapshot.forEach((doc) => {
+        txsData.push(doc.data());
+      });
+
+      // Sort client-side to avoid index requirement
+      txsData.sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeB - timeA;
+      });
+
       const recipients: RecentRecipient[] = [];
       const seen = new Set();
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      txsData.forEach((data) => {
         const key = data.metadata?.recipient || data.metadata?.accountNumber || data.description;
-        if (!seen.has(key)) {
+        if (!seen.has(key) && recipients.length < 5) {
           recipients.push({
             recipient: data.metadata?.recipient || data.metadata?.accountNumber || '',
             type: data.transferType || 'beehive',

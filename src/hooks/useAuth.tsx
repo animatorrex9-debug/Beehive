@@ -127,7 +127,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setEmailVerified(user?.emailVerified || false);
-      if (!user) {
+      if (user) {
+        console.log(`[Auth] User detected: ${user.email} (UID: ${user.uid})`);
+        // When a user is detected, we should ensure loading is true
+        // until the userData listener has had a chance to fetch the profile
+        setLoading(true);
+        setLoanLoading(true);
+      } else {
+        console.log('[Auth] No user detected');
         setUserData(null);
         setActiveLoan(null);
         setIsAdmin(false);
@@ -146,6 +153,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), (userDoc) => {
       if (userDoc.exists()) {
         const data = userDoc.data();
+        console.log(`[Firestore] User data loaded for ${user.uid}:`, data.fullName || 'No name');
         setUserData(data);
         setIsAdmin(data?.role === 'admin' || data?.role === 'account_manager' || (user.email === 'animatorrex9@gmail.com' && user.emailVerified));
         

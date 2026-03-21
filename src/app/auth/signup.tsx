@@ -9,7 +9,7 @@ import {
   GoogleAuthProvider,
   signOut
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
@@ -170,21 +170,38 @@ export const SignupPage = () => {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       if (!userDoc.exists()) {
-        // For Google signup, we might not have NIN or Phone initially
-        // We can redirect them to a profile completion page later, 
-        // but for now let's create the doc with what we have.
-        await setDoc(doc(db, 'users', user.uid), {
-          fullName: user.displayName || '',
-          email: user.email || '',
-          phone: user.phoneNumber || '',
-          role: user.email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
-          kycStatus: 'unverified',
-          walletBalance: 0,
-          savings: 0,
-          activeCards: 1,
-          createdAt: new Date().toISOString(),
-          emailVerified: user.emailVerified,
-        });
+        // Check if another account exists with this email but different UID
+        const q = query(collection(db, 'users'), where('email', '==', user.email));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const existingDoc = querySnapshot.docs[0];
+          console.warn(`Account mismatch detected during signup. Email ${user.email} already has a profile with UID ${existingDoc.id}, but current UID is ${user.uid}.`);
+          // We'll use the existing profile data as a template
+          const existingData = existingDoc.data();
+          await setDoc(doc(db, 'users', user.uid), {
+            ...existingData,
+            uid: user.uid,
+            createdAt: new Date().toISOString(),
+            emailVerified: user.emailVerified,
+          });
+        } else {
+          // For Google signup, we might not have NIN or Phone initially
+          // We can redirect them to a profile completion page later, 
+          // but for now let's create the doc with what we have.
+          await setDoc(doc(db, 'users', user.uid), {
+            fullName: user.displayName || '',
+            email: user.email || '',
+            phone: user.phoneNumber || '',
+            role: user.email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
+            kycStatus: 'unverified',
+            walletBalance: 0,
+            savings: 0,
+            activeCards: 1,
+            createdAt: new Date().toISOString(),
+            emailVerified: user.emailVerified,
+          });
+        }
       }
 
       navigate('/dashboard');

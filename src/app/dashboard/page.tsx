@@ -18,10 +18,14 @@ import {
   Heart
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useCryptoPrices } from '../../hooks/useCryptoPrices';
+import { useCurrency } from '../../hooks/useCurrency';
 import { useNavigate } from 'react-router-dom';
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();
+  const { btcPrice, usdtPrice } = useCryptoPrices();
+  const { formatAmount } = useCurrency();
   const { activeLoan } = useOutletContext<{ activeLoan: any }>();
   const navigate = useNavigate();
 
@@ -39,24 +43,33 @@ export const DashboardPage = () => {
   const stats = [
     {
       label: 'Wallet Balance',
-      value: userData?.walletBalance !== undefined ? `$${userData.walletBalance.toLocaleString()}` : '$0',
+      value: userData?.walletBalance !== undefined ? formatAmount(userData.walletBalance) : '$0',
       icon: Wallet,
       color: 'text-accent',
       bg: 'bg-accent/10'
     },
     {
+      label: 'Bitcoin',
+      value: `${userData?.btcBalance?.toFixed(4) || '0.0000'} BTC`,
+      subValue: `≈ ${formatAmount((userData?.btcBalance || 0) * btcPrice)}`,
+      icon: TrendingUp,
+      color: 'text-orange-500',
+      bg: 'bg-orange-500/10'
+    },
+    {
+      label: 'USDT',
+      value: `${userData?.usdtBalance?.toFixed(2) || '0.00'} USDT`,
+      subValue: `≈ ${formatAmount((userData?.usdtBalance || 0) * usdtPrice)}`,
+      icon: TrendingUp,
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500/10'
+    },
+    {
       label: 'Savings',
-      value: userData?.savings !== undefined ? `$${userData.savings.toLocaleString()}` : '$0',
+      value: userData?.savings !== undefined ? formatAmount(userData.savings) : '$0',
       icon: TrendingUp,
       color: 'text-green-500',
       bg: 'bg-green-500/10'
-    },
-    {
-      label: 'Active Cards',
-      value: userData?.activeCards || '1',
-      icon: CreditCard,
-      color: 'text-blue-500',
-      bg: 'bg-blue-500/10'
     }
   ];
 
@@ -92,7 +105,7 @@ export const DashboardPage = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, idx) => (
           <motion.div
             key={stat.label}
@@ -106,7 +119,8 @@ export const DashboardPage = () => {
             </div>
             <div>
               <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">{stat.label}</p>
-              <p className="text-2xl font-black dark:text-white tracking-tight">{stat.value}</p>
+              <p className="text-xl font-black dark:text-white tracking-tight">{stat.value}</p>
+              {stat.subValue && <p className="text-[10px] text-gray-500 font-bold">{stat.subValue}</p>}
             </div>
           </motion.div>
         ))}
