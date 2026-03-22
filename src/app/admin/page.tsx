@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
@@ -27,20 +27,26 @@ import { auth } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 
 export const AdminPage = () => {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, userData, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [pendingKYCs, setPendingKYCs] = useState<any[]>([]);
   const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers'>('dashboard');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
+
+  // Manager Assignment State
+  const [selectedManagerId, setSelectedManagerId] = useState('');
+  const [selectedTargetUserId, setSelectedTargetUserId] = useState('');
+  const [assigningManager, setAssigningManager] = useState(false);
 
   // Wallet Adjustment State
   const [walletTargetUserId, setWalletTargetUserId] = useState('');
@@ -64,9 +70,13 @@ export const AdminPage = () => {
 
   useEffect(() => {
     if (!authLoading && !isAdmin && user) {
-      navigate('/dashboard');
+      if (userData?.role === 'account_manager') {
+        navigate('/manager');
+      } else {
+        navigate('/dashboard');
+      }
     }
-  }, [isAdmin, authLoading, navigate, user]);
+  }, [isAdmin, authLoading, navigate, user, userData?.role]);
 
   const handleSignOut = () => {
     auth.signOut();
@@ -83,6 +93,8 @@ export const AdminPage = () => {
         setUsdtAddress(data.usdt_address || '');
         setBtcAddress(data.btc_address || '');
       }
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'settings/wallets');
     });
 
     // Listen for all users
@@ -95,6 +107,7 @@ export const AdminPage = () => {
       }, (err) => {
         if (err.code !== 'permission-denied') {
           console.error('Error fetching users for admin:', err);
+          handleFirestoreError(err, OperationType.LIST, 'users');
         }
       });
     } catch (err) {
@@ -111,6 +124,7 @@ export const AdminPage = () => {
       }, (err) => {
         if (err.code !== 'permission-denied') {
           console.error('Error fetching loans for admin:', err);
+          handleFirestoreError(err, OperationType.LIST, 'loans');
         }
       });
     } catch (err) {
@@ -128,6 +142,7 @@ export const AdminPage = () => {
       }, (err) => {
         if (err.code !== 'permission-denied') {
           console.error('Error fetching pending KYCs for admin:', err);
+          handleFirestoreError(err, OperationType.LIST, 'users (kyc)');
         }
         setLoading(false);
       });
@@ -150,6 +165,7 @@ export const AdminPage = () => {
       }, (err) => {
         if (err.code !== 'permission-denied') {
           console.error('Error fetching pending deposits for admin:', err);
+          handleFirestoreError(err, OperationType.LIST, 'transactions (deposits)');
         }
       });
     } catch (err) {
@@ -164,6 +180,26 @@ export const AdminPage = () => {
       if (unsubscribeSettings) unsubscribeSettings();
     };
   }, [user]);
+
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    if (!isAdmin || isUpdatingRole) return;
+    setIsUpdatingRole(true);
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        role: newRole,
+        updatedAt: serverTimestamp()
+      });
+      setMessage({ text: `User role updated to ${newRole} successfully!`, type: 'success' });
+      if (selectedUser && selectedUser.id === userId) {
+        setSelectedUser({ ...selectedUser, role: newRole });
+      }
+    } catch (err: any) {
+      console.error('Error updating user role:', err);
+      setMessage({ text: `Failed to update user role: ${err.message}`, type: 'error' });
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
 
   const handleLoanStatusUpdate = async (loanId: string, status: string) => {
     try {
@@ -364,6 +400,43 @@ export const AdminPage = () => {
     }
   };
 
+  const handleAssignManager = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedManagerId || !selectedTargetUserId || assigningManager) return;
+
+    setAssigningManager(true);
+    try {
+      const targetUser = users.find(u => u.id === selectedTargetUserId);
+      const manager = users.find(u => u.id === selectedManagerId);
+
+      if (!targetUser || !manager) throw new Error('User or Manager not found');
+
+      await updateDoc(doc(db, 'users', selectedTargetUserId), {
+        managerId: selectedManagerId,
+        updatedAt: serverTimestamp()
+      });
+
+      // Create or update chat
+      const chatId = [selectedManagerId, selectedTargetUserId].sort().join('_');
+      await setDoc(doc(db, 'chats', chatId), {
+        participants: [selectedManagerId, selectedTargetUserId],
+        managerId: selectedManagerId,
+        userId: selectedTargetUserId,
+        lastMessage: 'Manager assigned by admin',
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      setMessage({ text: `Manager ${manager.email} assigned to ${targetUser.email} successfully!`, type: 'success' });
+      setSelectedTargetUserId('');
+    } catch (err: any) {
+      console.error('Error assigning manager:', err);
+      setMessage({ text: `Failed to assign manager: ${err.message}`, type: 'error' });
+    } finally {
+      setAssigningManager(false);
+    }
+  };
+
   const pendingLoans = loans.filter(l => l.status === 'pending');
   const inProgressLoans = loans.filter(l => ['bank_details_submitted', 'pin_sent'].includes(l.status));
   const pinVerificationLoans = loans.filter(l => l.status === 'pin_submitted');
@@ -476,6 +549,12 @@ export const AdminPage = () => {
             onClick={() => setActiveTab('wallet')}
             icon={<Wallet className="w-4 h-4" />}
             label="Wallet"
+          />
+          <TabButton 
+            active={activeTab === 'managers'} 
+            onClick={() => setActiveTab('managers')}
+            icon={<UserCheck className="w-4 h-4" />}
+            label="Managers"
           />
         </div>
 
@@ -781,6 +860,127 @@ export const AdminPage = () => {
                   )}
                 </button>
               </form>
+            </div>
+          </div>
+        ) : activeTab === 'managers' ? (
+          <div className="card max-w-2xl mx-auto">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
+                <UserCheck className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Manager Assignment</h2>
+                <p className="text-gray-500 text-sm">Assign an account manager to a customer</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleAssignManager} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Manager</label>
+                <div className="relative">
+                  <select 
+                    value={selectedManagerId}
+                    onChange={(e) => setSelectedManagerId(e.target.value)}
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
+                    required
+                  >
+                    <option value="">Choose a manager...</option>
+                    {users.filter(u => u.role === 'manager' || u.role === 'admin' || u.role === 'account_manager').map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.email} ({u.role})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Customer</label>
+                <div className="relative">
+                  <select 
+                    value={selectedTargetUserId}
+                    onChange={(e) => setSelectedTargetUserId(e.target.value)}
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
+                    required
+                  >
+                    <option value="">Choose a customer...</option>
+                    {users.filter(u => u.role !== 'manager' && u.role !== 'admin' && u.role !== 'account_manager').map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.email} {u.managerId ? `(Current Manager: ${users.find(m => m.id === u.managerId)?.email || 'Unknown'})` : '(No Manager)'}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={assigningManager}
+                className="w-full py-4 bg-accent hover:bg-accent/90 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {assigningManager ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <UserCheck className="w-5 h-5" />
+                    Assign Manager
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
+              <h3 className="text-lg font-bold mb-6 dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Account Manager</h3>
+              <div className="space-y-4">
+                <div className="relative">
+                  <select 
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleUpdateRole(e.target.value, 'account_manager');
+                        e.target.value = '';
+                      }
+                    }}
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
+                  >
+                    <option value="">Select a user to promote...</option>
+                    {users.filter(u => u.role === 'user' || !u.role).map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.email} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest italic">
+                  Promoted users will appear in the manager selection list above.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
+              <h3 className="text-lg font-bold mb-6 dark:text-white uppercase tracking-widest text-xs opacity-50">Current Assignments</h3>
+              <div className="space-y-4">
+                {users.filter(u => u.managerId).map(u => {
+                  const manager = users.find(m => m.id === u.managerId);
+                  return (
+                    <div key={u.id} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+                      <div>
+                        <p className="text-sm font-bold dark:text-white">{u.email}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">Customer</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <div className="w-4 h-0.5 bg-gray-300 dark:bg-zinc-700" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-accent">{manager?.email || 'Unknown'}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">Manager</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         ) : activeTab === 'loans' ? (
@@ -1289,6 +1489,7 @@ export const AdminPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                 <DetailSection title="Account Info">
                   <DetailItem label="Email" value={selectedUser.email} />
+                  <DetailItem label="Role" value={selectedUser.role || 'user'} />
                   <DetailItem label="Wallet Balance" value={`$${(selectedUser.walletBalance || 0).toLocaleString()}`} />
                   <DetailItem label="KYC Status" value={selectedUser.kycStatus || 'Not Started'} />
                   <DetailItem label="Joined" value={formatDate(selectedUser.createdAt)} />
@@ -1299,6 +1500,26 @@ export const AdminPage = () => {
                   <DetailItem label="Phone" value={selectedUser.phoneNumber} />
                   <DetailItem label="Address" value={selectedUser.address} />
                 </DetailSection>
+              </div>
+
+              <div className="mb-8 p-6 bg-gray-50 dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800">
+                <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Change User Role</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['user', 'account_manager', 'manager', 'admin'].map((role) => (
+                    <button
+                      key={role}
+                      onClick={() => handleUpdateRole(selectedUser.id, role)}
+                      disabled={isUpdatingRole || selectedUser.role === role}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                        selectedUser.role === role 
+                          ? 'bg-accent text-white' 
+                          : 'bg-white dark:bg-zinc-800 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-gray-200 dark:border-zinc-800'
+                      } disabled:opacity-50`}
+                    >
+                      {role.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-4 pt-8 border-t border-gray-100 dark:border-zinc-800">
@@ -1516,7 +1737,7 @@ const AdminStatCard = ({ icon, label, value, subValue }: { icon: React.ReactNode
   <div className="card">
     <div className="flex justify-between items-start mb-4">
       <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800">
-        {React.cloneElement(icon as React.ReactElement, { className: "w-6 h-6" })}
+        {React.cloneElement(icon as React.ReactElement<any>, { className: "w-6 h-6" })}
       </div>
       {subValue && (
         <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">

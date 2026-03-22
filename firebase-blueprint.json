@@ -12,6 +12,8 @@
         "savings": { "type": "number" },
         "activeCards": { "type": "number" },
         "activeLoanId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "manager", "admin"], "default": "user" },
+        "managerId": { "type": "string" },
         "bankDetails": {
           "type": "object",
           "properties": {
@@ -70,6 +72,32 @@
         "usdt_address": { "type": "string" },
         "btc_address": { "type": "string" }
       }
+    },
+    "Chat": {
+      "title": "Chat Session",
+      "description": "A conversation between a user and a manager",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "userId": { "type": "string" },
+        "managerId": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastMessageTimestamp": { "type": "string", "format": "date-time" },
+        "unreadCount": { "type": "object" }
+      },
+      "required": ["participants", "userId"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A single message in a chat",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["senderId", "text", "timestamp"]
     }
   },
   "firestore": {
@@ -88,6 +116,14 @@
     "/settings/{settingId}": {
       "schema": "Settings",
       "description": "Global app settings"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Chat sessions"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a chat"
     }
   }
 }

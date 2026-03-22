@@ -29,13 +29,17 @@ import { GrantsPage } from './app/dashboard/grants/page';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
 import { AdminPage } from './app/admin/page';
 import { AdminLoginPage } from './app/admin/login';
+import { ManagerPage } from './app/manager/page';
+import { ManagerChatPage } from './app/manager/chat/page';
+import { ManagerLayout } from './components/manager/ManagerLayout';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
 import { FirebaseSetupGuide } from './components/FirebaseSetupGuide';
 import { DebugControls } from './components/DebugControls';
+import ErrorBoundary from './components/ErrorBoundary';
 
-const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
-  const { user, loading, isAdmin, emailVerified, isConfigured } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { children: React.ReactNode, adminOnly?: boolean, managerOnly?: boolean }) => {
+  const { user, loading, isAdmin, userData, emailVerified, isConfigured } = useAuth();
 
   if (!isConfigured) return <FirebaseSetupGuide />;
 
@@ -49,7 +53,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     return <Navigate to={adminOnly ? "/admin/login" : "/auth/login"} />;
   }
 
-  if (!emailVerified && !adminOnly) {
+  if (!emailVerified && !adminOnly && !managerOnly) {
     return <Navigate to="/auth/login" />;
   }
 
@@ -57,59 +61,78 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/admin/login" />;
   }
 
+  if (managerOnly && userData?.role !== 'account_manager' && !isAdmin) {
+    return <Navigate to="/auth/login" />;
+  }
+
+  // Prevent managers from accessing regular dashboard
+  if (!adminOnly && !managerOnly && userData?.role === 'account_manager') {
+    return <Navigate to="/manager" />;
+  }
+
   return <>{children}</>;
 };
 
 export default function App() {
   return (
-    <Router>
-      <ThemeProvider>
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/login" element={<LoginPage />} />
-            <Route path="/auth/signup" element={<SignupPage />} />
-            <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
-            <Route path="/admin/login" element={<AdminLoginPage />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
+    <ErrorBoundary>
+      <Router>
+        <ThemeProvider>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/auth/login" element={<LoginPage />} />
+              <Route path="/auth/signup" element={<SignupPage />} />
+              <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/admin/login" element={<AdminLoginPage />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<DashboardPage />} />
+                <Route path="accounts" element={<AccountsPage />} />
+                <Route path="deposit" element={<DepositPage />} />
+                <Route path="send" element={<SendPage />} />
+                <Route path="cards" element={<CardsPage />} />
+                <Route path="invest" element={<InvestPage />} />
+                <Route path="swap" element={<SwapPage />} />
+                <Route path="tax" element={<TaxPage />} />
+                <Route path="charity" element={<CharityPage />} />
+                <Route path="grants" element={<GrantsPage />} />
+                <Route path="loan-application" element={<LoanApplicationPage />} />
+                <Route path="loan-status" element={<LoanStatusPage />} />
+                <Route path="chat" element={<ChatPage />} />
+                <Route path="repayment" element={<RepaymentPage />} />
+                <Route path="history" element={<HistoryPage />} />
+                <Route path="kyc" element={<KYCPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
+              <Route 
+                path="/admin" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/manager" element={
+                <ProtectedRoute managerOnly>
+                  <ManagerLayout />
                 </ProtectedRoute>
-              }
-            >
-              <Route index element={<DashboardPage />} />
-              <Route path="accounts" element={<AccountsPage />} />
-              <Route path="deposit" element={<DepositPage />} />
-              <Route path="send" element={<SendPage />} />
-              <Route path="cards" element={<CardsPage />} />
-              <Route path="invest" element={<InvestPage />} />
-              <Route path="swap" element={<SwapPage />} />
-              <Route path="tax" element={<TaxPage />} />
-              <Route path="charity" element={<CharityPage />} />
-              <Route path="grants" element={<GrantsPage />} />
-              <Route path="loan-application" element={<LoanApplicationPage />} />
-              <Route path="loan-status" element={<LoanStatusPage />} />
-              <Route path="chat" element={<ChatPage />} />
-              <Route path="repayment" element={<RepaymentPage />} />
-              <Route path="history" element={<HistoryPage />} />
-              <Route path="kyc" element={<KYCPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-          <DebugControls />
-        </AuthProvider>
-      </ThemeProvider>
-    </Router>
+              }>
+                <Route index element={<ManagerPage />} />
+                <Route path="chat" element={<ManagerChatPage />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+            <DebugControls />
+          </AuthProvider>
+        </ThemeProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }

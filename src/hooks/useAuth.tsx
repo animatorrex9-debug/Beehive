@@ -155,21 +155,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const data = userDoc.data();
         console.log(`[Firestore] User data loaded for ${user.uid}:`, data.fullName || 'No name');
         setUserData(data);
-        setIsAdmin(data?.role === 'admin' || data?.role === 'account_manager' || (user.email === 'animatorrex9@gmail.com' && user.emailVerified));
+        setIsAdmin(
+          data?.role === 'admin'
+        );
         
-        // Auto-promote primary user to admin if needed
-        if (user.email === 'animatorrex9@gmail.com' && user.emailVerified && data?.role !== 'admin') {
-          updateDoc(doc(db, 'users', user.uid), {
-            role: 'admin'
-          }).catch(err => console.error('Error auto-promoting admin:', err));
-        }
-
         // Sync email verification status if it changed
         if (user.emailVerified && !data.emailVerified) {
           updateDoc(doc(db, 'users', user.uid), {
             emailVerified: true
           }).catch(updateErr => {
             console.error('Error syncing email verification:', updateErr);
+            handleFirestoreError(updateErr, OperationType.UPDATE, `users/${user.uid}`);
           });
         }
       } else {

@@ -18,7 +18,7 @@ import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
 import { ArrowLeft, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { user, isAdmin, loading: authLoading, isConfigured } = useAuth();
+  const { user, userData, isAdmin, loading: authLoading, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -31,6 +31,8 @@ export const LoginPage = () => {
     if (!authLoading && user && user.emailVerified) {
       if (isAdmin) {
         navigate('/admin');
+      } else if (userData?.role === 'account_manager') {
+        navigate('/manager');
       } else {
         navigate('/dashboard');
       }
@@ -65,8 +67,10 @@ export const LoginPage = () => {
       const userData = userDoc.data();
       const role = userData.role;
 
-      if (role === 'admin' || role === 'account_manager') {
+      if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'account_manager') {
+        navigate('/manager');
       } else {
         navigate('/dashboard');
       }
@@ -156,8 +160,10 @@ export const LoginPage = () => {
         role = userDoc.data().role;
       }
 
-      if (role === 'admin' || role === 'account_manager') {
+      if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'account_manager') {
+        navigate('/manager');
       } else {
         navigate('/dashboard');
       }

@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   AlertCircle,
   MoreHorizontal,
-  FileText
+  FileText,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 

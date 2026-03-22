@@ -8,10 +8,45 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export const DebugControls = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, isAdmin, reloadUser } = useAuth();
+  const { user, userData, isAdmin, reloadUser } = useAuth();
   const navigate = useNavigate();
   const [isPromoting, setIsPromoting] = useState(false);
+  const [isPromotingManager, setIsPromotingManager] = useState(false);
+  const [targetEmail, setTargetEmail] = useState('');
+  const [targetUid, setTargetUid] = useState('');
+  const [targetRole, setTargetRole] = useState('user');
+  const [isUpdatingOther, setIsUpdatingOther] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const updateOtherUserRole = async () => {
+    if (!targetEmail && !targetUid) return;
+    setIsUpdatingOther(true);
+    setMessage(null);
+    try {
+      let userId = targetUid;
+      if (!userId && user?.email === targetEmail) {
+        userId = user.uid;
+      }
+
+      if (!userId) {
+        setMessage('Please provide a User UID or use current user email.');
+        return;
+      }
+
+      await updateDoc(doc(db, 'users', userId), {
+        role: targetRole
+      });
+      if (userId === user?.uid) {
+        await reloadUser();
+      }
+      setMessage(`Updated user to ${targetRole}!`);
+    } catch (err: any) {
+      console.error('Error updating user:', err);
+      setMessage(`Failed: ${err.message}`);
+    } finally {
+      setIsUpdatingOther(false);
+    }
+  };
 
   const promoteToAdmin = async () => {
     if (!user) return;
@@ -23,11 +58,29 @@ export const DebugControls = () => {
       });
       await reloadUser();
       setMessage('User promoted to Admin! You can now access the admin panel.');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error promoting user:', err);
       setMessage('Failed to promote user. Make sure you are logged in.');
     } finally {
       setIsPromoting(false);
+    }
+  };
+
+  const promoteToManager = async () => {
+    if (!user) return;
+    setIsPromotingManager(true);
+    setMessage(null);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        role: 'account_manager'
+      });
+      await reloadUser();
+      setMessage('User promoted to Account Manager!');
+    } catch (err) {
+      console.error('Error promoting user:', err);
+      setMessage('Failed to promote user.');
+    } finally {
+      setIsPromotingManager(false);
     }
   };
 
@@ -73,6 +126,22 @@ export const DebugControls = () => {
                 <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
 
+              {user && !isAdmin && userData?.role !== 'manager' && (
+                <button
+                  onClick={promoteToManager}
+                  disabled={isPromotingManager}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white transition-all group disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <UserPlus className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      {isPromotingManager ? 'Promoting...' : 'Make Me Manager'}
+                    </span>
+                  </div>
+                  <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              )}
+
               {user && !isAdmin && (
                 <button
                   onClick={promoteToAdmin}
@@ -87,6 +156,46 @@ export const DebugControls = () => {
                   </div>
                   <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
+              )}
+
+              {isAdmin && (
+                <div className="p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl space-y-2">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Manual Role Assign</h4>
+                  <input
+                    type="email"
+                    placeholder="User Email (for self)"
+                    value={targetEmail}
+                    onChange={(e) => setTargetEmail(e.target.value)}
+                    className="w-full p-2 text-[10px] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg outline-none focus:ring-1 focus:ring-accent"
+                  />
+                  <input
+                    type="text"
+                    placeholder="User UID (for others)"
+                    value={targetUid}
+                    onChange={(e) => setTargetUid(e.target.value)}
+                    className="w-full p-2 text-[10px] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg outline-none focus:ring-1 focus:ring-accent"
+                  />
+                  <select
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                    className="w-full p-2 text-[10px] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg outline-none focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="user">User</option>
+                    <option value="account_manager">Account Manager</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button
+                    onClick={updateOtherUserRole}
+                    disabled={isUpdatingOther || (!targetEmail && !targetUid)}
+                    className="w-full p-2 rounded-lg bg-accent text-white text-[10px] font-bold uppercase tracking-wider hover:bg-accent/90 transition-all disabled:opacity-50"
+                  >
+                    {isUpdatingOther ? 'Updating...' : 'Update Role'}
+                  </button>
+                  <p className="text-[9px] text-gray-400 italic text-center">
+                    Works for current user email only in debug tool
+                  </p>
+                </div>
               )}
 
               {isAdmin && (

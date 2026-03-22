@@ -46,8 +46,10 @@ export const AdminLoginPage = () => {
       const userData = userDoc.data();
       const role = userData.role;
 
-      if (role === 'admin' || role === 'account_manager') {
+      if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'account_manager') {
+        navigate('/dashboard/chat');
       } else {
         setError('Access denied. You do not have administrative privileges.');
         await signOut(auth);

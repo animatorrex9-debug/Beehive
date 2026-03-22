@@ -55,7 +55,7 @@ export const Toast: React.FC<ToastProps> = ({ notification, onClose }) => {
             className="relative w-full max-w-md bg-white dark:bg-zinc-950 border-2 border-accent/20 dark:border-accent/20 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 flex flex-col items-center text-center gap-6 pointer-events-auto"
           >
             <div className="w-16 h-16 rounded-2xl bg-gray-50 dark:bg-zinc-900 flex items-center justify-center shadow-inner">
-              {React.cloneElement(getIcon() as React.ReactElement, { className: "w-8 h-8" })}
+              {React.cloneElement(getIcon() as React.ReactElement<{ className?: string }>, { className: "w-8 h-8" })}
             </div>
             <div className="space-y-2">
               <h4 className="text-xl font-black dark:text-white uppercase tracking-tighter">

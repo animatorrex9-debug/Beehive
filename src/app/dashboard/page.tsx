@@ -1,6 +1,6 @@
 import React from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Wallet, 
   Clock, 
@@ -20,7 +20,8 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useCryptoPrices } from '../../hooks/useCryptoPrices';
 import { useCurrency } from '../../hooks/useCurrency';
-import { useNavigate } from 'react-router-dom';
+import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();
@@ -32,6 +33,48 @@ export const DashboardPage = () => {
   const [message, setMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
   const kycStatus = userData?.kycStatus || 'unverified';
+
+  // Quick Links with better colors
+  const quickLinks = [
+    { icon: <RefreshCw className="text-blue-500" />, label: "Swap", to: "/dashboard/swap", bg: "bg-blue-500/10" },
+    { icon: <Award className="text-purple-500" />, label: "Grants", to: "/dashboard/grants", bg: "bg-purple-500/10" },
+    { icon: <Heart className="text-red-500" />, label: "Charity", to: "/dashboard/charity", bg: "bg-red-500/10" },
+    { icon: <TrendingUp className="text-emerald-500" />, label: "Invest", to: "/dashboard/invest", bg: "bg-emerald-500/10" },
+  ];
+
+  const handleTransferToWallet = async (type: 'investment' | 'grant') => {
+    if (!user || !userData) return;
+    
+    const amount = type === 'investment' ? (userData.investmentBalance || 0) : (userData.grantBalance || 0);
+    if (amount <= 0) {
+      setMessage({ text: `No ${type} funds available to transfer.`, type: 'error' });
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        walletBalance: increment(amount),
+        [type === 'investment' ? 'investmentBalance' : 'grantBalance']: 0
+      });
+
+      // Record transaction
+      await addDoc(collection(db, 'transactions'), {
+        userId: user.uid,
+        type: 'transfer',
+        amount: amount,
+        currency: 'USD',
+        status: 'completed',
+        description: `Transfer from ${type} to wallet`,
+        timestamp: new Date().toISOString()
+      });
+
+      setMessage({ text: `Successfully transferred ${formatAmount(amount)} to your wallet.`, type: 'success' });
+    } catch (err) {
+      console.error('Transfer error:', err);
+      setMessage({ text: 'Failed to process transfer.', type: 'error' });
+    }
+  };
 
   React.useEffect(() => {
     if (message) {
@@ -316,24 +359,112 @@ export const DashboardPage = () => {
           animate={{ opacity: 1, y: 0 }}
           className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4"
         >
-          <QuickLink icon={<RefreshCw />} label="Swap" to="/dashboard/swap" />
-          <QuickLink icon={<Award />} label="Grants" to="/dashboard/grants" />
-          <QuickLink icon={<Heart />} label="Charity" to="/dashboard/charity" />
-          <QuickLink icon={<TrendingUp />} label="Invest" to="/dashboard/invest" />
+          {quickLinks.map((link, idx) => (
+            <QuickLink 
+              key={idx} 
+              icon={link.icon} 
+              label={link.label} 
+              to={link.to} 
+              bg={link.bg} 
+            />
+          ))}
+        </motion.div>
+
+        {/* Investment & Grants Overview */}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-2 card p-8 space-y-8"
+        >
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Wealth & Support</h3>
+              <p className="text-sm text-gray-500">Track your investment growth and grant funds.</p>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-500 rounded-full text-xs font-bold uppercase tracking-widest">
+              <TrendingUp className="w-4 h-4" />
+              +0.2% Daily Growth
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Investment Card */}
+            <div className="p-6 rounded-3xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-2xl">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest bg-emerald-500/5 px-2 py-1 rounded-lg">Active Growth</span>
+                </div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Investment Balance</p>
+                <h4 className="text-3xl font-black dark:text-white mb-2">{formatAmount(userData?.investmentBalance || 0)}</h4>
+                <p className="text-[10px] text-gray-500 font-medium leading-relaxed">Your capital is working for you across diversified portfolios including stocks, crypto, and real estate.</p>
+              </div>
+              <button 
+                onClick={() => handleTransferToWallet('investment')}
+                className="mt-6 w-full py-3 rounded-xl bg-accent text-white text-xs font-bold uppercase tracking-widest hover:bg-accent/90 transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /> Transfer to Wallet
+              </button>
+            </div>
+
+            {/* Grant Card */}
+            <div className="p-6 rounded-3xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-3 bg-purple-500/10 text-purple-500 rounded-2xl">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-500 uppercase tracking-widest bg-purple-500/5 px-2 py-1 rounded-lg">Approved Funds</span>
+                </div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Grant Money</p>
+                <h4 className="text-3xl font-black dark:text-white mb-2">{formatAmount(userData?.grantBalance || 0)}</h4>
+                <p className="text-[10px] text-gray-500 font-medium leading-relaxed">Funds awarded for business expansion, education, or community impact projects.</p>
+              </div>
+              <button 
+                onClick={() => handleTransferToWallet('grant')}
+                className="mt-6 w-full py-3 rounded-xl bg-accent text-white text-xs font-bold uppercase tracking-widest hover:bg-accent/90 transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /> Transfer to Wallet
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-gray-100 dark:border-zinc-800 flex flex-wrap gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                <Heart className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Charity Support</p>
+                <p className="text-sm font-black dark:text-white">UNICEF, Red Cross</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Security Level</p>
+                <p className="text-sm font-black dark:text-white">Enterprise Grade</p>
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
     </div>
   );
 };
 
-const QuickLink = ({ icon, label, to }: { icon: React.ReactNode, label: string, to: string }) => {
+const QuickLink = ({ icon, label, to, bg }: { icon: React.ReactNode, label: string, to: string, bg: string, key?: React.Key }) => {
   const navigate = useNavigate();
   return (
     <button 
       onClick={() => navigate(to)}
       className="card p-6 flex flex-col items-center gap-3 hover:border-accent transition-all group"
     >
-      <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-zinc-900 flex items-center justify-center text-gray-400 group-hover:text-accent group-hover:scale-110 transition-all">
+      <div className={`w-12 h-12 rounded-2xl ${bg} flex items-center justify-center group-hover:scale-110 transition-all`}>
         {icon}
       </div>
       <span className="text-xs font-black uppercase tracking-widest dark:text-white">{label}</span>

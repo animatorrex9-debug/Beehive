@@ -557,6 +557,6 @@ const TestimonialCard = ({ name, quote, image }: { name: string, quote: string, 
 
 const SocialIcon = ({ icon }: { icon: React.ReactNode }) => (
   <a href="#" className="w-10 h-10 rounded-full border border-gray-100 dark:border-zinc-800 flex items-center justify-center text-gray-400 hover:bg-accent hover:text-white hover:border-accent transition-all">
-    {React.cloneElement(icon as React.ReactElement, { className: "w-5 h-5" })}
+    {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "w-5 h-5" })}
   </a>
 );
