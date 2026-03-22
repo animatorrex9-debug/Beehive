@@ -85,16 +85,17 @@ export const ManagerPage = () => {
   ];
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="flex-grow overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-10 pb-32 lg:pb-10 space-y-8">
       {/* Welcome Section */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
+        className="mt-6 mb-10"
       >
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
           Command Center
         </p>
-        <h2 className="text-4xl font-black tracking-tighter dark:text-white uppercase">
+        <h2 className="text-5xl font-black tracking-tighter dark:text-white uppercase leading-none">
           Manager Overview
         </h2>
       </motion.div>

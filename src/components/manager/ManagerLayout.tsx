@@ -17,8 +17,8 @@ export const ManagerLayout: React.FC = () => {
       <div className="flex-grow flex flex-col min-w-0 h-screen overflow-hidden">
         <Header />
         
-        <main className="flex-grow p-2 sm:p-4 lg:p-6 overflow-hidden">
-          <div className="h-full w-full max-w-[1600px] mx-auto">
+        <main className="flex-grow flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-grow flex flex-col min-h-0 w-full max-w-[1600px] mx-auto">
             <Outlet />
           </div>
         </main>

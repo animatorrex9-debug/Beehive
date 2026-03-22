@@ -24,13 +24,13 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="h-20 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-primary/80 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
+    <header className="h-24 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-primary/80 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
       <div>
-        <h1 className="text-xl font-black tracking-tighter dark:text-white uppercase lg:hidden">
+        <h1 className="text-xl font-black tracking-tighter dark:text-white uppercase lg:hidden py-2">
           Dashboard
         </h1>
         <div className="hidden lg:block">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
             {getGreeting()}
           </p>
           <h2 className="text-lg font-black tracking-tight dark:text-white">
