@@ -16,6 +16,7 @@ import {
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from 'firebase/firestore';
 import { useAuth } from '../../../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../../../lib/firebase';
 
 export const LoanStatusPage = () => {
   const { user, userData, activeLoan, activeLoanId, loanLoading, localStatus, setLocalStatus } = useAuth();
@@ -73,7 +74,8 @@ export const LoanStatusPage = () => {
           }
         });
       } catch (err) {
-        console.error('Error backing up draft to cloud:', err);
+        console.error('Error backing up draft to cloud:', err instanceof Error ? err.message : String(err));
+        handleFirestoreError(err, OperationType.UPDATE, `loans/${activeLoan.id}`);
       }
     }, 2000);
 
@@ -133,7 +135,8 @@ export const LoanStatusPage = () => {
         read: false
       });
     } catch (err) {
-      console.error('Error submitting bank details:', err);
+      console.error('Error submitting bank details:', err instanceof Error ? err.message : String(err));
+      handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
       setLocalStatus(null);
       setError('Failed to submit bank details. Please try again.');
     } finally {
@@ -403,7 +406,8 @@ export const LoanStatusPage = () => {
                     updatedAt: serverTimestamp()
                   });
                 } catch (err) {
-                  console.error('Error submitting additional details:', err);
+                  console.error('Error submitting additional details:', err instanceof Error ? err.message : String(err));
+                  handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
                   setLocalStatus(null);
                   setError('Failed to submit details.');
                 } finally {
@@ -528,7 +532,8 @@ export const LoanStatusPage = () => {
                         read: false
                       });
                     } catch (err) {
-                      console.error('Error submitting PIN:', err);
+                      console.error('Error submitting PIN:', err instanceof Error ? err.message : String(err));
+                      handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
                       setLocalStatus(null);
                       setError('Failed to submit PIN.');
                     } finally {

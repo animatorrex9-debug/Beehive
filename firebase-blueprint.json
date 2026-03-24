@@ -9,9 +9,24 @@
         "email": { "type": "string", "format": "email" },
         "kycStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"] },
         "walletBalance": { "type": "number" },
+        "investmentBalance": { "type": "number" },
+        "lastReturnCalculationDate": { "type": "string", "format": "date-time" },
         "savings": { "type": "number" },
         "activeCards": { "type": "number" },
         "activeLoanId": { "type": "string" },
+        "dob": { "type": "string" },
+        "address": { "type": "string" },
+        "stateOfOrigin": { "type": "string" },
+        "maritalStatus": { "type": "string" },
+        "employmentStatus": { "type": "string" },
+        "employerName": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "monthlyIncome": { "type": "string" },
+        "ssn": { "type": "string" },
+        "idCardFrontImage": { "type": "string" },
+        "idCardBackImage": { "type": "string" },
+        "faceImage": { "type": "string" },
+        "kycSubmittedAt": { "type": "string", "format": "date-time" },
         "role": { "type": "string", "enum": ["user", "manager", "admin"], "default": "user" },
         "managerId": { "type": "string" },
         "bankDetails": {
@@ -98,12 +113,29 @@
         "read": { "type": "boolean" }
       },
       "required": ["senderId", "text", "timestamp"]
+    },
+    "Investment": {
+      "title": "User Investment",
+      "description": "Record of an active investment strategy",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "biweeklyReturn": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "completed", "cancelled"] }
+      },
+      "required": ["title", "amount", "biweeklyReturn", "timestamp", "status"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile documents"
+    },
+    "/users/{userId}/investments/{investmentId}": {
+      "schema": "Investment",
+      "description": "User specific investments"
     },
     "/transactions/{transactionId}": {
       "schema": "Transaction",

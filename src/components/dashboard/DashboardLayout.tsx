@@ -73,20 +73,22 @@ export const DashboardLayout: React.FC = () => {
       <div className="flex-grow flex flex-col min-w-0">
         <Header />
         
-        <main className="flex-grow p-4 sm:p-6 lg:p-10 pb-24 lg:pb-10 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
-            {showBanner && (
-              <div className="mb-8">
-                <NudgeBanner status={loanStatus} />
-              </div>
-            )}
-            {loanLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : (
-              <Outlet context={{ activeLoan }} />
-            )}
+        <main className="flex-grow flex flex-col min-h-0 overflow-hidden">
+          <div className={`flex-grow ${location.pathname.includes('/chat') ? 'overflow-hidden' : 'overflow-y-auto'} p-4 sm:p-6 lg:p-10 pb-24 lg:pb-20`}>
+            <div className={`max-w-7xl mx-auto ${location.pathname.includes('/chat') ? 'h-full flex flex-col' : ''}`}>
+              {showBanner && (
+                <div className="mb-8">
+                  <NudgeBanner status={loanStatus} />
+                </div>
+              )}
+              {loanLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <Outlet context={{ activeLoan }} />
+              )}
+            </div>
           </div>
         </main>
       </div>

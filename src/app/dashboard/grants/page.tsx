@@ -23,11 +23,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { db } from '../../../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export const GrantsPage = () => {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -50,6 +52,7 @@ export const GrantsPage = () => {
       await addDoc(collection(db, 'grants'), {
         userId: user.uid,
         ...formData,
+        currency: userData?.currency?.code || currency.code || 'USD',
         status: 'pending',
         timestamp: new Date().toISOString()
       });
@@ -71,7 +74,7 @@ export const GrantsPage = () => {
             <CheckCircle2 className="w-10 h-10" />
           </div>
           <h2 className="text-3xl font-black tracking-tighter dark:text-white">APPLICATION RECEIVED</h2>
-          <p className="text-gray-500">Your grant application has been submitted successfully. Our team will review it and get back to you within 5-7 business days.</p>
+          <p className="text-gray-500">Your grant application has been submitted successfully. Message an account manager to continue the process.</p>
           <div className="space-y-3">
             <button onClick={() => navigate('/dashboard/chat')} className="btn-primary w-full py-4 flex items-center justify-center gap-2">
               <MessageSquare className="w-5 h-5" /> Message Support
@@ -176,9 +179,9 @@ export const GrantsPage = () => {
                   </select>
                 </div>
                 <div className="space-y-3">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Requested Amount (USD)</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Requested Amount ({currency.code})</label>
                   <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-gray-400">$</span>
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-gray-400">{currency.symbol}</span>
                     <input 
                       type="number"
                       value={formData.amount}
@@ -246,19 +249,19 @@ export const GrantsPage = () => {
                   icon={<Briefcase className="w-6 h-6 text-blue-500" />}
                   title="SME Growth Fund"
                   description="Scaling operations and talent acquisition."
-                  amount="Up to $25,000"
+                  amount={`Up to ${formatAmount(25000)}`}
                 />
                 <GrantProgram 
                   icon={<GraduationCap className="w-6 h-6 text-purple-500" />}
                   title="Academic Excellence"
                   description="Higher education and research support."
-                  amount="Up to $10,000"
+                  amount={`Up to ${formatAmount(10000)}`}
                 />
                 <GrantProgram 
                   icon={<Users className="w-6 h-6 text-green-500" />}
                   title="Social Impact"
                   description="Non-profit and community change projects."
-                  amount="Up to $15,000"
+                  amount={`Up to ${formatAmount(15000)}`}
                 />
               </div>
             </div>
@@ -290,7 +293,7 @@ export const GrantsPage = () => {
               image="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=800"
               title="Solar Grid Initiative"
               author="Elena K."
-              quote="The $15k grant allowed us to install solar panels in three remote villages, providing electricity to over 200 families for the first time."
+              quote={`The ${formatAmount(15000)} grant allowed us to install solar panels in three remote villages, providing electricity to over 200 families for the first time.`}
             />
             <StoryCard 
               image="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=800"

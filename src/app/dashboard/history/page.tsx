@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { db } from '../../../lib/firebase';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { 
@@ -30,6 +31,7 @@ interface Transaction {
 
 export const HistoryPage = () => {
   const { user } = useAuth();
+  const { formatAmount } = useCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -180,7 +182,7 @@ export const HistoryPage = () => {
                           tx.type === 'deposit' ? 'text-green-500' : 
                           tx.type === 'send' ? 'text-red-500' : 'dark:text-white'
                         }`}>
-                          {tx.type === 'send' ? '-' : '+'}${tx.amount.toLocaleString()}
+                          {tx.type === 'send' ? '-' : '+'}{formatAmount(tx.amount)}
                         </p>
                       </td>
                       <td className="px-6 py-4">

@@ -247,7 +247,7 @@ export const ManagerChatPage = () => {
   }
 
   return (
-    <div className="h-full p-2 sm:p-4 lg:p-6 pb-20 lg:pb-6 flex flex-col">
+    <div className="flex-grow p-2 sm:p-4 lg:p-6 pb-20 lg:pb-6 flex flex-col min-h-0">
       <div className="flex-grow flex bg-white dark:bg-zinc-900 rounded-2xl md:rounded-3xl overflow-hidden shadow-xl border border-zinc-200 dark:border-zinc-800 relative w-full">
         {/* Sidebar - User List */}
       <AnimatePresence initial={false}>

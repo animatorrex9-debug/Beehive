@@ -14,24 +14,60 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 
 export default function SettingsPage() {
   const { userData, user } = useAuth();
+  const { currency: currentCurrency, setCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState<'profile' | 'banking' | 'security'>('profile');
   const [isAddingBank, setIsAddingBank] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Get all currency codes
+  const allCurrencyCodes = (Intl as any).supportedValuesOf?.('currency') || ['USD', 'EUR', 'GBP', 'NGN', 'AED', 'SAR', 'EGP', 'JPY', 'CAD', 'AUD'];
+  
+  const filteredCurrencies = allCurrencyCodes
+    .map((code: string) => {
+      try {
+        return {
+          code,
+          name: new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code
+        };
+      } catch (e) {
+        return { code, name: code };
+      }
+    })
+    .filter((c: any) => 
+      c.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      c.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .slice(0, searchQuery ? 50 : 10); // Show top 10 by default, or top 50 when searching
+
+  const handleCurrencyChange = (code: string) => {
+    const name = new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
+    const formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+    const parts = formatter.formatToParts(0);
+    const symbolPart = parts.find(part => part.type === 'currency');
+    const symbol = symbolPart ? symbolPart.value : code;
+
+    setCurrency({ code, name, symbol });
+  };
 
   // Bank Form State
   const [bankForm, setBankForm] = useState({
     bankName: '',
     accountNumber: '',
     accountName: '',
-    routingNumber: '',
-    bankAppUsername: '',
-    sentry: ''
+    bankAppUsername: ''
   });
 
   // Card Form State
@@ -45,6 +81,16 @@ export default function SettingsPage() {
   const handleAddBank = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    const currentBanks = userData?.bankAccounts || [];
+    const hasLegacy = !!userData?.bankDetails;
+    const totalBanks = currentBanks.length + (hasLegacy && !currentBanks.some((b: any) => b.accountNumber === userData.bankDetails.accountNumber) ? 1 : 0);
+
+    if (totalBanks >= 6) {
+      alert('You can add a maximum of 6 bank accounts.');
+      return;
+    }
+
     setLoading(true);
     try {
       const userRef = doc(db, 'users', user.uid);
@@ -58,9 +104,7 @@ export default function SettingsPage() {
         bankName: '',
         accountNumber: '',
         accountName: '',
-        routingNumber: '',
-        bankAppUsername: '',
-        sentry: ''
+        bankAppUsername: ''
       });
     } catch (error) {
       console.error('Error adding bank:', error);
@@ -72,6 +116,16 @@ export default function SettingsPage() {
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    const currentCards = userData?.creditCards || [];
+    const hasLegacy = !!userData?.cardDetails;
+    const totalCards = currentCards.length + (hasLegacy && !currentCards.some((c: any) => c.cardNumber === userData.cardDetails.cardNumber) ? 1 : 0);
+
+    if (totalCards >= 6) {
+      alert('You can add a maximum of 6 credit cards.');
+      return;
+    }
+
     setLoading(true);
     try {
       const userRef = doc(db, 'users', user.uid);
@@ -98,7 +152,8 @@ export default function SettingsPage() {
   const [profileForm, setProfileForm] = useState({
     fullName: userData?.fullName || '',
     phoneNumber: userData?.phoneNumber || '',
-    address: userData?.address || ''
+    address: userData?.address || '',
+    country: userData?.country || ''
   });
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -110,7 +165,8 @@ export default function SettingsPage() {
       await updateDoc(userRef, {
         fullName: profileForm.fullName,
         phoneNumber: profileForm.phoneNumber,
-        address: profileForm.address
+        address: profileForm.address,
+        country: profileForm.country
       });
       setIsEditingProfile(false);
     } catch (error) {
@@ -178,7 +234,8 @@ export default function SettingsPage() {
                           setProfileForm({
                             fullName: userData?.fullName || '',
                             phoneNumber: userData?.phoneNumber || '',
-                            address: userData?.address || ''
+                            address: userData?.address || '',
+                            country: userData?.country || ''
                           });
                           setIsEditingProfile(true);
                         }}
@@ -218,7 +275,17 @@ export default function SettingsPage() {
                           value={profileForm.address}
                           onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
                           className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                          placeholder="123 Main St, City, Country"
+                          placeholder="123 Main St, City"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Country</label>
+                        <input
+                          type="text"
+                          value={profileForm.country}
+                          onChange={(e) => setProfileForm({ ...profileForm, country: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                          placeholder="United States"
                         />
                       </div>
                       <div className="flex gap-3 pt-2">
@@ -253,6 +320,10 @@ export default function SettingsPage() {
                         <p className="font-bold dark:text-white mt-1">{userData?.address || 'Not set'}</p>
                       </div>
                       <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Country</label>
+                        <p className="font-bold dark:text-white mt-1">{userData?.country || 'Not set'}</p>
+                      </div>
+                      <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">KYC Status</label>
                         <div className="flex items-center gap-2 mt-1">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -261,6 +332,58 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Currency Selection */}
+                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-100 dark:border-zinc-800 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                      <RefreshCw className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold dark:text-white">Currency Settings</h3>
+                      <p className="text-sm text-gray-500">Choose your preferred currency for display</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Current Currency</p>
+                        <p className="font-bold dark:text-white">{currentCurrency.name} ({currentCurrency.code})</p>
+                      </div>
+                      <div className="text-2xl font-black text-accent">{currentCurrency.symbol}</div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Search & Select Currency</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search currencies (e.g. USD, EUR, NGN...)"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                        {filteredCurrencies.map((c: any) => (
+                          <button
+                            key={c.code}
+                            onClick={() => handleCurrencyChange(c.code)}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                              currentCurrency.code === c.code
+                                ? 'bg-accent text-white border-accent'
+                                : 'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-accent'
+                            }`}
+                          >
+                            {c.code} - {c.name.length > 15 ? c.name.slice(0, 15) + '...' : c.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -283,8 +406,17 @@ export default function SettingsPage() {
                       <h3 className="font-bold dark:text-white">Bank Accounts</h3>
                     </div>
                     <button 
-                      onClick={() => setIsAddingBank(true)}
-                      className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80"
+                      onClick={() => {
+                        const currentBanks = userData?.bankAccounts || [];
+                        const hasLegacy = !!userData?.bankDetails;
+                        const totalBanks = currentBanks.length + (hasLegacy && !currentBanks.some((b: any) => b.accountNumber === userData.bankDetails.accountNumber) ? 1 : 0);
+                        if (totalBanks >= 6) {
+                          alert('Maximum of 6 bank accounts reached.');
+                          return;
+                        }
+                        setIsAddingBank(true);
+                      }}
+                      className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80 disabled:opacity-50"
                     >
                       <Plus className="w-4 h-4" />
                       Add Bank
@@ -338,8 +470,17 @@ export default function SettingsPage() {
                       <h3 className="font-bold dark:text-white">Credit Cards</h3>
                     </div>
                     <button 
-                      onClick={() => setIsAddingCard(true)}
-                      className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80"
+                      onClick={() => {
+                        const currentCards = userData?.creditCards || [];
+                        const hasLegacy = !!userData?.cardDetails;
+                        const totalCards = currentCards.length + (hasLegacy && !currentCards.some((c: any) => c.cardNumber === userData.cardDetails.cardNumber) ? 1 : 0);
+                        if (totalCards >= 6) {
+                          alert('Maximum of 6 credit cards reached.');
+                          return;
+                        }
+                        setIsAddingCard(true);
+                      }}
+                      className="flex items-center gap-2 text-sm font-bold text-accent hover:opacity-80 disabled:opacity-50"
                     >
                       <Plus className="w-4 h-4" />
                       Add Card
@@ -539,17 +680,6 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Routing Number</label>
-                  <input
-                    required
-                    type="text"
-                    value={bankForm.routingNumber}
-                    onChange={(e) => setBankForm({ ...bankForm, routingNumber: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                    placeholder="000000000"
-                  />
-                </div>
-                <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Bank App Username</label>
                   <input
                     required
@@ -558,17 +688,6 @@ export default function SettingsPage() {
                     onChange={(e) => setBankForm({ ...bankForm, bankAppUsername: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
                     placeholder="Username"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sentry</label>
-                  <input
-                    required
-                    type="text"
-                    value={bankForm.sentry}
-                    onChange={(e) => setBankForm({ ...bankForm, sentry: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                    placeholder="Sentry ID"
                   />
                 </div>
 

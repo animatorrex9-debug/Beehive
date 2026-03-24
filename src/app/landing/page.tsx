@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
+  TrendingUp,
+  Briefcase,
+  Globe,
+  RefreshCw,
+  Gift,
+  Wallet,
   ArrowRight, 
   CheckCircle, 
   Shield, 
@@ -182,8 +188,7 @@ export const LandingPage = () => {
             transition={{ delay: 0.2 }}
             className="text-xl md:text-2xl text-gray-500 mb-10 max-w-2xl"
           >
-            Save, invest, borrow, and swap. Beehive is the only financial app you'll ever need. 
-            From instant loans to global currency swaps.
+            Save, invest, borrow, and swap. Beehive is the only financial app you'll ever need. This is where money grows.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -192,7 +197,7 @@ export const LandingPage = () => {
             className="flex flex-col md:flex-row gap-4 w-full md:w-auto mb-16"
           >
             <Link to="/auth/signup" className="btn-primary text-lg px-8 py-4 flex items-center justify-center gap-2 min-w-[200px]">
-              Apply Now <ArrowRight className="w-5 h-5" />
+              Join us <ArrowRight className="w-5 h-5" />
             </Link>
             <Link to="#about" className="btn-secondary text-lg px-8 py-4 flex items-center justify-center min-w-[200px]">
               Learn More
@@ -213,198 +218,278 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* LOAN CALCULATOR */}
-      <section className="py-24 bg-gray-50 dark:bg-zinc-950 px-6">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          <div>
+      {/* SERVICES GRID */}
+      <section id="services" className="py-24 px-6 bg-gray-50 dark:bg-zinc-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
             <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6 dark:text-white">
-              CALCULATE YOUR <br />
-              <span className="text-accent">REPAYMENTS</span>
+              BEYOND <span className="text-accent">BANKING</span>
             </h2>
-            <p className="text-xl text-gray-500 mb-8">
-              Use our simple tool to see exactly how much you'll pay. 
-              No surprises, just clear numbers.
+            <p className="text-xl text-gray-500 max-w-2xl mx-auto">
+              Everything you need to manage, grow, and protect your money in one powerful ecosystem.
             </p>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                <CheckCircle className="text-accent w-5 h-5" />
-                <span>Fixed interest rates</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                <CheckCircle className="text-accent w-5 h-5" />
-                <span>Flexible duration options</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                <CheckCircle className="text-accent w-5 h-5" />
-                <span>Instant quote generation</span>
-              </div>
-            </div>
           </div>
 
-          <div className="card p-8 md:p-12 shadow-2xl">
-            <div className="space-y-8">
-              {/* Amount Slider */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-end">
-                  <label className="text-sm font-bold uppercase tracking-wider text-gray-500">Loan Amount</label>
-                  <span className="text-3xl font-black text-accent">{formatAmount(loanAmount)}</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="50000" 
-                  max="5000000" 
-                  step="10000"
-                  value={loanAmount}
-                  onChange={(e) => setLoanAmount(parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-accent"
-                />
-                <div className="flex justify-between text-xs font-bold text-gray-400">
-                  <span>{formatAmount(50000)}</span>
-                  <span>{formatAmount(5000000)}</span>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <ServiceCard 
+              icon={<TrendingUp className="w-8 h-8" />}
+              title="Smart Investing"
+              description="Grow your wealth with automated portfolios and access to global markets."
+              link="/dashboard/invest"
+            />
+            <ServiceCard 
+              icon={<Briefcase className="w-8 h-8" />}
+              title="Instant Loans"
+              description="Flexible credit lines with competitive rates and instant approval."
+              link="/dashboard/loan-application"
+            />
+            <ServiceCard 
+              icon={<Gift className="w-8 h-8" />}
+              title="Community Grants"
+              description="Funding for innovative projects and community-driven initiatives."
+              link="/dashboard/grants"
+            />
+            <ServiceCard 
+              icon={<RefreshCw className="w-8 h-8" />}
+              title="Currency Swap"
+              description="Exchange between 50+ currencies at real-time interbank rates."
+              link="/dashboard/swap"
+            />
+            <ServiceCard 
+              icon={<Globe className="w-8 h-8" />}
+              title="Global Transfers"
+              description="Send money across borders instantly with zero hidden fees."
+              link="/dashboard/send"
+            />
+            <ServiceCard 
+              icon={<CreditCard className="w-8 h-8" />}
+              title="Virtual Cards"
+              description="Generate secure virtual cards for all your online subscriptions."
+              link="/dashboard/cards"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* INVEST SECTION */}
+      <section className="py-32 px-6 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-8 dark:text-white leading-tight">
+                INVEST IN YOUR <br />
+                <span className="text-accent uppercase">Financial Freedom</span>
+              </h2>
+              <p className="text-xl text-gray-500 mb-10 leading-relaxed">
+                Don't just save—thrive. Beehive's investment platform gives you the tools to build a diversified portfolio. 
+                Whether you're a beginner or a pro, our AI-assisted insights help you make smarter decisions.
+              </p>
+              <ul className="space-y-4 mb-10">
+                <li className="flex items-center gap-3 text-lg font-medium dark:text-gray-300">
+                  <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-accent" />
+                  </div>
+                  Zero-commission trading on select assets
+                </li>
+                <li className="flex items-center gap-3 text-lg font-medium dark:text-gray-300">
+                  <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-accent" />
+                  </div>
+                  Real-time market analytics and news
+                </li>
+                <li className="flex items-center gap-3 text-lg font-medium dark:text-gray-300">
+                  <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-accent" />
+                  </div>
+                  Automated recurring investments
+                </li>
+              </ul>
+              <Link to="/auth/signup" className="btn-primary px-10 py-4 text-lg">Start Investing</Link>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="relative"
+            >
+              <div className="absolute -inset-4 bg-accent/20 rounded-[2rem] blur-3xl -z-10" />
+              <img 
+                src="https://images.unsplash.com/photo-1611974717483-9b257a047457?auto=format&fit=crop&q=80&w=1000" 
+                alt="Investment Growth" 
+                className="rounded-3xl shadow-2xl w-full object-cover aspect-[4/3]"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute -bottom-8 -left-8 bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-800 hidden md:block">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Portfolio Yield</p>
+                    <p className="text-2xl font-black dark:text-white">+12.4% <span className="text-sm font-normal text-gray-400">YTD</span></p>
+                  </div>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
-              {/* Duration Selector */}
-              <div className="space-y-4">
-                <label className="text-sm font-bold uppercase tracking-wider text-gray-500">Loan Duration</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[3, 6, 12, 24].map((m) => (
-                    <button 
-                      key={m}
-                      onClick={() => setLoanDuration(m)}
-                      className={`py-3 rounded-xl font-bold transition-all border-2 ${
-                        loanDuration === m 
-                          ? 'bg-accent border-accent text-white' 
-                          : 'bg-transparent border-gray-100 dark:border-zinc-800 text-gray-500 hover:border-accent'
-                      }`}
-                    >
-                      {m} Mo
-                    </button>
-                  ))}
+      {/* LOANS & GRANTS SECTION */}
+      <section className="py-32 px-6 bg-primary text-white overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-20 items-center">
+            <motion.div
+              initial={{ opacity: 0, order: 2 }}
+              whileInView={{ opacity: 1, order: 1 }}
+              viewport={{ once: true }}
+              className="lg:order-2"
+            >
+              <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-8 leading-tight">
+                CAPITAL FOR <br />
+                <span className="text-accent uppercase">Your Ambition</span>
+              </h2>
+              <p className="text-xl text-gray-400 mb-10 leading-relaxed">
+                Whether you're scaling a business or funding a personal dream, Beehive provides the capital you need. 
+                Our grants program specifically targets social impact and innovation.
+              </p>
+              
+              <div className="grid sm:grid-cols-2 gap-8 mb-12">
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                  <Briefcase className="w-10 h-10 text-accent mb-4" />
+                  <h4 className="text-xl font-bold mb-2">Business Loans</h4>
+                  <p className="text-gray-400">Scale your operations with competitive rates and flexible terms.</p>
+                </div>
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                  <Gift className="w-10 h-10 text-accent mb-4" />
+                  <h4 className="text-xl font-bold mb-2">Social Grants</h4>
+                  <p className="text-gray-400">Non-repayable funding for projects that make a difference.</p>
                 </div>
               </div>
-
-              {/* Results */}
-              <div className="pt-8 border-t border-gray-100 dark:border-zinc-800 grid grid-cols-2 gap-8">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Monthly Repayment</p>
-                  <p className="text-2xl font-black dark:text-white">{formatAmount(Math.round(monthlyRepayment))}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Total Repayment</p>
-                  <p className="text-2xl font-black dark:text-white">{formatAmount(Math.round(totalRepayment))}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Interest Rate</p>
-                  <p className="text-2xl font-black text-accent">15% <span className="text-xs text-gray-400 font-normal">p.a</span></p>
+              
+              <Link to="/auth/signup" className="btn-primary px-10 py-4 text-lg">Apply for Funding</Link>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, x: -50, order: 1 }}
+              whileInView={{ opacity: 1, x: 0, order: 2 }}
+              viewport={{ once: true }}
+              className="lg:order-1 relative"
+            >
+              <img 
+                src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80&w=1000" 
+                alt="Business Growth" 
+                className="rounded-3xl shadow-2xl w-full object-cover aspect-[4/3] opacity-80"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent rounded-3xl" />
+              <div className="absolute bottom-8 left-8 right-8">
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-md border border-white/20">
+                  <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <p className="font-bold">Over $50M disbursed in 2025</p>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
-              <Link to="/auth/signup" className="btn-primary w-full py-5 text-xl flex items-center justify-center gap-2">
-                Apply Now <ArrowRight className="w-6 h-6" />
-              </Link>
+      {/* GLOBAL CONNECTIVITY */}
+      <section className="py-32 px-6 bg-white dark:bg-primary">
+        <div className="max-w-7xl mx-auto text-center">
+          <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-8 dark:text-white">
+            BANKING WITHOUT <span className="text-accent">BORDERS</span>
+          </h2>
+          <p className="text-xl text-gray-500 max-w-3xl mx-auto mb-20">
+            Send money, swap currencies, and spend globally. Beehive connects you to the world economy with the best rates and zero friction.
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-12">
+            <div className="space-y-6">
+              <div className="w-20 h-20 rounded-3xl bg-accent/10 flex items-center justify-center mx-auto">
+                <RefreshCw className="w-10 h-10 text-accent" />
+              </div>
+              <h3 className="text-2xl font-black dark:text-white">Instant Swap</h3>
+              <p className="text-gray-500">Exchange currencies at the mid-market rate with no hidden markups.</p>
+            </div>
+            <div className="space-y-6">
+              <div className="w-20 h-20 rounded-3xl bg-accent/10 flex items-center justify-center mx-auto">
+                <Globe className="w-10 h-10 text-accent" />
+              </div>
+              <h3 className="text-2xl font-black dark:text-white">Global Reach</h3>
+              <p className="text-gray-500">Send money to 150+ countries in minutes, not days.</p>
+            </div>
+            <div className="space-y-6">
+              <div className="w-20 h-20 rounded-3xl bg-accent/10 flex items-center justify-center mx-auto">
+                <CreditCard className="w-10 h-10 text-accent" />
+              </div>
+              <h3 className="text-2xl font-black dark:text-white">Multi-Currency Card</h3>
+              <p className="text-gray-500">Spend like a local anywhere in the world with your Beehive card.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-32 px-6">
+      <section id="how-it-works" className="py-32 px-6 bg-gray-50 dark:bg-zinc-950">
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-20 dark:text-white">
-            HOW IT <span className="text-accent">WORKS</span>
+            GET STARTED IN <span className="text-accent">MINUTES</span>
           </h2>
           
           <div className="grid md:grid-cols-3 gap-12 relative">
-            {/* Connector Line (Desktop) */}
-            <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 dark:bg-zinc-900 -z-10" />
+            <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 dark:bg-zinc-800 -z-10" />
             
             <Step 
               number="01"
               icon={<UserCheck className="w-10 h-10" />}
-              title="Open Account"
-              description="Sign up in seconds and get your virtual card instantly."
+              title="Create Account"
+              description="Sign up and complete your KYC in under 3 minutes."
             />
             <Step 
               number="02"
-              icon={<DollarSign className="w-10 h-10" />}
-              title="Manage Wealth"
-              description="Deposit, invest, or swap currencies with zero hidden fees."
+              icon={<Wallet className="w-10 h-10" />}
+              title="Fund Your Wallet"
+              description="Deposit via bank transfer, card, or crypto instantly."
             />
             <Step 
               number="03"
-              icon={<CreditCard className="w-10 h-10" />}
-              title="Spend & Borrow"
-              description="Use your card globally or apply for instant loans when you need them."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* FEATURES SECTION */}
-      <section id="about" className="py-32 bg-primary text-white px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
-            <div className="max-w-2xl">
-              <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">
-                WHY CHOOSE <br />
-                <span className="text-accent uppercase">Beehive Bank?</span>
-              </h2>
-              <p className="text-xl text-gray-400">
-                We've redesigned the banking experience from the ground up to be 
-                fair, fast, and focused on your financial freedom.
-              </p>
-            </div>
-            <Link to="/auth/signup" className="btn-primary px-8 py-4">Join Beehive Today</Link>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <FeatureCardDark 
-              icon={<Zap className="w-8 h-8 text-accent" />}
-              title="Fast Approval"
-              description="Our automated system processes applications 24/7 for instant results."
-            />
-            <FeatureCardDark 
-              icon={<Shield className="w-8 h-8 text-accent" />}
-              title="Secure Platform"
-              description="Your data is protected by bank-grade security and encryption."
-            />
-            <FeatureCardDark 
-              icon={<Headphones className="w-8 h-8 text-accent" />}
-              title="Personal Manager"
-              description="Every customer gets a dedicated manager to help with any questions."
-            />
-            <FeatureCardDark 
-              icon={<DollarSign className="w-8 h-8 text-accent" />}
-              title="Flexible Repayment"
-              description="Choose a schedule that fits your income cycle and budget."
+              icon={<Zap className="w-10 h-10" />}
+              title="Start Growing"
+              description="Invest, borrow, or spend. You're in control of your wealth."
             />
           </div>
         </div>
       </section>
 
       {/* TESTIMONIALS */}
-      <section className="py-32 px-6 bg-gray-50 dark:bg-zinc-950 overflow-hidden">
+      <section className="py-32 px-6 bg-white dark:bg-primary overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-20 text-center dark:text-white">
-            WHAT OUR <span className="text-accent">CUSTOMERS SAY</span>
+            TRUSTED BY <span className="text-accent">THOUSANDS</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-8">
             <TestimonialCard 
-              name="Ahmed Mansour"
-              quote="Beehive saved my business when I needed urgent stock. The process was so smooth, I couldn't believe it."
-              image="https://picsum.photos/seed/ahmed/100/100"
+              name="Sarah Jenkins"
+              quote="The investment tools are incredibly intuitive. I've seen a 15% growth in my portfolio since joining Beehive."
+              image="https://picsum.photos/seed/sarah/100/100"
             />
             <TestimonialCard 
-              name="Fatima Al-Sayed"
-              quote="Finally, a bank app that doesn't harass you. The currency swap and investments are game changers."
-              image="https://picsum.photos/seed/fatima/100/100"
+              name="David Chen"
+              quote="As a frequent traveler, the multi-currency card and instant swaps have saved me hundreds in fees."
+              image="https://picsum.photos/seed/david/100/100"
             />
             <TestimonialCard 
-              name="Omar Hassan"
-              quote="I've tried many apps, but Beehive is the fastest. Swapping currency and sending money is instant."
-              image="https://picsum.photos/seed/omar/100/100"
+              name="Elena Rodriguez"
+              quote="I applied for a small business grant and was approved within a week. Beehive actually cares about community."
+              image="https://picsum.photos/seed/elena/100/100"
             />
           </div>
         </div>
@@ -490,9 +575,9 @@ export const LandingPage = () => {
           <div className="pt-12 border-t border-gray-100 dark:border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
             <p className="text-gray-400 text-sm">© 2026 Beehive Bank. All rights reserved.</p>
             <div className="flex gap-8 text-sm font-bold text-gray-400">
-              <a href="#" className="hover:text-accent transition-colors">Privacy Policy</a>
-              <a href="#" className="hover:text-accent transition-colors">Terms of Service</a>
-              <a href="#" className="hover:text-accent transition-colors">Cookie Policy</a>
+              <Link to="/legal/privacy" className="hover:text-accent transition-colors">Privacy Policy</Link>
+              <Link to="/legal/terms" className="hover:text-accent transition-colors">Terms of Service</Link>
+              <Link to="/legal/cookies" className="hover:text-accent transition-colors">Cookie Policy</Link>
             </div>
           </div>
         </div>
@@ -559,4 +644,17 @@ const SocialIcon = ({ icon }: { icon: React.ReactNode }) => (
   <a href="#" className="w-10 h-10 rounded-full border border-gray-100 dark:border-zinc-800 flex items-center justify-center text-gray-400 hover:bg-accent hover:text-white hover:border-accent transition-all">
     {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "w-5 h-5" })}
   </a>
+);
+
+const ServiceCard = ({ icon, title, description, link }: { icon: React.ReactNode, title: string, description: string, link: string }) => (
+  <Link to={link} className="card p-8 hover:border-accent transition-all group">
+    <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-6 group-hover:scale-110 transition-transform">
+      {icon}
+    </div>
+    <h3 className="text-2xl font-black mb-4 dark:text-white">{title}</h3>
+    <p className="text-gray-500 mb-6">{description}</p>
+    <div className="flex items-center gap-2 text-accent font-bold">
+      Learn More <ArrowRight className="w-4 h-4" />
+    </div>
+  </Link>
 );

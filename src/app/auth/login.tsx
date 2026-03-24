@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { useCurrency } from '../../context/CurrencyContext';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
@@ -19,6 +20,7 @@ import { ArrowLeft, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage = () => {
   const { user, userData, isAdmin, loading: authLoading, isConfigured } = useAuth();
+  const { setCurrencyByCountry } = useCurrency();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -66,6 +68,11 @@ export const LoginPage = () => {
 
       const userData = userDoc.data();
       const role = userData.role;
+      const country = userData.country;
+
+      if (country) {
+        setCurrencyByCountry(country);
+      }
 
       if (role === 'admin') {
         navigate('/admin');
@@ -126,6 +133,7 @@ export const LoginPage = () => {
       // Check if user exists in Firestore, if not create (for Google login)
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       let role = 'user';
+      let country = '';
 
       if (!userDoc.exists()) {
         // Check if another account exists with this email but different UID
@@ -145,6 +153,7 @@ export const LoginPage = () => {
             emailVerified: user.emailVerified,
           });
           role = existingData.role || 'user';
+          country = existingData.country || '';
         } else {
           await setDoc(doc(db, 'users', user.uid), {
             fullName: user.displayName || '',
@@ -157,13 +166,21 @@ export const LoginPage = () => {
           });
         }
       } else {
-        role = userDoc.data().role;
+        const data = userDoc.data();
+        role = data.role;
+        country = data.country || '';
+      }
+
+      if (country) {
+        setCurrencyByCountry(country);
       }
 
       if (role === 'admin') {
         navigate('/admin');
       } else if (role === 'account_manager') {
         navigate('/manager');
+      } else if (!country) {
+        navigate('/auth/complete-profile');
       } else {
         navigate('/dashboard');
       }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { RefreshCw, ArrowRightLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { useCryptoPrices } from '../../../hooks/useCryptoPrices';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
@@ -10,36 +11,41 @@ import { ChevronDown } from 'lucide-react';
 
 export const SwapPage = () => {
   const { user, userData } = useAuth();
+  const { currency } = useCurrency();
   const { btcPrice, usdtPrice } = useCryptoPrices();
   const [fromAmount, setFromAmount] = useState('100');
-  const [fromCurrency, setFromCurrency] = useState('USD');
+  const [fromCurrency, setFromCurrency] = useState(userData?.currency?.code || currency.code || 'USD');
   const [toCurrency, setToCurrency] = useState('BTC');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   const currencies = [
-    { code: 'USD', name: 'US Dollar', icon: '$' },
+    { code: userData?.currency?.code || currency.code || 'USD', name: userData?.currency?.name || currency.name || 'US Dollar', icon: userData?.currency?.symbol || currency.symbol || '$' },
     { code: 'BTC', name: 'Bitcoin', icon: '₿' },
     { code: 'USDT', name: 'Tether', icon: '₮' },
     { code: 'EUR', name: 'Euro', icon: '€' },
     { code: 'GBP', name: 'British Pound', icon: '£' },
-  ];
+    { code: 'USD', name: 'US Dollar', icon: '$' },
+  ].filter((c, index, self) => 
+    index === self.findIndex((t) => t.code === c.code)
+  );
 
   const getPrice = (code: string) => {
-    if (code === 'USD') return 1;
+    if (code === (userData?.currency?.code || currency.code || 'USD')) return 1;
     if (code === 'BTC') return btcPrice;
     if (code === 'USDT') return usdtPrice;
     if (code === 'EUR') return 1.08; // Fixed for now
     if (code === 'GBP') return 1.27; // Fixed for now
+    if (code === 'USD') return 1;
     return 1;
   };
 
   const exchangeRate = getPrice(fromCurrency) / getPrice(toCurrency);
-  const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(fromCurrency === 'USD' && toCurrency === 'BTC' ? 8 : 2);
+  const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(fromCurrency === (userData?.currency?.code || currency.code || 'USD') && toCurrency === 'BTC' ? 8 : 2);
 
   const getBalance = (code: string) => {
-    if (code === 'USD') return userData?.walletBalance || 0;
+    if (code === (userData?.currency?.code || currency.code || 'USD')) return userData?.walletBalance || 0;
     if (code === 'BTC') return userData?.btcBalance || 0;
     if (code === 'USDT') return userData?.usdtBalance || 0;
     return 0;
@@ -65,13 +71,13 @@ export const SwapPage = () => {
       const updates: any = {};
 
       // Deduct from source
-      if (fromCurrency === 'USD') updates.walletBalance = increment(-swapAmount);
+      if (fromCurrency === (userData?.currency?.code || currency.code || 'USD')) updates.walletBalance = increment(-swapAmount);
       else if (fromCurrency === 'BTC') updates.btcBalance = increment(-swapAmount);
       else if (fromCurrency === 'USDT') updates.usdtBalance = increment(-swapAmount);
 
       // Add to destination
       const receivedAmount = parseFloat(toAmount);
-      if (toCurrency === 'USD') updates.walletBalance = increment(receivedAmount);
+      if (toCurrency === (userData?.currency?.code || currency.code || 'USD')) updates.walletBalance = increment(receivedAmount);
       else if (toCurrency === 'BTC') updates.btcBalance = increment(receivedAmount);
       else if (toCurrency === 'USDT') updates.usdtBalance = increment(receivedAmount);
 

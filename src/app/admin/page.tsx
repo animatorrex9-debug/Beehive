@@ -21,7 +21,11 @@ import {
   Eye,
   ChevronDown,
   Wallet,
-  Plus
+  Plus,
+  Award,
+  X,
+  ArrowDownLeft,
+  Building2
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
@@ -33,12 +37,15 @@ export const AdminPage = () => {
   const [loans, setLoans] = useState<any[]>([]);
   const [pendingKYCs, setPendingKYCs] = useState<any[]>([]);
   const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
+  const [grants, setGrants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers' | 'grants'>('dashboard');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedGrant, setSelectedGrant] = useState<any | null>(null);
+  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
@@ -172,11 +179,29 @@ export const AdminPage = () => {
       console.error('Error setting up admin deposits listener:', err);
     }
 
+    // Listen for grants
+    let unsubscribeGrants: (() => void) | null = null;
+    try {
+      const grantsQuery = query(collection(db, 'grants'));
+      unsubscribeGrants = onSnapshot(grantsQuery, (snapshot) => {
+        const grantsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setGrants(grantsData.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          console.error('Error fetching grants for admin:', err);
+          handleFirestoreError(err, OperationType.LIST, 'grants');
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up admin grants listener:', err);
+    }
+
     return () => {
       if (unsubscribeUsers) unsubscribeUsers();
       if (unsubscribeLoans) unsubscribeLoans();
       if (unsubscribeKYC) unsubscribeKYC();
       if (unsubscribeDeposits) unsubscribeDeposits();
+      if (unsubscribeGrants) unsubscribeGrants();
       if (unsubscribeSettings) unsubscribeSettings();
     };
   }, [user]);
@@ -198,6 +223,57 @@ export const AdminPage = () => {
       setMessage({ text: `Failed to update user role: ${err.message}`, type: 'error' });
     } finally {
       setIsUpdatingRole(false);
+    }
+  };
+
+  const handleGrantStatusUpdate = async (grantId: string, userId: string, status: 'approved' | 'rejected', amount: number, currency: string) => {
+    try {
+      const grantRef = doc(db, 'grants', grantId);
+      await updateDoc(grantRef, { 
+        status,
+        updatedAt: serverTimestamp()
+      });
+
+      if (status === 'approved') {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+          walletBalance: increment(amount),
+          updatedAt: serverTimestamp()
+        });
+
+        // Add transaction record
+        await addDoc(collection(db, 'transactions'), {
+          userId,
+          type: 'grant',
+          amount,
+          currency,
+          status: 'completed',
+          description: 'Grant Application Approved',
+          timestamp: serverTimestamp(),
+          createdAt: serverTimestamp()
+        });
+      }
+
+      setIsGrantModalOpen(false);
+      setSelectedGrant(null);
+      setMessage({ text: `Grant application ${status} successfully!`, type: 'success' });
+    } catch (error) {
+      console.error('Error updating grant status:', error);
+      setMessage({ text: 'Failed to update grant status', type: 'error' });
+    }
+  };
+
+  const formatUserBalance = (user: any) => {
+    const balance = user.wallet?.balance || user.walletBalance || 0;
+    const currencyCode = user.currency?.code || 'USD';
+    
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currencyCode,
+      }).format(balance);
+    } catch (e) {
+      return `${user.currency?.symbol || '$'}${balance.toLocaleString()}`;
     }
   };
 
@@ -504,7 +580,7 @@ export const AdminPage = () => {
         )}
 
         {/* Tabs Navigation */}
-        <div className="flex flex-wrap gap-2 mb-8 p-1 bg-gray-100 dark:bg-zinc-900 rounded-2xl w-fit">
+        <div className="flex flex-nowrap overflow-x-auto pb-2 gap-2 mb-8 p-1 bg-gray-100 dark:bg-zinc-900 rounded-2xl w-full max-w-full scrollbar-hide">
           <TabButton 
             active={activeTab === 'dashboard'} 
             onClick={() => setActiveTab('dashboard')}
@@ -539,6 +615,13 @@ export const AdminPage = () => {
             count={pendingDeposits.length}
           />
           <TabButton 
+            active={activeTab === 'grants'} 
+            onClick={() => setActiveTab('grants')}
+            icon={<Award className="w-4 h-4" />}
+            label="Grants"
+            count={grants.filter(g => g.status === 'pending').length}
+          />
+          <TabButton 
             active={activeTab === 'banks'} 
             onClick={() => setActiveTab('banks')}
             icon={<UserCheck className="w-4 h-4" />}
@@ -571,14 +654,20 @@ export const AdminPage = () => {
               <AdminStatCard 
                 icon={<TrendingUp className="text-accent" />}
                 label="Loan Volume"
-                value={`$${totalVolume.toLocaleString()}`}
-                subValue={`${loans.length} Applications`}
+                value={loans.filter(l => l.status === 'approved' || l.status === 'disbursed').length.toString()}
+                subValue="Approved Loans"
               />
               <AdminStatCard 
                 icon={<ShieldCheck className="text-purple-500" />}
                 label="Pending KYC"
                 value={pendingKYCs.length.toString()}
                 subValue="Awaiting Review"
+              />
+              <AdminStatCard 
+                icon={<Award className="text-pink-500" />}
+                label="Pending Grants"
+                value={grants.filter(g => g.status === 'pending').length.toString()}
+                subValue="New Applications"
               />
               <AdminStatCard 
                 icon={<ArrowUpRight className="text-orange-500" />}
@@ -600,7 +689,9 @@ export const AdminPage = () => {
                         </div>
                         <div>
                           <p className="text-sm font-bold dark:text-white">{loan.userEmail}</p>
-                          <p className="text-[10px] text-gray-500 uppercase tracking-widest">Loan Application • ${loan.amount}</p>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-widest">
+                            Loan Application • {formatUserBalance(users.find(u => u.id === loan.userId) || { walletBalance: loan.amount })}
+                          </p>
                         </div>
                       </div>
                       <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${
@@ -665,7 +756,7 @@ export const AdminPage = () => {
                           {u.kycStatus || 'Not Started'}
                         </span>
                       </td>
-                      <td className="py-4 font-bold text-accent">${(u.walletBalance || 0).toLocaleString()}</td>
+                      <td className="py-4 font-bold text-accent">{formatUserBalance(u)}</td>
                       <td className="py-4 text-gray-500 text-sm">{formatDate(u.createdAt)}</td>
                       <td className="py-4 text-right">
                         <button 
@@ -677,6 +768,84 @@ export const AdminPage = () => {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : activeTab === 'grants' ? (
+          <div className="card">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-xl font-bold dark:text-white uppercase tracking-tighter">Grant Applications</h2>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search grants..." 
+                  className="pl-10 pr-4 py-2 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                    <th className="pb-4">Applicant</th>
+                    <th className="pb-4">Type</th>
+                    <th className="pb-4">Amount</th>
+                    <th className="pb-4">Status</th>
+                    <th className="pb-4">Date</th>
+                    <th className="pb-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {grants.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-20 text-center text-gray-500 italic">
+                        No grant applications found.
+                      </td>
+                    </tr>
+                  ) : (
+                    grants.map((grant) => {
+                      const applicant = users.find(u => u.id === grant.userId);
+                      return (
+                        <tr key={grant.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="py-4">
+                            <div className="font-bold dark:text-white">{applicant?.email || 'Unknown User'}</div>
+                            <div className="text-[10px] text-gray-400 font-mono">{grant.userId}</div>
+                          </td>
+                          <td className="py-4">
+                            <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">
+                              {grant.type}
+                            </span>
+                          </td>
+                          <td className="py-4 font-bold text-accent">
+                            {grant.currency} {Number(grant.amount).toLocaleString()}
+                          </td>
+                          <td className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              grant.status === 'approved' ? 'bg-green-100 text-green-700' :
+                              grant.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {grant.status}
+                            </span>
+                          </td>
+                          <td className="py-4 text-gray-500 text-sm">{formatDate(grant.timestamp)}</td>
+                          <td className="py-4 text-right">
+                            <button 
+                              onClick={() => {
+                                setSelectedGrant(grant);
+                                setIsGrantModalOpen(true);
+                              }}
+                              className="p-2 hover:bg-accent/10 text-gray-400 hover:text-accent rounded-lg transition-all"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -745,7 +914,7 @@ export const AdminPage = () => {
                     <option value="">Choose a user...</option>
                     {users.map(u => (
                       <option key={u.id} value={u.id}>
-                        {u.fullName || u.email} ({u.email}) - Balance: ${u.walletBalance || 0}
+                        {u.fullName || u.email} ({u.email}) - Balance: {formatUserBalance(u)}
                       </option>
                     ))}
                   </select>
@@ -1158,7 +1327,9 @@ export const AdminPage = () => {
                             <div className="mt-1 text-[10px] text-accent font-black uppercase">PIN VERIFIED ✓</div>
                           </td>
                           <td className="py-4">
-                            <div className="font-bold text-accent text-lg">${loan.amount.toLocaleString()}</div>
+                            <div className="font-bold text-accent text-lg">
+                              {formatUserBalance(users.find(u => u.id === loan.userId) || { walletBalance: loan.amount })}
+                            </div>
                             <div className="text-xs text-gray-500 italic">"{loan.purpose}"</div>
                           </td>
                           <td className="py-4">
@@ -1252,7 +1423,9 @@ export const AdminPage = () => {
                             <div className="font-bold dark:text-white">{deposit.userEmail}</div>
                             <div className="text-xs text-gray-400 font-mono">{deposit.userId}</div>
                           </td>
-                          <td className="py-4 font-bold text-accent">${deposit.amount.toLocaleString()}</td>
+                          <td className="py-4 font-bold text-accent">
+                            {formatUserBalance(users.find(u => u.id === deposit.userId) || { walletBalance: deposit.amount })}
+                          </td>
                           <td className="py-4 text-gray-500">{deposit.method}</td>
                           <td className="py-4 text-gray-500">{formatDate(deposit.createdAt)}</td>
                           <td className="py-4 text-right">
@@ -1283,7 +1456,9 @@ export const AdminPage = () => {
                 >
                   <div className="flex justify-between items-start mb-8">
                     <div>
-                      <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">Reviewing Deposit: ${selectedDeposit.amount}</h3>
+                      <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">
+                        Reviewing Deposit: {formatUserBalance(users.find(u => u.id === selectedDeposit.userId) || { walletBalance: selectedDeposit.amount })}
+                      </h3>
                       <p className="text-gray-500">User: {selectedDeposit.userEmail} | Method: {selectedDeposit.method}</p>
                     </div>
                     <button onClick={() => setSelectedDeposit(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
@@ -1295,7 +1470,7 @@ export const AdminPage = () => {
                     <div className="space-y-4">
                       <h4 className="text-xs font-black uppercase tracking-widest text-accent">Transaction Details</h4>
                       <div className="bg-gray-50 dark:bg-zinc-900 p-6 rounded-2xl space-y-4 border border-gray-100 dark:border-zinc-800">
-                        <DetailItem label="Amount" value={`$${selectedDeposit.amount.toLocaleString()}`} />
+                        <DetailItem label="Amount" value={formatUserBalance(users.find(u => u.id === selectedDeposit.userId) || { walletBalance: selectedDeposit.amount })} />
                         <DetailItem label="Method" value={selectedDeposit.method} />
                         <DetailItem label="User Email" value={selectedDeposit.userEmail} />
                         <DetailItem label="Date Submitted" value={formatDate(selectedDeposit.createdAt)} />
@@ -1434,7 +1609,56 @@ export const AdminPage = () => {
                     </DetailSection>
 
                     <DetailSection title="Documents">
-                      <DetailItem label="National ID Number" value={selectedKYC.nationalIdNumber} />
+                      <DetailItem label="SSN" value={selectedKYC.ssn} />
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">ID Card (Front)</p>
+                            <div className="aspect-video rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800">
+                              {selectedKYC.idCardFrontImage || selectedKYC.idCardImage ? (
+                                <img 
+                                  src={selectedKYC.idCardFrontImage || selectedKYC.idCardImage} 
+                                  alt="ID Front" 
+                                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                  onClick={() => window.open(selectedKYC.idCardFrontImage || selectedKYC.idCardImage, '_blank')}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 italic text-xs text-center p-2">No front image</div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">ID Card (Back)</p>
+                            <div className="aspect-video rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800">
+                              {selectedKYC.idCardBackImage ? (
+                                <img 
+                                  src={selectedKYC.idCardBackImage} 
+                                  alt="ID Back" 
+                                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                  onClick={() => window.open(selectedKYC.idCardBackImage, '_blank')}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 italic text-xs text-center p-2">No back image</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Face Photo</p>
+                          <div className="aspect-video rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800">
+                            {selectedKYC.faceImage ? (
+                              <img 
+                                src={selectedKYC.faceImage} 
+                                alt="Face Photo" 
+                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                onClick={() => window.open(selectedKYC.faceImage, '_blank')}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400 italic text-xs">No image uploaded</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </DetailSection>
                   </div>
 
@@ -1490,7 +1714,7 @@ export const AdminPage = () => {
                 <DetailSection title="Account Info">
                   <DetailItem label="Email" value={selectedUser.email} />
                   <DetailItem label="Role" value={selectedUser.role || 'user'} />
-                  <DetailItem label="Wallet Balance" value={`$${(selectedUser.walletBalance || 0).toLocaleString()}`} />
+                  <DetailItem label="Wallet Balance" value={formatUserBalance(selectedUser)} />
                   <DetailItem label="KYC Status" value={selectedUser.kycStatus || 'Not Started'} />
                   <DetailItem label="Joined" value={formatDate(selectedUser.createdAt)} />
                 </DetailSection>
@@ -1534,6 +1758,86 @@ export const AdminPage = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Grant Review Modal */}
+      {isGrantModalOpen && selectedGrant && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-zinc-900 rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl"
+          >
+            <div className="p-8 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
+              <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Review Grant Application</h3>
+              <button onClick={() => setIsGrantModalOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
+                <X className="w-6 h-6 dark:text-white" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Applicant</p>
+                  <p className="text-lg font-black dark:text-white">
+                    {users.find(u => u.id === selectedGrant.userId)?.fullName || 'Unknown'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Requested Amount</p>
+                  <p className="text-lg font-black text-accent">
+                    {selectedGrant.currency} {Number(selectedGrant.amount).toLocaleString()}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Grant Type</p>
+                  <p className="text-lg font-black dark:text-white uppercase">{selectedGrant.type}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</p>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                    selectedGrant.status === 'approved' ? 'bg-green-100 text-green-600' :
+                    selectedGrant.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                    'bg-yellow-100 text-yellow-600'
+                  }`}>
+                    {selectedGrant.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Purpose</p>
+                <p className="text-sm font-medium dark:text-gray-300 bg-gray-50 dark:bg-zinc-800 p-4 rounded-2xl">
+                  {selectedGrant.purpose}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detailed Description</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-zinc-800 p-4 rounded-2xl">
+                  {selectedGrant.description}
+                </p>
+              </div>
+            </div>
+
+            {selectedGrant.status === 'pending' && (
+              <div className="p-8 bg-gray-50 dark:bg-zinc-800/50 flex gap-4">
+                <button 
+                  onClick={() => handleGrantStatusUpdate(selectedGrant.id, selectedGrant.userId, 'approved', Number(selectedGrant.amount), selectedGrant.currency)}
+                  className="flex-1 btn-primary py-4 font-black uppercase tracking-widest"
+                >
+                  Approve & Disburse
+                </button>
+                <button 
+                  onClick={() => handleGrantStatusUpdate(selectedGrant.id, selectedGrant.userId, 'rejected', 0, selectedGrant.currency)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-2xl py-4 font-black uppercase tracking-widest transition-colors"
+                >
+                  Reject
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
 
       {/* Loan Detail Modal */}
       <AnimatePresence>
@@ -1683,14 +1987,14 @@ export const AdminPage = () => {
 };
 
 const TabButton = ({ active, onClick, icon, label, count }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, count?: number }) => (
-  <button 
-    onClick={onClick}
-    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-      active 
-        ? 'bg-white dark:bg-zinc-800 text-accent shadow-sm' 
-        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-    }`}
-  >
+    <button 
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+        active 
+          ? 'bg-white dark:bg-zinc-800 text-accent shadow-sm' 
+          : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+      }`}
+    >
     {icon}
     {label}
     {count !== undefined && count > 0 && (

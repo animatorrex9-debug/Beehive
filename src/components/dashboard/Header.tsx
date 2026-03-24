@@ -26,7 +26,7 @@ export const Header: React.FC = () => {
   return (
     <header className="h-24 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-primary/80 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
       <div>
-        <h1 className="text-xl font-black tracking-tighter dark:text-white uppercase lg:hidden py-2">
+        <h1 className="text-xl font-black tracking-tighter dark:text-white uppercase lg:hidden py-6">
           Dashboard
         </h1>
         <div className="hidden lg:block">

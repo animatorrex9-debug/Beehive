@@ -39,8 +39,22 @@ export const KYCPage = () => {
     employerName: userData?.employerName || '',
     jobTitle: userData?.jobTitle || '',
     monthlyIncome: userData?.monthlyIncome || '',
-    nationalIdNumber: userData?.nationalIdNumber || '',
+    ssn: userData?.ssn || '',
+    idCardFrontImage: userData?.idCardFrontImage || userData?.idCardImage || '',
+    idCardBackImage: userData?.idCardBackImage || '',
+    faceImage: userData?.faceImage || '',
   });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'idCardFrontImage' | 'idCardBackImage' | 'faceImage') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -241,21 +255,104 @@ export const KYCPage = () => {
                 <ShieldCheck className="w-6 h-6 text-accent shrink-0 mt-1" />
                 <div>
                   <h4 className="font-black text-accent uppercase tracking-tighter mb-1">Identity Verification</h4>
-                  <p className="text-sm text-accent/70">Please provide your National Identification Number for verification. Photo upload is optional at this stage.</p>
+                  <p className="text-sm text-accent/70">Please provide your Social Security Number and upload clear photos of your ID card and your face for verification.</p>
                 </div>
               </div>
               
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-400">National ID Number</label>
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">Social Security Number (SSN)</label>
                 <input 
                   type="text" 
-                  name="nationalIdNumber"
-                  value={formData.nationalIdNumber}
+                  name="ssn"
+                  value={formData.ssn}
                   onChange={handleInputChange}
                   className="input-field text-2xl font-black tracking-widest"
-                  placeholder="0000 0000 000"
+                  placeholder="000-00-0000"
                   required
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400">Upload ID Card (Front)</label>
+                  <div className="relative group">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, 'idCardFrontImage')}
+                      className="hidden"
+                      id="idCardFrontUpload"
+                      required={!formData.idCardFrontImage}
+                    />
+                    <label 
+                      htmlFor="idCardFrontUpload"
+                      className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:border-accent/50 transition-all overflow-hidden"
+                    >
+                      {formData.idCardFrontImage ? (
+                        <img src={formData.idCardFrontImage} alt="ID Front" className="w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          <FileText className="w-8 h-8 text-gray-400 mb-2" />
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select Front Photo</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400">Upload ID Card (Back)</label>
+                  <div className="relative group">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, 'idCardBackImage')}
+                      className="hidden"
+                      id="idCardBackUpload"
+                      required={!formData.idCardBackImage}
+                    />
+                    <label 
+                      htmlFor="idCardBackUpload"
+                      className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:border-accent/50 transition-all overflow-hidden"
+                    >
+                      {formData.idCardBackImage ? (
+                        <img src={formData.idCardBackImage} alt="ID Back" className="w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          <FileText className="w-8 h-8 text-gray-400 mb-2" />
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select Back Photo</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400">Upload Face (Selfie)</label>
+                  <div className="relative group">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, 'faceImage')}
+                      className="hidden"
+                      id="faceUpload"
+                      required={!formData.faceImage}
+                    />
+                    <label 
+                      htmlFor="faceUpload"
+                      className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:border-accent/50 transition-all overflow-hidden"
+                    >
+                      {formData.faceImage ? (
+                        <img src={formData.faceImage} alt="Face Photo" className="w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          <User className="w-8 h-8 text-gray-400 mb-2" />
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select Face Photo</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -295,8 +392,28 @@ export const KYCPage = () => {
                     <p className="font-bold dark:text-white">{formData.monthlyIncome}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">National ID</p>
-                    <p className="font-bold dark:text-white tracking-widest">{formData.nationalIdNumber}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">SSN</p>
+                    <p className="font-bold dark:text-white tracking-widest">{formData.ssn}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4 mt-6">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">ID (Front)</p>
+                    <div className="aspect-video rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800">
+                      {formData.idCardFrontImage ? <img src={formData.idCardFrontImage} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-100 dark:bg-zinc-800" />}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">ID (Back)</p>
+                    <div className="aspect-video rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800">
+                      {formData.idCardBackImage ? <img src={formData.idCardBackImage} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-100 dark:bg-zinc-800" />}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Face Photo</p>
+                    <div className="aspect-video rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800">
+                      {formData.faceImage ? <img src={formData.faceImage} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-100 dark:bg-zinc-800" />}
+                    </div>
                   </div>
                 </div>
               </div>

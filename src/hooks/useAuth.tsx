@@ -164,7 +164,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           updateDoc(doc(db, 'users', user.uid), {
             emailVerified: true
           }).catch(updateErr => {
-            console.error('Error syncing email verification:', updateErr);
+            console.error('Error syncing email verification:', updateErr instanceof Error ? updateErr.message : String(updateErr));
             handleFirestoreError(updateErr, OperationType.UPDATE, `users/${user.uid}`);
           });
         }

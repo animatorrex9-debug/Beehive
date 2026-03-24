@@ -50,7 +50,7 @@ export const AccountsPage = () => {
         userEmail: user.email,
         type: 'transfer',
         amount: amountNum,
-        currency: 'USD',
+        currency: userData?.currency?.code || 'USD',
         status: 'completed',
         description: 'Transfer to Savings Account',
         createdAt: serverTimestamp(),

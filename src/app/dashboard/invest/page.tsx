@@ -22,16 +22,18 @@ import {
 } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
+import { handleFirestoreError, OperationType } from '../../../lib/firebase';
 
 const investmentOptions = [
   {
     id: 'stocks',
     title: "Stocks & ETFs",
     description: "Invest in the world's leading companies with fractional shares. Our diversified portfolios are actively managed by seasoned experts who monitor global markets around the clock — so you don't have to.",
-    returns: "+12.4%",
+    returns: "12.4%",
     icon: <BarChart3 className="w-6 h-6" />,
     image: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=800"
   },
@@ -39,7 +41,7 @@ const investmentOptions = [
     id: 'crypto',
     title: "Crypto Assets",
     description: "Capture high-growth potential in major cryptocurrencies. With enterprise-grade secure storage and real-time trading infrastructure, Beehive makes digital asset investing accessible, safe, and straightforward.",
-    returns: "+45.2%",
+    returns: "45.2%",
     icon: <TrendingUp className="w-6 h-6" />,
     image: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&q=80&w=800"
   },
@@ -47,7 +49,7 @@ const investmentOptions = [
     id: 'real_estate',
     title: "Real Estate",
     description: "Own a piece of premium commercial and residential properties worldwide — without the mortgage, the maintenance, or the headaches. Fractional ownership means you earn like a landlord on any budget.",
-    returns: "+14.8%",
+    returns: "14.8%",
     icon: <PieChart className="w-6 h-6" />,
     image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=800"
   },
@@ -55,7 +57,7 @@ const investmentOptions = [
     id: 'private_equity',
     title: "Private Equity",
     description: "Gain exclusive access to high-potential private companies before they go public. Our private equity fund targets late-stage startups and established private firms with proven business models.",
-    returns: "+22.5%",
+    returns: "22.5%",
     icon: <Building2 className="w-6 h-6" />,
     image: "https://images.unsplash.com/photo-1554469384-e58fac16e23a?auto=format&fit=crop&q=80&w=800"
   },
@@ -63,7 +65,7 @@ const investmentOptions = [
     id: 'venture_capital',
     title: "Venture Capital",
     description: "Invest in early-stage startups with high growth potential. Our VC fund provides seed and Series A funding to the next generation of tech disruptors.",
-    returns: "+31.2%",
+    returns: "31.2%",
     icon: <Zap className="w-6 h-6" />,
     image: "https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&q=80&w=800"
   },
@@ -71,7 +73,7 @@ const investmentOptions = [
     id: 'green_energy',
     title: "Green Energy",
     description: "Support the global transition to sustainable energy. This portfolio invests in solar, wind, and battery storage infrastructure projects worldwide.",
-    returns: "+9.4%",
+    returns: "9.4%",
     icon: <Globe className="w-6 h-6" />,
     image: "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&q=80&w=800"
   }
@@ -79,6 +81,7 @@ const investmentOptions = [
 
 export const InvestPage = () => {
   const { user, userData } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<any | null>(null);
   const [amount, setAmount] = useState('');
@@ -101,9 +104,20 @@ export const InvestPage = () => {
     setError('');
 
     try {
-      // Update user balance
+      // Update user balance and investment balance
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-investAmount)
+        walletBalance: increment(-investAmount),
+        investmentBalance: increment(investAmount),
+        lastReturnCalculationDate: new Date().toISOString()
+      });
+
+      // Record investment in user's investments subcollection for daily return calculation
+      await addDoc(collection(db, 'users', user.uid, 'investments'), {
+        title: selectedOption.title,
+        amount: investAmount,
+        biweeklyReturn: parseFloat(selectedOption.returns),
+        timestamp: new Date().toISOString(),
+        status: 'active'
       });
 
       // Record transaction
@@ -111,7 +125,7 @@ export const InvestPage = () => {
         userId: user.uid,
         type: 'investment',
         amount: investAmount,
-        currency: 'USD',
+        currency: userData?.currency?.code || currency.code || 'USD',
         status: 'completed',
         description: `Invested in ${selectedOption.title}`,
         timestamp: new Date().toISOString(),
@@ -126,7 +140,8 @@ export const InvestPage = () => {
       setSelectedOption(null);
       setIsModalOpen(false);
     } catch (err: any) {
-      console.error('Investment error:', err);
+      console.error('Investment error:', err instanceof Error ? err.message : String(err));
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/investments`);
       setError('Failed to process investment. Please try again.');
     } finally {
       setLoading(false);
@@ -460,24 +475,27 @@ export const InvestPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Amount (USD)</label>
-                  <input 
-                    type="number" 
-                    required
-                    min="1"
-                    step="0.01"
-                    className="w-full p-6 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none text-3xl font-black focus:ring-2 focus:ring-accent dark:text-white" 
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Available Balance: ${userData?.walletBalance?.toLocaleString() || '0.00'}</p>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Amount ({currency.code})</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400">{currency.symbol}</span>
+                    <input 
+                      type="number" 
+                      required
+                      min="1"
+                      step="0.01"
+                      className="w-full p-6 pl-10 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none text-3xl font-black focus:ring-2 focus:ring-accent dark:text-white" 
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Available Balance: {formatAmount(userData?.walletBalance || 0)}</p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800">
                   <div className="flex justify-between text-xs mb-2">
-                    <span className="text-gray-500 font-bold uppercase tracking-widest">Expected Returns</span>
-                    <span className="font-black text-green-500">{selectedOption.returns}</span>
+                    <span className="text-gray-500 font-bold uppercase tracking-widest">Biweekly Returns</span>
+                    <span className="font-black text-green-500">+{selectedOption.returns}%</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500 font-bold uppercase tracking-widest">Service Fee</span>
@@ -490,7 +508,7 @@ export const InvestPage = () => {
                   disabled={loading}
                   className="btn-primary w-full py-5 text-lg font-black uppercase tracking-widest"
                 >
-                  {loading ? 'Processing...' : `Invest $${amount || '0.00'}`}
+                  {loading ? 'Processing...' : `Invest ${formatAmount(parseFloat(amount || '0'))}`}
                 </button>
               </form>
             </motion.div>
@@ -516,8 +534,8 @@ const InvestmentOption = ({ title, description, returns, icon, image, onClick }:
       </div>
       <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-zinc-800">
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Avg. Returns</p>
-          <p className="text-xl font-black text-green-500">{returns}</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Biweekly Returns</p>
+          <p className="text-xl font-black text-green-500">+{returns}%</p>
         </div>
         <button 
           onClick={onClick}

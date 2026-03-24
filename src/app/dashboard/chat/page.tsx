@@ -273,7 +273,7 @@ export const ChatPage = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-12rem)] flex bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-zinc-800">
+    <div className="flex-grow flex bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-zinc-800">
       {/* Sidebar - Chat List */}
       <AnimatePresence mode="wait">
         {(view === 'list' || !isManager && !isAdmin) && (

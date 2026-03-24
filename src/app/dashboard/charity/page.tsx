@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Heart, Send, CheckCircle2, AlertCircle, Globe, Leaf, GraduationCap, Activity, Users, MapPin, Quote, TrendingUp } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { db } from '../../../lib/firebase';
 import { collection, addDoc, doc, updateDoc, increment, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { useEffect } from 'react';
 
 export const CharityPage = () => {
   const { user, userData } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -99,7 +101,7 @@ export const CharityPage = () => {
         userId: user.uid,
         type: 'donation',
         amount: amountNum,
-        currency: 'USD',
+        currency: userData?.currency?.code || currency.code || 'USD',
         status: 'completed',
         description: `Donation to ${selectedCharityData?.name}`,
         timestamp: new Date().toISOString()
@@ -208,7 +210,7 @@ export const CharityPage = () => {
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Donation Amount (USD)</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Donation Amount ({currency.code})</label>
                   <input 
                     type="number"
                     value={formData.amount}
@@ -252,7 +254,7 @@ export const CharityPage = () => {
             <div className="p-8 rounded-3xl bg-gradient-to-br from-red-500 to-pink-600 text-white relative overflow-hidden">
               <Heart className="absolute -bottom-4 -right-4 w-32 h-32 opacity-20" />
               <p className="text-sm font-bold uppercase tracking-widest opacity-80 mb-2">Total Donated</p>
-              <h2 className="text-4xl font-black mb-4">${totalDonated.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
+              <h2 className="text-4xl font-black mb-4">{formatAmount(totalDonated)}</h2>
               <p className="text-xs opacity-80">You've helped support {uniqueCauses} different {uniqueCauses === 1 ? 'cause' : 'causes'} so far. Thank you for your kindness!</p>
             </div>
 
@@ -263,7 +265,7 @@ export const CharityPage = () => {
                   recentDonations.map((donation) => (
                     <div key={donation.id} className="flex justify-between items-center text-sm">
                       <span className="text-gray-500">{donation.charityName}</span>
-                      <span className="font-bold dark:text-white">${donation.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold dark:text-white">{formatAmount(donation.amount)}</span>
                     </div>
                   ))
                 ) : (

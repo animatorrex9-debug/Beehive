@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowUpCircle, User, Globe, Hash, CheckCircle2, AlertCircle, Landmark, Smartphone, CreditCard, Mail, Phone, ExternalLink, History, Search } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../context/CurrencyContext';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,6 +19,7 @@ interface RecentRecipient {
 
 export const SendPage = () => {
   const { user, userData } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
@@ -136,7 +138,7 @@ export const SendPage = () => {
         type: 'send',
         transferType: type,
         amount: sendAmount,
-        currency: 'USD',
+        currency: userData?.currency?.code || currency.code || 'USD',
         status: 'completed',
         description,
         metadata,
@@ -194,7 +196,7 @@ export const SendPage = () => {
             <CheckCircle2 className="w-10 h-10" />
           </div>
           <h2 className="text-3xl font-black mb-4 dark:text-white tracking-tighter uppercase">Transfer Sent!</h2>
-          <p className="text-gray-500 mb-8">The recipient will receive the funds shortly. A confirmation has been sent to your email.</p>
+          <p className="text-gray-500 mb-8">If your funds are not seen in the next five minutes, contact your account manager</p>
           <button 
             onClick={() => setSuccess(false)}
             className="btn-primary w-full py-4 text-sm font-black uppercase tracking-widest"
@@ -268,11 +270,11 @@ export const SendPage = () => {
                 >
                   {type === 'beehive' && (
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input 
-                        type="text" 
+                        type="email" 
                         required
-                        placeholder="Account Number or @username" 
+                        placeholder="Recipient Email Address" 
                         className="input-field pl-12 py-4"
                         value={recipient}
                         onChange={(e) => setRecipient(e.target.value)}
@@ -458,9 +460,9 @@ export const SendPage = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-500 uppercase tracking-widest">Amount to Send (USD)</label>
+                  <label className="text-sm font-bold text-gray-500 uppercase tracking-widest">Amount to Send ({currency.code})</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400">{currency.symbol}</span>
                     <input 
                       type="number" 
                       required
@@ -473,9 +475,9 @@ export const SendPage = () => {
                     />
                   </div>
                   <div className="flex justify-between items-center">
-                    <p className="text-xs text-gray-400">Available Balance: ${userData?.walletBalance?.toLocaleString() || '0.00'}</p>
+                    <p className="text-xs text-gray-400">Available Balance: {formatAmount(userData?.walletBalance || 0)}</p>
                     {amount && parseFloat(amount) > 0 && (
-                      <p className="text-xs text-accent font-bold">Fee: $0.00 (Free)</p>
+                      <p className="text-xs text-accent font-bold">Fee: {formatAmount(0)} (Free)</p>
                     )}
                   </div>
                 </div>
@@ -500,7 +502,7 @@ export const SendPage = () => {
                   ) : (
                     <>
                       <ArrowUpCircle className="w-6 h-6" />
-                      Send ${parseFloat(amount || '0').toLocaleString()}
+                      Send {formatAmount(parseFloat(amount || '0'))}
                     </>
                   )}
                 </button>

@@ -12,18 +12,21 @@ import {
 import { doc, setDoc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { useCurrency } from '../../context/CurrencyContext';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
-import { ArrowLeft, Mail, Lock, User, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, User, AlertCircle, CheckCircle2, ShieldCheck, Globe } from 'lucide-react';
 
 export const SignupPage = () => {
   const { user, isAdmin, loading: authLoading, isConfigured } = useAuth();
+  const { setCurrencyByCountry } = useCurrency();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState<string | undefined>('');
+  const [country, setCountry] = useState('');
   const [defaultCountry, setDefaultCountry] = useState<any>('NG'); // Default to Nigeria
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState('');
@@ -39,11 +42,13 @@ export const SignupPage = () => {
       .then(data => {
         if (data.country_code) {
           setDefaultCountry(data.country_code);
+          setCountry(data.country_name || '');
         }
       })
       .catch(() => {
         // Fallback to Nigeria if detection fails
         setDefaultCountry('NG');
+        setCountry('Nigeria');
       });
   }, []);
 
@@ -93,6 +98,10 @@ export const SignupPage = () => {
       setError('Phone number is required');
       return;
     }
+    if (!country) {
+      setError('Country is required');
+      return;
+    }
     if (!acceptTerms) {
       setError('You must accept the terms and conditions');
       return;
@@ -114,14 +123,19 @@ export const SignupPage = () => {
         fullName,
         email,
         phone,
+        country,
         role: email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
         kycStatus: 'unverified',
         walletBalance: 0,
+        investmentBalance: 0,
+        lastReturnCalculationDate: new Date().toISOString(),
         savings: 0,
         activeCards: 1,
         createdAt: new Date().toISOString(),
         emailVerified: false,
       });
+
+      setCurrencyByCountry(country);
 
       // Sign out user immediately after signup so they can't login without verification
       // await signOut(auth); // Keep them signed in for the verify page to allow resend
@@ -185,6 +199,13 @@ export const SignupPage = () => {
             createdAt: new Date().toISOString(),
             emailVerified: user.emailVerified,
           });
+          
+          if (existingData.country) {
+            setCurrencyByCountry(existingData.country);
+            navigate('/dashboard');
+          } else {
+            navigate('/auth/complete-profile');
+          }
         } else {
           // For Google signup, we might not have NIN or Phone initially
           // We can redirect them to a profile completion page later, 
@@ -193,18 +214,34 @@ export const SignupPage = () => {
             fullName: user.displayName || '',
             email: user.email || '',
             phone: user.phoneNumber || '',
+            country: country || '',
             role: user.email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
             kycStatus: 'unverified',
             walletBalance: 0,
+            investmentBalance: 0,
+            lastReturnCalculationDate: new Date().toISOString(),
             savings: 0,
             activeCards: 1,
             createdAt: new Date().toISOString(),
             emailVerified: user.emailVerified,
           });
+          
+          if (country) {
+            setCurrencyByCountry(country);
+            navigate('/dashboard');
+          } else {
+            navigate('/auth/complete-profile');
+          }
+        }
+      } else {
+        const data = userDoc.data();
+        if (data.country) {
+          setCurrencyByCountry(data.country);
+          navigate('/dashboard');
+        } else {
+          navigate('/auth/complete-profile');
         }
       }
-
-      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Google signup failed');
     } finally {
@@ -273,6 +310,21 @@ export const SignupPage = () => {
                 placeholder="John Doe"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold dark:text-white">Country</label>
+            <div className="relative">
+              <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input 
+                type="text" 
+                required
+                className="input-field pl-12" 
+                placeholder="e.g. United States"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
               />
             </div>
           </div>

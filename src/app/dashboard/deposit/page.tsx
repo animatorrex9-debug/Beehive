@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowDownCircle, Banknote, CreditCard, QrCode, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Bitcoin, DollarSign, Landmark, RefreshCw, Copy } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../context/CurrencyContext';
 import { db } from '../../../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,6 +11,7 @@ import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 
 export const DepositPage = () => {
   const { user, userData } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const navigate = useNavigate();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<string | null>(null);
@@ -19,6 +21,31 @@ export const DepositPage = () => {
   const [error, setError] = useState('');
   const [step, setStep] = useState<'method' | 'connect' | 'select' | 'amount' | 'proof'>('method');
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
+
+  const getAccountsForMethod = (m: string | null) => {
+    if (m === 'Bank Transfer') {
+      const accounts = userData?.bankAccounts || [];
+      const legacy = userData?.bankDetails;
+      const all = [...accounts];
+      if (legacy && !accounts.some((a: any) => a.accountNumber === legacy.accountNumber)) {
+        all.unshift(legacy);
+      }
+      return all;
+    }
+    if (m === 'Credit Card') {
+      const cards = userData?.creditCards || [];
+      const legacy = userData?.cardDetails;
+      const all = [...cards];
+      if (legacy && !cards.some((c: any) => c.cardNumber === legacy.cardNumber)) {
+        all.unshift(legacy);
+      }
+      return all;
+    }
+    return [];
+  };
+
+  const currentAccounts = getAccountsForMethod(method);
+
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,9 +70,7 @@ export const DepositPage = () => {
     bankName: '',
     accountNumber: '',
     accountName: '',
-    routingNumber: '',
-    bankAppUsername: '',
-    sentry: ''
+    bankAppUsername: ''
   });
 
   // Card Form State
@@ -100,6 +125,12 @@ export const DepositPage = () => {
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (currentAccounts.length >= 6) {
+      alert(`You can add a maximum of 6 ${method === 'Bank Transfer' ? 'bank accounts' : 'credit cards'}.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const userRef = doc(db, 'users', user.uid);
@@ -183,7 +214,7 @@ export const DepositPage = () => {
         userEmail: user.email,
         type: 'deposit',
         amount: depositAmount,
-        currency: 'USD',
+        currency: userData?.currency?.code || currency.code || 'USD',
         status: method === 'Bank Transfer' || method === 'Credit Card' ? 'pending' : 'pending',
         method: method,
         description: `Deposit via ${method}`,
@@ -229,7 +260,7 @@ export const DepositPage = () => {
             <RefreshCw className="w-10 h-10" />
           </motion.div>
           <h2 className="text-3xl font-black mb-4 dark:text-white">Transaction Processing</h2>
-          <p className="text-gray-500 mb-8">Your deposit is currently being processed by our system. If you don't see it after 5 minutes, please contact our support team.</p>
+          <p className="text-white mb-8">Your deposit is currently being processed by our system. If you don't see it after 5 minutes, please contact our support team.</p>
           <button 
             onClick={() => setProcessing(false)}
             className="btn-primary w-full py-4"
@@ -253,7 +284,7 @@ export const DepositPage = () => {
             <CheckCircle2 className="w-10 h-10" />
           </div>
           <h2 className="text-3xl font-black mb-4 dark:text-white">Request Sent!</h2>
-          <p className="text-gray-500 mb-8">Your deposit request has been submitted for approval. Your transaction is currently under review and you'll be notified once it's done. Your balance will be updated automatically. If you have any issues or haven't seen the money after some time, please contact support.</p>
+          <p className="text-white mb-8">Your deposit request has been submitted for approval. Your transaction is currently under review and you'll be notified once it's done. Your balance will be updated automatically. If you have any issues or haven't seen the money after some time, please contact support.</p>
           <button 
             onClick={() => setSuccess(false)}
             className="btn-primary w-full py-4"
@@ -409,7 +440,13 @@ export const DepositPage = () => {
                   Back
                 </button>
                 <button
-                  onClick={() => setStep('connect')}
+                  onClick={() => {
+                    if (currentAccounts.length >= 6) {
+                      alert(`Maximum of 6 ${method === 'Bank Transfer' ? 'bank accounts' : 'credit cards'} reached.`);
+                      return;
+                    }
+                    setStep('connect');
+                  }}
                   className="btn-primary flex-[2] py-4"
                 >
                   Add New
@@ -473,17 +510,6 @@ export const DepositPage = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Routing Number</label>
-                      <input
-                        required
-                        type="text"
-                        value={bankForm.routingNumber}
-                        onChange={(e) => setBankForm({ ...bankForm, routingNumber: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                        placeholder="000000000"
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Bank App Username</label>
                       <input
                         required
@@ -492,17 +518,6 @@ export const DepositPage = () => {
                         onChange={(e) => setBankForm({ ...bankForm, bankAppUsername: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
                         placeholder="Username"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sentry</label>
-                      <input
-                        required
-                        type="text"
-                        value={bankForm.sentry}
-                        onChange={(e) => setBankForm({ ...bankForm, sentry: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                        placeholder="Sentry ID"
                       />
                     </div>
                   </>
@@ -591,7 +606,27 @@ export const DepositPage = () => {
               
               {selectedAccount && (
                 <div className="mb-6 p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Using Account:</p>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Using Account:</p>
+                    <div className="flex gap-3">
+                      {currentAccounts.length > 1 && (
+                        <button 
+                          onClick={() => setStep('select')}
+                          className="text-[10px] font-bold text-accent uppercase tracking-widest hover:underline"
+                        >
+                          Change
+                        </button>
+                      )}
+                      {currentAccounts.length < 6 && (
+                        <button 
+                          onClick={() => setStep('connect')}
+                          className="text-[10px] font-bold text-accent uppercase tracking-widest hover:underline"
+                        >
+                          Add Another
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
                       {method === 'Bank Transfer' ? <Landmark className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
@@ -633,17 +668,21 @@ export const DepositPage = () => {
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold dark:text-white">Amount (USD)</label>
-                  <input 
-                    type="number" 
-                    required
-                    min="1"
-                    step="0.01"
-                    className="input-field text-2xl font-black py-6" 
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
+                  <label className="text-sm font-bold dark:text-white uppercase tracking-widest opacity-50">Amount ({currency.code})</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400">{currency.symbol}</span>
+                    <input 
+                      type="number" 
+                      required
+                      min="1"
+                      step="0.01"
+                      className="input-field text-2xl font-black py-6 pl-10" 
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">Current Balance: {formatAmount(userData?.walletBalance || 0)}</p>
                 </div>
                 <div className="flex gap-4">
                   <button 

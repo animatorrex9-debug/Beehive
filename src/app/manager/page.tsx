@@ -90,7 +90,7 @@ export const ManagerPage = () => {
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mt-6 mb-10"
+        className="mt-12 mb-16"
       >
         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
           Command Center

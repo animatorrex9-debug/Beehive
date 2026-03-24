@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { FileCheck, Send, CheckCircle2, AlertCircle, Calculator, Info, ShieldCheck } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { db } from '../../../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export const TaxPage = () => {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -28,6 +30,7 @@ export const TaxPage = () => {
       await addDoc(collection(db, 'tax_filings'), {
         userId: user.uid,
         ...formData,
+        currency: userData?.currency?.code || currency.code || 'USD',
         status: 'processing',
         timestamp: new Date().toISOString()
       });
@@ -96,7 +99,7 @@ export const TaxPage = () => {
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Annual Income (USD)</label>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Annual Income ({currency.code})</label>
                 <input 
                   type="number"
                   value={formData.income}
@@ -107,7 +110,7 @@ export const TaxPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Total Deductions (USD)</label>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Total Deductions ({currency.code})</label>
                 <input 
                   type="number"
                   value={formData.deductions}
@@ -124,7 +127,7 @@ export const TaxPage = () => {
               <div>
                 <h4 className="font-bold text-blue-900 dark:text-blue-100">Estimated Refund</h4>
                 <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
-                  ${Math.max(0, (Number(formData.income) * 0.1) - (Number(formData.deductions) * 0.05)).toLocaleString()}
+                  {formatAmount(Math.max(0, (Number(formData.income) * 0.1) - (Number(formData.deductions) * 0.05)))}
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">This is a rough estimate based on the provided information.</p>
               </div>

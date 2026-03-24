@@ -20,8 +20,8 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useCryptoPrices } from '../../hooks/useCryptoPrices';
 import { useCurrency } from '../../hooks/useCurrency';
-import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { doc, updateDoc, collection, addDoc, increment, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();
@@ -31,6 +31,7 @@ export const DashboardPage = () => {
   const navigate = useNavigate();
 
   const [message, setMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const [dailyGrowthRate, setDailyGrowthRate] = React.useState<number>(0);
 
   const kycStatus = userData?.kycStatus || 'unverified';
 
@@ -53,17 +54,36 @@ export const DashboardPage = () => {
 
     try {
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        walletBalance: increment(amount),
-        [type === 'investment' ? 'investmentBalance' : 'grantBalance']: 0
-      });
+      
+      // If transferring investment, we need to mark active investments as withdrawn
+      if (type === 'investment') {
+        const q = query(collection(db, 'users', user.uid, 'investments'), where('status', '==', 'active'));
+        const querySnapshot = await getDocs(q);
+        
+        const batch = writeBatch(db);
+        querySnapshot.forEach((investmentDoc) => {
+          batch.update(investmentDoc.ref, { status: 'withdrawn' });
+        });
+        
+        batch.update(userRef, {
+          walletBalance: increment(amount),
+          investmentBalance: 0
+        });
+        
+        await batch.commit();
+      } else {
+        await updateDoc(userRef, {
+          walletBalance: increment(amount),
+          grantBalance: 0
+        });
+      }
 
       // Record transaction
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'transfer',
         amount: amount,
-        currency: 'USD',
+        currency: userData?.currency?.code || 'USD',
         status: 'completed',
         description: `Transfer from ${type} to wallet`,
         timestamp: new Date().toISOString()
@@ -71,10 +91,79 @@ export const DashboardPage = () => {
 
       setMessage({ text: `Successfully transferred ${formatAmount(amount)} to your wallet.`, type: 'success' });
     } catch (err) {
-      console.error('Transfer error:', err);
+      console.error('Transfer error:', err instanceof Error ? err.message : String(err));
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
       setMessage({ text: 'Failed to process transfer.', type: 'error' });
     }
   };
+
+  React.useEffect(() => {
+    const processInvestments = async () => {
+      if (!user || !userData) return;
+
+      try {
+        // Fetch active investments
+        const q = query(collection(db, 'users', user.uid, 'investments'), where('status', '==', 'active'));
+        const querySnapshot = await getDocs(q);
+        
+        let totalDailyReturnAmount = 0;
+        let totalInvestedAmount = 0;
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const biweeklyRate = data.biweeklyReturn / 100;
+          const dailyRate = biweeklyRate / 14;
+          const dailyReturn = data.amount * dailyRate;
+          
+          totalDailyReturnAmount += dailyReturn;
+          totalInvestedAmount += data.amount;
+        });
+
+        // Calculate current growth rate for UI (weighted average)
+        if (totalInvestedAmount > 0) {
+          const overallDailyRate = (totalDailyReturnAmount / totalInvestedAmount) * 100;
+          setDailyGrowthRate(overallDailyRate);
+        } else {
+          setDailyGrowthRate(0);
+        }
+
+        // Handle return calculation (adding to balance)
+        if (!userData.lastReturnCalculationDate) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            lastReturnCalculationDate: new Date().toISOString()
+          });
+          return;
+        }
+
+        const lastCalc = new Date(userData.lastReturnCalculationDate);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - lastCalc.getTime());
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 0) {
+          if (totalDailyReturnAmount > 0) {
+            const totalReturnToAdd = totalDailyReturnAmount * diffDays;
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              investmentBalance: increment(totalReturnToAdd),
+              lastReturnCalculationDate: now.toISOString()
+            });
+            console.log(`Added ${totalReturnToAdd} in returns for ${diffDays} days.`);
+          } else {
+            // Update date even if no returns to avoid re-checking
+            await updateDoc(doc(db, 'users', user.uid), {
+              lastReturnCalculationDate: now.toISOString()
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error processing investments:', err instanceof Error ? err.message : String(err));
+        handleFirestoreError(err, OperationType.GET, `users/${user.uid}/investments`);
+      }
+    };
+
+    processInvestments();
+  }, [user, userData?.lastReturnCalculationDate, userData?.investmentBalance]);
 
   React.useEffect(() => {
     if (message) {
@@ -86,7 +175,7 @@ export const DashboardPage = () => {
   const stats = [
     {
       label: 'Wallet Balance',
-      value: userData?.walletBalance !== undefined ? formatAmount(userData.walletBalance) : '$0',
+      value: userData?.walletBalance !== undefined ? formatAmount(userData.walletBalance) : formatAmount(0),
       icon: Wallet,
       color: 'text-accent',
       bg: 'bg-accent/10'
@@ -109,10 +198,17 @@ export const DashboardPage = () => {
     },
     {
       label: 'Savings',
-      value: userData?.savings !== undefined ? formatAmount(userData.savings) : '$0',
+      value: userData?.savings !== undefined ? formatAmount(userData.savings) : formatAmount(0),
       icon: TrendingUp,
       color: 'text-green-500',
       bg: 'bg-green-500/10'
+    },
+    {
+      label: 'Investment',
+      value: userData?.investmentBalance !== undefined ? formatAmount(userData.investmentBalance) : formatAmount(0),
+      icon: TrendingUp,
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500/10'
     }
   ];
 
@@ -181,7 +277,7 @@ export const DashboardPage = () => {
               <div>
                 <p className="text-xs font-black uppercase tracking-widest opacity-60 mb-1">Total Balance</p>
                 <h3 className="text-5xl font-black tracking-tighter">
-                  ${userData?.walletBalance?.toLocaleString() || '0'}
+                  {formatAmount(userData?.walletBalance || 0)}
                 </h3>
               </div>
               <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
@@ -308,7 +404,7 @@ export const DashboardPage = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                   <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Principal</span>
-                  <span className="text-lg font-black dark:text-white">${activeLoan.amount?.toLocaleString() || '0'}</span>
+                  <span className="text-lg font-black dark:text-white">{formatAmount(activeLoan.amount || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                   <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Next Action</span>
@@ -383,7 +479,7 @@ export const DashboardPage = () => {
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-500 rounded-full text-xs font-bold uppercase tracking-widest">
               <TrendingUp className="w-4 h-4" />
-              +0.2% Daily Growth
+              +{dailyGrowthRate.toFixed(2)}% Daily Growth
             </div>
           </div>
 
