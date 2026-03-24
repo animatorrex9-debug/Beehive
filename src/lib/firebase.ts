@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { getFirestore, initializeFirestore, doc, getDocFromServer } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { safeStringify } from "./utils";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 let app: any;
@@ -131,9 +132,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   
   let errString = '';
   try {
-    errString = JSON.stringify(errInfo);
+    errString = safeStringify(errInfo);
   } catch (e) {
-    // Fallback if JSON.stringify still fails for some reason
+    // Fallback if safeStringify still fails for some reason
     errString = `[Circular Error Info] ${errorMessage} at ${path} (${operationType})`;
     console.error('Failed to stringify Firestore error info:', e);
   }

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { safeStringify } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 
 export interface CurrencyInfo {
@@ -32,7 +33,11 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const setCurrency = async (newCurrency: CurrencyInfo) => {
     setCurrencyState(newCurrency);
-    localStorage.setItem('user_currency', JSON.stringify(newCurrency));
+    try {
+      localStorage.setItem('user_currency', safeStringify(newCurrency));
+    } catch (e) {
+      console.error('Failed to save currency to localStorage', e);
+    }
     
     if (user) {
       try {
@@ -106,7 +111,11 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
           const data = doc.data();
           if (data.currency) {
             setCurrencyState(data.currency);
-            localStorage.setItem('user_currency', JSON.stringify(data.currency));
+            try {
+              localStorage.setItem('user_currency', safeStringify(data.currency));
+            } catch (e) {
+              console.error('Failed to save currency to localStorage', e);
+            }
           }
         }
       });
@@ -142,7 +151,11 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
             };
             
             setCurrencyState(detectedCurrency);
-            localStorage.setItem('user_currency', JSON.stringify(detectedCurrency));
+            try {
+              localStorage.setItem('user_currency', safeStringify(detectedCurrency));
+            } catch (e) {
+              console.error('Failed to save currency to localStorage', e);
+            }
           }
         } catch (error) {
           console.warn('Currency detection failed, using default.', error);

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from 'firebase/firestore';
+import { safeStringify } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { handleFirestoreError, OperationType } from '../../../lib/firebase';
 
@@ -50,13 +51,21 @@ export const LoanStatusPage = () => {
 
   React.useEffect(() => {
     if (user && (bankDetails.bankName || bankDetails.accountNumber || bankDetails.accountName)) {
-      localStorage.setItem(`loan_bank_details_${user.uid}`, JSON.stringify(bankDetails));
+      try {
+        localStorage.setItem(`loan_bank_details_${user.uid}`, safeStringify(bankDetails));
+      } catch (e) {
+        console.error('Failed to save bank details to localStorage', e);
+      }
     }
   }, [bankDetails, user]);
 
   React.useEffect(() => {
     if (user && (additionalDetails.iban || additionalDetails.phoneNumber)) {
-      localStorage.setItem(`loan_additional_details_${user.uid}`, JSON.stringify(additionalDetails));
+      try {
+        localStorage.setItem(`loan_additional_details_${user.uid}`, safeStringify(additionalDetails));
+      } catch (e) {
+        console.error('Failed to save additional details to localStorage', e);
+      }
     }
   }, [additionalDetails, user]);
 

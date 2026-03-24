@@ -237,7 +237,7 @@ export const AdminPage = () => {
       if (status === 'approved') {
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
-          walletBalance: increment(amount),
+          grantBalance: increment(amount),
           updatedAt: serverTimestamp()
         });
 
@@ -248,7 +248,7 @@ export const AdminPage = () => {
           amount,
           currency,
           status: 'completed',
-          description: 'Grant Application Approved',
+          description: 'Grant Application Approved (Added to Grant Balance)',
           timestamp: serverTimestamp(),
           createdAt: serverTimestamp()
         });

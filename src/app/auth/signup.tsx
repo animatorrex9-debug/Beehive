@@ -128,6 +128,7 @@ export const SignupPage = () => {
         kycStatus: 'unverified',
         walletBalance: 0,
         investmentBalance: 0,
+        grantBalance: 0,
         lastReturnCalculationDate: new Date().toISOString(),
         savings: 0,
         activeCards: 1,

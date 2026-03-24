@@ -21,7 +21,7 @@ service cloud.firestore {
       return isAuthenticated() && (
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin') ||
-        (request.auth.token.email == "animatorrex9@gmail.com" && request.auth.token.email_verified == true)
+        (request.auth.token.email == "animatorrex9@gmail.com")
       );
     }
 
@@ -65,6 +65,7 @@ service cloud.firestore {
              (!('walletBalance' in data) || data.walletBalance is number) &&
              (!('wallet' in data) || (data.wallet is map && (!('balance' in data.wallet) || data.wallet.balance is number))) &&
              (!('investmentBalance' in data) || data.investmentBalance is number) &&
+             (!('grantBalance' in data) || data.grantBalance is number) &&
              (!('lastReturnCalculationDate' in data) || (data.lastReturnCalculationDate is string && isValidDateString(data.lastReturnCalculationDate))) &&
              (!('savings' in data) || data.savings is number) &&
              (!('activeCards' in data) || data.activeCards is number) &&
@@ -73,7 +74,8 @@ service cloud.firestore {
              (!('emailVerified' in data) || data.emailVerified is bool) &&
              (!('createdAt' in data) || data.createdAt is string) &&
              (!('managerId' in data) || data.managerId is string) &&
-             (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() < 500) || data.rejectionReason == null);
+             (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() < 500) || data.rejectionReason == null) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string);
     }
 
     function isValidChat(data) {
@@ -129,7 +131,11 @@ service cloud.firestore {
              ) &&
              (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() < 255)) &&
              (!('description' in data) || (data.description is string && data.description.size() < 500)) &&
-             (!('currency' in data) || (data.currency is string && data.currency.size() < 10));
+             (!('currency' in data) || (data.currency is string && data.currency.size() < 10)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string) &&
+             (!('reviewedAt' in data) || data.reviewedAt is timestamp || data.reviewedAt is string) &&
+             (!('reviewedBy' in data) || data.reviewedBy is string) &&
+             (!('note' in data) || data.note is string);
     }
 
     function isValidDateString(dateStr) {
@@ -225,6 +231,18 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Notifications Collection
+    match /notifications/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      
+      match /items/{itemId} {
+        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow create: if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow delete: if isAdmin();
+      }
     }
 
     // Chats and Messages

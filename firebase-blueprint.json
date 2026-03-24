@@ -10,6 +10,7 @@
         "kycStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"] },
         "walletBalance": { "type": "number" },
         "investmentBalance": { "type": "number" },
+        "grantBalance": { "type": "number" },
         "lastReturnCalculationDate": { "type": "string", "format": "date-time" },
         "savings": { "type": "number" },
         "activeCards": { "type": "number" },
