@@ -152,7 +152,7 @@ export const SignupPage = () => {
       setAcceptTerms(false);
 
     } catch (err: any) {
-      console.error('Signup error:', err);
+      console.error('Signup error:', err instanceof Error ? err.message : String(err));
       let msg = 'Failed to sign up';
       const errCode = err.code || '';
       const errMsg = err.message || '';

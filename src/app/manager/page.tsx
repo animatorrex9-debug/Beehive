@@ -20,12 +20,16 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { useCurrency, getCurrencyByCountry, CurrencyInfo } from '../../context/CurrencyContext';
 import { motion } from 'motion/react';
+import { LoadingLogo } from '../../components/LoadingLogo';
 
 export const ManagerPage = () => {
   const { user } = useAuth();
   const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { formatAmount } = useCurrency();
 
   useEffect(() => {
     if (!user) return;
@@ -48,7 +52,7 @@ export const ManagerPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <LoadingLogo size="lg" />
       </div>
     );
   }
@@ -77,7 +81,7 @@ export const ManagerPage = () => {
     },
     {
       label: 'Total Managed Assets',
-      value: `$${assignedUsers.reduce((acc, u) => acc + (u.walletBalance || 0), 0).toLocaleString()}`,
+      value: formatAmount(assignedUsers.reduce((acc, u) => acc + (u.walletBalance || 0), 0)),
       icon: Wallet,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10'
@@ -188,10 +192,36 @@ export const ManagerPage = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-black dark:text-white">${(u.walletBalance || 0).toLocaleString()}</p>
+                      <p className="text-sm font-black dark:text-white">
+                        {(() => {
+                          let userCurrency: CurrencyInfo = u.currency;
+                          if (!userCurrency && u.country) {
+                            userCurrency = getCurrencyByCountry(u.country);
+                          }
+                          const currencyCode = userCurrency?.code || 'USD';
+                          const currencySymbol = userCurrency?.symbol || '$';
+                          try {
+                            return new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: currencyCode,
+                            }).format(u.walletBalance || 0);
+                          } catch (e) {
+                            return `${currencySymbol}${(u.walletBalance || 0).toLocaleString()}`;
+                          }
+                        })()}
+                      </p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-zinc-500">${(u.savings || 0).toLocaleString()}</p>
+                      <p className="text-sm font-bold text-zinc-500">
+                        {(() => {
+                          let userCurrency: CurrencyInfo = u.currency;
+                          if (!userCurrency && u.country) {
+                            userCurrency = getCurrencyByCountry(u.country);
+                          }
+                          const currencySymbol = userCurrency?.symbol || '$';
+                          return `${currencySymbol}${(u.savings || 0).toLocaleString()}`;
+                        })()}
+                      </p>
                     </td>
                     <td className="px-6 py-4">
                       <button 

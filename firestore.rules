@@ -170,13 +170,15 @@ service cloud.firestore {
           )
         );
 
-        match /investments/{investmentId} {
-          allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isManager());
-          allow create: if isAuthenticated() && isOwner(userId) && isValidInvestment(request.resource.data);
-          allow update: if isAuthenticated() && (isAdmin() || isManager() || isOwner(userId));
-          allow delete: if isAdmin();
-        }
-      }
+    }
+
+    // Investments subcollection
+    match /users/{userId}/investments/{investmentId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isManager());
+      allow create: if isAuthenticated() && isOwner(userId) && isValidInvestment(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || isManager() || isOwner(userId));
+      allow delete: if isAdmin();
+    }
 
     // Transactions Collection
     match /transactions/{transactionId} {

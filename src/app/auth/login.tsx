@@ -82,7 +82,7 @@ export const LoginPage = () => {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('Login error:', err instanceof Error ? err.message : String(err));
       let msg = 'Failed to log in';
       const errCode = err.code || '';
       const errMsg = err.message || '';

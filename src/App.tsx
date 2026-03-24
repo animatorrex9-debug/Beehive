@@ -43,6 +43,8 @@ import { FirebaseSetupGuide } from './components/FirebaseSetupGuide';
 import { DebugControls } from './components/DebugControls';
 import ErrorBoundary from './components/ErrorBoundary';
 
+import { LoadingLogo } from './components/LoadingLogo';
+
 const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { children: React.ReactNode, adminOnly?: boolean, managerOnly?: boolean }) => {
   const { user, loading, isAdmin, userData, emailVerified, isConfigured } = useAuth();
 
@@ -50,7 +52,7 @@ const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { 
 
   if (loading) return (
     <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-primary">
-      <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+      <LoadingLogo size="lg" />
     </div>
   );
 

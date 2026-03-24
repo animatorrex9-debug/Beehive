@@ -61,7 +61,7 @@ export const CompleteProfilePage = () => {
         navigate('/dashboard');
       }, 500);
     } catch (err: any) {
-      console.error('Error updating profile:', err);
+      console.error('Error updating profile:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to update profile');
       handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
     } finally {

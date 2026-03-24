@@ -60,7 +60,7 @@ export const HistoryPage = () => {
         
         setTransactions(txs);
       } catch (err) {
-        console.error('Error fetching transactions:', err);
+        console.error('Error fetching transactions:', err instanceof Error ? err.message : String(err));
       } finally {
         setLoading(false);
       }

@@ -21,7 +21,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCryptoPrices } from '../../hooks/useCryptoPrices';
 import { useCurrency } from '../../hooks/useCurrency';
 import { doc, updateDoc, collection, addDoc, increment, getDocs, query, where, writeBatch } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();
@@ -99,9 +99,16 @@ export const DashboardPage = () => {
 
   React.useEffect(() => {
     const processInvestments = async () => {
-      if (!user || !userData) return;
+      // Ensure both user and userData are available AND auth.currentUser is populated
+      if (!user || !userData || !auth.currentUser) return;
 
       try {
+        // Double check auth state to prevent unauthenticated requests
+        if (auth.currentUser.uid !== user.uid) {
+          console.warn('[Dashboard] Auth mismatch, skipping investment processing');
+          return;
+        }
+
         // Fetch active investments
         const q = query(collection(db, 'users', user.uid, 'investments'), where('status', '==', 'active'));
         const querySnapshot = await getDocs(q);

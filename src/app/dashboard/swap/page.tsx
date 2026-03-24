@@ -101,7 +101,7 @@ export const SwapPage = () => {
 
       setSuccess(true);
     } catch (err: any) {
-      console.error('Swap error:', err);
+      console.error('Swap error:', err instanceof Error ? err.message : String(err));
       setError('Failed to process swap. Please try again.');
     } finally {
       setLoading(false);

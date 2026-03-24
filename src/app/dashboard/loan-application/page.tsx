@@ -114,7 +114,7 @@ export const LoanApplicationPage = () => {
       // Navigate to dashboard immediately to show the nudge banner
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Error submitting loan:', err);
+      console.error('Error submitting loan:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to submit application. Please try again.');
     } finally {
       setIsSubmitting(false);

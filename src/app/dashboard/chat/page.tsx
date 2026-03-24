@@ -34,6 +34,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { handleFirestoreError, OperationType } from '../../../lib/firebase';
+import { LoadingLogo } from '../../../components/LoadingLogo';
 
 export const ChatPage = () => {
   const { user, userData, isAdmin } = useAuth();
@@ -180,7 +181,7 @@ export const ChatPage = () => {
         lastMessageTimestamp: serverTimestamp()
       });
     } catch (err) {
-      console.error('Error sending message:', err);
+      console.error('Error sending message:', err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -267,7 +268,7 @@ export const ChatPage = () => {
   if (loading) {
     return (
       <div className="h-[600px] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+        <LoadingLogo size="lg" />
       </div>
     );
   }
@@ -383,7 +384,7 @@ export const ChatPage = () => {
                 </div>
                 <div>
                   <h3 className="font-black tracking-tight dark:text-white uppercase">
-                    {isManager || isAdmin ? `Chat with User` : (manager?.fullName || 'Account Manager')}
+                    {isManager || isAdmin ? `Chat with User` : 'Account Manager'}
                   </h3>
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -416,6 +417,20 @@ export const ChatPage = () => {
                     className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`max-w-[70%] space-y-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${isMe ? 'text-accent' : 'text-gray-400'}`}>
+                          {isMe ? 'You' : msg.senderId === selectedChat.managerId ? 'Account Manager' : 'System Admin'}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                          isMe ? 'bg-gray-500/10 text-gray-500' :
+                          msg.senderId === selectedChat.managerId ? 'bg-blue-500/10 text-blue-500' :
+                          'bg-red-500/10 text-red-500'
+                        }`}>
+                          {isMe ? 'User' : 
+                           msg.senderId === selectedChat.managerId ? 'Account Manager' : 
+                           'System Admin'}
+                        </span>
+                      </div>
                       <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm ${
                         isMe 
                           ? 'bg-accent text-white rounded-tr-none' 

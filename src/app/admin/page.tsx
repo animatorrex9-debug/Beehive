@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { CurrencyInfo, getCurrencyByCountry, DEFAULT_CURRENCY } from '../../context/CurrencyContext';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { 
@@ -25,10 +26,20 @@ import {
   Award,
   X,
   ArrowDownLeft,
-  Building2
+  Building2,
+  MessageSquare,
+  Send,
+  Paperclip,
+  Smile,
+  User as UserIcon,
+  ArrowLeft,
+  Clock
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { useRef } from 'react';
 
 export const AdminPage = () => {
   const { user, userData, isAdmin, loading: authLoading } = useAuth();
@@ -38,13 +49,15 @@ export const AdminPage = () => {
   const [pendingKYCs, setPendingKYCs] = useState<any[]>([]);
   const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
   const [grants, setGrants] = useState<any[]>([]);
+  const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers' | 'grants'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers' | 'grants' | 'chats'>('dashboard');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [selectedGrant, setSelectedGrant] = useState<any | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -67,6 +80,13 @@ export const AdminPage = () => {
   const [usdtAddress, setUsdtAddress] = useState('');
   const [btcAddress, setBtcAddress] = useState('');
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+
+  // Chat State
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (message) {
@@ -113,12 +133,11 @@ export const AdminPage = () => {
         setUsers(userData);
       }, (err) => {
         if (err.code !== 'permission-denied') {
-          console.error('Error fetching users for admin:', err);
           handleFirestoreError(err, OperationType.LIST, 'users');
         }
       });
     } catch (err) {
-      console.error('Error setting up admin users listener:', err);
+      console.error('Error setting up admin users listener:', err instanceof Error ? err.message : String(err));
     }
 
     // Listen for loans
@@ -130,12 +149,11 @@ export const AdminPage = () => {
         setLoans(loanData);
       }, (err) => {
         if (err.code !== 'permission-denied') {
-          console.error('Error fetching loans for admin:', err);
           handleFirestoreError(err, OperationType.LIST, 'loans');
         }
       });
     } catch (err) {
-      console.error('Error setting up admin loans listener:', err);
+      console.error('Error setting up admin loans listener:', err instanceof Error ? err.message : String(err));
     }
 
     // Listen for pending KYCs
@@ -148,13 +166,12 @@ export const AdminPage = () => {
         setLoading(false);
       }, (err) => {
         if (err.code !== 'permission-denied') {
-          console.error('Error fetching pending KYCs for admin:', err);
           handleFirestoreError(err, OperationType.LIST, 'users (kyc)');
         }
         setLoading(false);
       });
     } catch (err) {
-      console.error('Error setting up admin KYC listener:', err);
+      console.error('Error setting up admin KYC listener:', err instanceof Error ? err.message : String(err));
       setLoading(false);
     }
 
@@ -171,12 +188,11 @@ export const AdminPage = () => {
         setPendingDeposits(depositData);
       }, (err) => {
         if (err.code !== 'permission-denied') {
-          console.error('Error fetching pending deposits for admin:', err);
           handleFirestoreError(err, OperationType.LIST, 'transactions (deposits)');
         }
       });
     } catch (err) {
-      console.error('Error setting up admin deposits listener:', err);
+      console.error('Error setting up admin deposits listener:', err instanceof Error ? err.message : String(err));
     }
 
     // Listen for grants
@@ -188,12 +204,27 @@ export const AdminPage = () => {
         setGrants(grantsData.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
       }, (err) => {
         if (err.code !== 'permission-denied') {
-          console.error('Error fetching grants for admin:', err);
           handleFirestoreError(err, OperationType.LIST, 'grants');
         }
       });
     } catch (err) {
-      console.error('Error setting up admin grants listener:', err);
+      console.error('Error setting up admin grants listener:', err instanceof Error ? err.message : String(err));
+    }
+
+    // Listen for all chats
+    let unsubscribeChats: (() => void) | null = null;
+    try {
+      const chatsQuery = query(collection(db, 'chats'));
+      unsubscribeChats = onSnapshot(chatsQuery, (snapshot) => {
+        const chatData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setChats(chatData);
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'chats');
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up admin chats listener:', err instanceof Error ? err.message : String(err));
     }
 
     return () => {
@@ -202,9 +233,62 @@ export const AdminPage = () => {
       if (unsubscribeKYC) unsubscribeKYC();
       if (unsubscribeDeposits) unsubscribeDeposits();
       if (unsubscribeGrants) unsubscribeGrants();
+      if (unsubscribeChats) unsubscribeChats();
       if (unsubscribeSettings) unsubscribeSettings();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!selectedChatId || activeTab !== 'chats') {
+      setMessages([]);
+      return;
+    }
+
+    const messagesQuery = query(
+      collection(db, 'chats', selectedChatId, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(msgs);
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }, (err) => {
+      if (err.code !== 'permission-denied') {
+        handleFirestoreError(err, OperationType.LIST, `chats/${selectedChatId}/messages`);
+      }
+    });
+
+    return () => unsubscribeMessages();
+  }, [selectedChatId, activeTab]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedChatId || !user) return;
+
+    const messageText = newMessage;
+    setNewMessage('');
+    setIsEmojiPickerOpen(false);
+
+    try {
+      await addDoc(collection(db, 'chats', selectedChatId, 'messages'), {
+        text: messageText,
+        senderId: user.uid,
+        timestamp: serverTimestamp(),
+        read: false,
+        type: 'text'
+      });
+
+      await updateDoc(doc(db, 'chats', selectedChatId), {
+        lastMessage: messageText,
+        lastMessageAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error sending message as admin:', error instanceof Error ? error.message : String(error));
+    }
+  };
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     if (!isAdmin || isUpdatingRole) return;
@@ -219,7 +303,7 @@ export const AdminPage = () => {
         setSelectedUser({ ...selectedUser, role: newRole });
       }
     } catch (err: any) {
-      console.error('Error updating user role:', err);
+      console.error('Error updating user role:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to update user role: ${err.message}`, type: 'error' });
     } finally {
       setIsUpdatingRole(false);
@@ -258,14 +342,23 @@ export const AdminPage = () => {
       setSelectedGrant(null);
       setMessage({ text: `Grant application ${status} successfully!`, type: 'success' });
     } catch (error) {
-      console.error('Error updating grant status:', error);
+      console.error('Error updating grant status:', error instanceof Error ? error.message : String(error));
       setMessage({ text: 'Failed to update grant status', type: 'error' });
     }
   };
 
   const formatUserBalance = (user: any) => {
     const balance = user.wallet?.balance || user.walletBalance || 0;
-    const currencyCode = user.currency?.code || 'USD';
+    
+    // Get currency from user doc or fallback to country mapping
+    let userCurrency: CurrencyInfo = user.currency;
+    
+    if (!userCurrency && user.country) {
+      userCurrency = getCurrencyByCountry(user.country);
+    }
+    
+    const currencyCode = userCurrency?.code || 'USD';
+    const currencySymbol = userCurrency?.symbol || '$';
     
     try {
       return new Intl.NumberFormat('en-US', {
@@ -273,8 +366,17 @@ export const AdminPage = () => {
         currency: currencyCode,
       }).format(balance);
     } catch (e) {
-      return `${user.currency?.symbol || '$'}${balance.toLocaleString()}`;
+      return `${currencySymbol}${balance.toLocaleString()}`;
     }
+  };
+
+  const formatAmountWithUserCurrency = (amount: number, user: any) => {
+    let userCurrency: CurrencyInfo = user?.currency;
+    if (!userCurrency && user?.country) {
+      userCurrency = getCurrencyByCountry(user.country);
+    }
+    const currencySymbol = userCurrency?.symbol || '$';
+    return `${currencySymbol}${amount.toLocaleString()}`;
   };
 
   const handleLoanStatusUpdate = async (loanId: string, status: string) => {
@@ -310,22 +412,22 @@ export const AdminPage = () => {
                  status === 'rejected' ? 'Loan Rejected' : 
                  status === 'disbursed' ? 'Loan Disbursed' : 'Loan Update',
           message: status === 'approved' 
-            ? `Hello ${userName}, your loan application for $${loan.amount.toLocaleString()} has been approved! Please connect your bank account to proceed.` 
+            ? `Hello ${userName}, your loan application for ${formatAmountWithUserCurrency(loan.amount, users.find(u => u.id === loan.userId))} has been approved! Please connect your bank account to proceed.` 
             : status === 'rejected' 
-            ? `Hello ${userName}, we regret to inform you that your loan application for $${loan.amount.toLocaleString()} was not approved at this time.`
+            ? `Hello ${userName}, we regret to inform you that your loan application for ${formatAmountWithUserCurrency(loan.amount, users.find(u => u.id === loan.userId))} was not approved at this time.`
             : status === 'disbursed'
-            ? `Congratulations ${userName}! Your loan of $${loan.amount.toLocaleString()} has been successfully disbursed to your wallet.`
+            ? `Congratulations ${userName}! Your loan of ${formatAmountWithUserCurrency(loan.amount, users.find(u => u.id === loan.userId))} has been successfully disbursed to your wallet.`
             : `Hello ${userName}, your loan status has been updated to ${status}.`,
           createdAt: serverTimestamp(),
           read: false,
         });
       } catch (notifyErr) {
-        console.error('Error sending notification:', notifyErr);
+        console.error('Error sending notification:', notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
       }
 
       setMessage({ text: `Loan updated to ${status} successfully!`, type: 'success' });
     } catch (err: any) {
-      console.error('Error updating loan status:', err);
+      console.error('Error updating loan status:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to update loan status: ${err.message}`, type: 'error' });
     }
   };
@@ -351,7 +453,7 @@ export const AdminPage = () => {
           read: false,
         });
       } catch (notifyErr) {
-        console.error('Error sending notification:', notifyErr);
+        console.error('Error sending notification:', notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
         // Don't fail the whole process if notification fails
       }
 
@@ -360,7 +462,7 @@ export const AdminPage = () => {
       setShowRejectionModal(false);
       setRejectionReason('');
     } catch (err: any) {
-      console.error('Error updating KYC status:', err);
+      console.error('Error updating KYC status:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to update KYC status: ${err.message}`, type: 'error' });
     }
   };
@@ -391,19 +493,19 @@ export const AdminPage = () => {
           type: 'deposit_update',
           title: status === 'completed' ? 'Deposit Approved' : 'Deposit Rejected',
           message: status === 'completed' 
-            ? `Your deposit of $${deposit.amount.toLocaleString()} has been approved and added to your balance.` 
-            : `Your deposit of $${deposit.amount.toLocaleString()} was rejected. Please contact support for more information.`,
+            ? `Your deposit of ${formatAmountWithUserCurrency(deposit.amount, users.find(u => u.id === deposit.userId))} has been approved and added to your balance.` 
+            : `Your deposit of ${formatAmountWithUserCurrency(deposit.amount, users.find(u => u.id === deposit.userId))} was rejected. Please contact support for more information.`,
           createdAt: serverTimestamp(),
           read: false,
         });
       } catch (notifyErr) {
-        console.error('Error sending notification:', notifyErr);
+        console.error('Error sending notification:', notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
       }
 
       setMessage({ text: `Deposit ${status === 'completed' ? 'approved' : 'rejected'} successfully!`, type: 'success' });
       setSelectedDeposit(null);
     } catch (err: any) {
-      console.error('Error updating deposit status:', err);
+      console.error('Error updating deposit status:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to update deposit status: ${err.message}`, type: 'error' });
     }
   };
@@ -434,10 +536,11 @@ export const AdminPage = () => {
       });
 
       // Notify user
+      const targetUser = users.find(u => u.id === walletTargetUserId);
       await addDoc(collection(db, 'notifications', walletTargetUserId, 'items'), {
         type: 'wallet_adjustment',
         title: 'Wallet Balance Updated',
-        message: `An admin has adjusted your wallet balance by $${amount.toLocaleString()}. Note: ${walletNote}`,
+        message: `An admin has adjusted your wallet balance by ${formatAmountWithUserCurrency(amount, targetUser)}. Note: ${walletNote}`,
         createdAt: serverTimestamp(),
         read: false,
       });
@@ -448,7 +551,7 @@ export const AdminPage = () => {
       setMessage({ text: 'Wallet adjusted successfully!', type: 'success' });
       setTimeout(() => setWalletSuccess(false), 3000);
     } catch (err: any) {
-      console.error('Error adjusting wallet:', err);
+      console.error('Error adjusting wallet:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to adjust wallet: ${err.message}`, type: 'error' });
     } finally {
       setIsAdjusting(false);
@@ -469,7 +572,7 @@ export const AdminPage = () => {
       }, { merge: true });
       setMessage({ text: 'Wallet addresses updated successfully!', type: 'success' });
     } catch (err: any) {
-      console.error('Error updating settings:', err);
+      console.error('Error updating settings:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to update settings: ${err.message}`, type: 'error' });
     } finally {
       setIsUpdatingSettings(false);
@@ -506,7 +609,7 @@ export const AdminPage = () => {
       setMessage({ text: `Manager ${manager.email} assigned to ${targetUser.email} successfully!`, type: 'success' });
       setSelectedTargetUserId('');
     } catch (err: any) {
-      console.error('Error assigning manager:', err);
+      console.error('Error assigning manager:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to assign manager: ${err.message}`, type: 'error' });
     } finally {
       setAssigningManager(false);
@@ -534,7 +637,7 @@ export const AdminPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary">
       {/* Top Bar */}
-      <header className="bg-white dark:bg-primary border-b border-gray-200 dark:border-zinc-800 p-6 sticky top-0 z-10">
+      <header className="bg-white dark:bg-primary border-b border-gray-200 dark:border-zinc-800 p-6 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Logo className="h-6" />
@@ -638,6 +741,12 @@ export const AdminPage = () => {
             onClick={() => setActiveTab('managers')}
             icon={<UserCheck className="w-4 h-4" />}
             label="Managers"
+          />
+          <TabButton 
+            active={activeTab === 'chats'} 
+            onClick={() => setActiveTab('chats')}
+            icon={<MessageSquare className="w-4 h-4" />}
+            label="Chats"
           />
         </div>
 
@@ -923,16 +1032,18 @@ export const AdminPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Adjustment Amount ($)</label>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Adjustment Amount</label>
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                    {users.find(u => u.id === walletTargetUserId)?.currency?.symbol || getCurrencyByCountry(users.find(u => u.id === walletTargetUserId)?.country || '').symbol}
+                  </div>
                   <input 
                     type="number"
                     step="0.01"
                     value={walletAmount}
                     onChange={(e) => setWalletAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full p-4 pl-8 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
+                    className="w-full p-4 pl-10 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
                     required
                   />
                 </div>
@@ -1152,6 +1263,232 @@ export const AdminPage = () => {
               </div>
             </div>
           </div>
+        ) : activeTab === 'chats' ? (
+          <div className="card h-[calc(100vh-280px)] min-h-[600px] flex flex-col p-0 overflow-hidden border-2 border-accent/10">
+            <div className="flex h-full relative">
+              {/* Chat Sidebar */}
+              <div className={`${selectedChatId ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-gray-100 dark:border-zinc-800 flex-col bg-gray-50/30 dark:bg-zinc-900/30`}>
+                <div className="p-6 border-b border-gray-100 dark:border-zinc-800">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Active Conversations</h3>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search chats..." 
+                      className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
+                    />
+                  </div>
+                </div>
+                <div className="flex-grow overflow-y-auto custom-scrollbar">
+                  {chats.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <div className="w-12 h-12 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4 opacity-50">
+                        <MessageSquare className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest italic">No active chats</p>
+                    </div>
+                  ) : (
+                    [...chats].sort((a, b) => {
+                      const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : new Date(a.lastMessageAt).getTime();
+                      const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : new Date(b.lastMessageAt).getTime();
+                      return timeB - timeA;
+                    }).map((chat) => {
+                      const manager = users.find(u => u.id === chat.managerId);
+                      const client = users.find(u => u.id === chat.userId);
+                      const isActive = selectedChatId === chat.id;
+                      
+                      return (
+                        <button 
+                          key={chat.id}
+                          onClick={() => setSelectedChatId(chat.id)}
+                          className={`w-full p-4 text-left border-b border-gray-50 dark:border-zinc-900/50 hover:bg-white dark:hover:bg-zinc-800 transition-all relative group ${isActive ? 'bg-white dark:bg-zinc-800 shadow-sm' : ''}`}
+                        >
+                          {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-accent" />}
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${isActive ? 'border-accent/20 bg-accent/10' : 'border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-950'}`}>
+                              <UserIcon className={`w-5 h-5 ${isActive ? 'text-accent' : 'text-gray-400'}`} />
+                            </div>
+                            <div className="flex-grow min-w-0">
+                              <div className="flex justify-between items-start">
+                                <p className={`text-xs font-black uppercase tracking-tight truncate ${isActive ? 'text-accent' : 'dark:text-white'}`}>
+                                  {client?.fullName || client?.email?.split('@')[0] || 'Unknown Client'}
+                                </p>
+                                <span className="text-[8px] font-mono text-gray-400 uppercase">
+                                  {chat.lastMessageAt ? format(chat.lastMessageAt.toMillis ? chat.lastMessageAt.toMillis() : new Date(chat.lastMessageAt), 'HH:mm') : ''}
+                                </span>
+                              </div>
+                              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest truncate mt-0.5">
+                                Manager: {manager?.fullName || manager?.email || 'Unknown'}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-gray-400 truncate italic leading-relaxed pl-13">
+                            {chat.lastMessage || 'No messages yet...'}
+                          </p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Chat Window */}
+              <div className={`${selectedChatId ? 'flex' : 'hidden md:flex'} flex-grow flex-col bg-white dark:bg-zinc-950 relative h-full overflow-hidden`}>
+                {selectedChatId ? (
+                  <>
+                    {/* Chat Header */}
+                    <div className="px-6 py-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-900 shadow-sm z-20 sticky top-0">
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => setSelectedChatId(null)}
+                          className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-gray-400 hover:text-accent"
+                        >
+                          <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 shadow-inner">
+                          <UserIcon className="w-6 h-6 text-accent" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-black tracking-tighter dark:text-white uppercase">
+                            {users.find(u => u.id === chats.find(c => c.id === selectedChatId)?.userId)?.fullName || 'Chat Session'}
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <p className="text-[9px] font-mono text-accent uppercase tracking-widest font-black">
+                              Manager: {users.find(u => u.id === chats.find(c => c.id === selectedChatId)?.managerId)?.fullName || users.find(u => u.id === chats.find(c => c.id === selectedChatId)?.managerId)?.email}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setSelectedChatId(null)}
+                          className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-[9px] font-black text-gray-500 uppercase tracking-widest hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all"
+                        >
+                          <ArrowLeft className="w-3 h-3" />
+                          Back to List
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Messages Area */}
+                    <div className="flex-grow overflow-y-auto p-8 space-y-8 bg-gray-50/30 dark:bg-zinc-950/30 custom-scrollbar h-full">
+                      {messages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center opacity-20">
+                          <MessageSquare className="w-16 h-16 mb-4" />
+                          <p className="font-mono text-xs uppercase tracking-[0.2em]">Secure Channel Initialized</p>
+                        </div>
+                      ) : (
+                        messages.map((msg, idx) => {
+                          const sender = users.find(u => u.id === msg.senderId);
+                          const isMe = msg.senderId === user?.uid;
+                          const isManager = sender?.role === 'account_manager' || sender?.role === 'manager' || sender?.role === 'admin';
+                          const showDate = idx === 0 || (messages[idx-1] && format(messages[idx-1].timestamp?.toMillis ? messages[idx-1].timestamp.toMillis() : new Date(messages[idx-1].timestamp), 'yyyy-MM-dd') !== format(msg.timestamp?.toMillis ? msg.timestamp.toMillis() : new Date(msg.timestamp), 'yyyy-MM-dd'));
+                          
+                          return (
+                            <React.Fragment key={msg.id}>
+                              {showDate && msg.timestamp && (
+                                <div className="flex justify-center my-8">
+                                  <span className="px-4 py-1.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">
+                                    {format(msg.timestamp.toMillis ? msg.timestamp.toMillis() : new Date(msg.timestamp), 'MMMM d, yyyy')}
+                                  </span>
+                                </div>
+                              )}
+                              <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[75%] ${isMe ? 'order-2' : ''}`}>
+                                  <div className={`flex items-center gap-2 mb-2 px-1 ${isMe ? 'justify-end' : ''}`}>
+                                    <span className={`text-[9px] font-black uppercase tracking-widest ${isMe ? 'text-accent' : 'text-gray-400'}`}>
+                                      {isMe ? 'System Admin' : 
+                                       isManager ? 'Account Manager' :
+                                       sender?.fullName || sender?.email?.split('@')[0] || 'Unknown'}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                                      sender?.role === 'admin' ? 'bg-red-500/10 text-red-500' :
+                                      sender?.role === 'account_manager' || sender?.role === 'manager' ? 'bg-blue-500/10 text-blue-500' :
+                                      'bg-gray-500/10 text-gray-500'
+                                    }`}>
+                                      {sender?.role === 'admin' ? 'System Admin' : 
+                                       sender?.role === 'account_manager' || sender?.role === 'manager' ? 'Account Manager' : 
+                                       'User'}
+                                    </span>
+                                  </div>
+                                  <div className={`p-4 rounded-2xl text-sm shadow-sm border ${
+                                    isMe ? 'bg-accent border-accent text-white rounded-tr-none' : 
+                                    isManager ? 'bg-blue-500/5 text-blue-700 dark:text-blue-400 border-blue-500/10 rounded-tl-none' :
+                                    'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800 dark:text-gray-300 rounded-tl-none'
+                                  }`}>
+                                    <p className="leading-relaxed font-medium">{msg.text}</p>
+                                  </div>
+                                  <div className={`flex items-center gap-2 mt-2 px-1 ${isMe ? 'justify-end' : ''}`}>
+                                    <p className="text-[8px] font-mono text-gray-400 uppercase tracking-tighter">
+                                      {msg.timestamp ? format(msg.timestamp.toMillis ? msg.timestamp.toMillis() : new Date(msg.timestamp), 'HH:mm:ss') : 'Sending...'}
+                                    </p>
+                                    {isMe && <CheckCircle className="w-3 h-3 text-accent opacity-50" />}
+                                  </div>
+                                </div>
+                              </div>
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Message Input */}
+                    <div className="p-6 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 shadow-lg">
+                      <form onSubmit={handleSendMessage} className="flex gap-4 max-w-4xl mx-auto">
+                        <div className="relative flex-grow group">
+                          <input 
+                            type="text" 
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Intervene as System Administrator..."
+                            className="w-full pl-6 pr-12 py-4 bg-gray-50 dark:bg-zinc-800/50 border border-transparent focus:border-accent/30 rounded-2xl text-sm font-medium transition-all dark:text-white outline-none shadow-inner"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-accent transition-colors"
+                          >
+                            <Smile className="w-5 h-5" />
+                          </button>
+                          
+                          {isEmojiPickerOpen && (
+                            <div className="absolute bottom-full right-0 mb-6 z-[100] shadow-2xl">
+                              <EmojiPicker 
+                                onEmojiClick={(emojiData) => setNewMessage(prev => prev + emojiData.emoji)}
+                                theme={document.documentElement.classList.contains('dark') ? 'dark' as any : 'light' as any}
+                                width={320}
+                                height={400}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          type="submit"
+                          disabled={!newMessage.trim()}
+                          className="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:bg-accent/90 disabled:opacity-50 transition-all shadow-xl shadow-accent/20 active:scale-95 flex-shrink-0"
+                        >
+                          <Send className="w-6 h-6" />
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-grow flex flex-col items-center justify-center text-center p-12 bg-gray-50/50 dark:bg-zinc-950/50">
+                    <div className="w-24 h-24 bg-white dark:bg-zinc-900 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-xl border border-gray-100 dark:border-zinc-800 relative">
+                      <div className="absolute inset-0 bg-accent/5 rounded-[2.5rem] animate-pulse" />
+                      <MessageSquare className="w-10 h-10 text-accent relative z-10" />
+                    </div>
+                    <h3 className="text-3xl font-black tracking-tighter dark:text-white uppercase mb-4">Intelligence Center</h3>
+                    <p className="text-gray-500 text-sm max-w-sm leading-relaxed italic">
+                      Select an active conversation from the sidebar to monitor communications or provide administrative support to managers and clients.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         ) : activeTab === 'loans' ? (
           <div className="space-y-8">
             {/* Pending Review */}
@@ -1194,7 +1531,7 @@ export const AdminPage = () => {
                             <div className="font-bold dark:text-white">{loan.userEmail}</div>
                             <div className="text-xs text-gray-400 font-mono">{loan.id}</div>
                           </td>
-                          <td className="py-4 font-bold text-accent">${loan.amount.toLocaleString()}</td>
+                          <td className="py-4 font-bold text-accent">{formatAmountWithUserCurrency(loan.amount, users.find(u => u.id === loan.userId))}</td>
                           <td className="py-4 text-gray-500">{loan.purpose}</td>
                           <td className="py-4 text-gray-500">
                             {loan.createdAt?.toDate ? loan.createdAt.toDate().toLocaleDateString() : 'Just now'}
@@ -1867,9 +2204,9 @@ export const AdminPage = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-                <DetailSection title="Application Info">
+                  <DetailSection title="Application Info">
                   <DetailItem label="Applicant" value={selectedLoan.userEmail} />
-                  <DetailItem label="Amount" value={`$${selectedLoan.amount.toLocaleString()}`} />
+                  <DetailItem label="Amount" value={formatAmountWithUserCurrency(selectedLoan.amount, users.find(u => u.id === selectedLoan.userId))} />
                   <DetailItem label="Purpose" value={selectedLoan.purpose} />
                   <DetailItem label="Status" value={selectedLoan.status.toUpperCase()} />
                 </DetailSection>

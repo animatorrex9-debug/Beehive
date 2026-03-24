@@ -8,6 +8,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { NudgeBanner } from './NudgeBanner';
 import { Toast } from './Toast';
+import { LoadingLogo } from '../LoadingLogo';
 
 export const DashboardLayout: React.FC = () => {
   const { user, userData, activeLoan, loanLoading, localStatus } = useAuth();
@@ -83,7 +84,7 @@ export const DashboardLayout: React.FC = () => {
               )}
               {loanLoading ? (
                 <div className="flex items-center justify-center py-20">
-                  <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+                  <LoadingLogo size="lg" />
                 </div>
               ) : (
                 <Outlet context={{ activeLoan }} />

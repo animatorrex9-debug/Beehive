@@ -33,6 +33,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { LoadingLogo } from '../../../components/LoadingLogo';
 
 export const ManagerChatPage = () => {
   const { user, userData } = useAuth();
@@ -172,7 +173,7 @@ export const ManagerChatPage = () => {
         lastMessageAt: serverTimestamp()
       });
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message:', error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -208,7 +209,7 @@ export const ManagerChatPage = () => {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
       } catch (error) {
-        console.error('Error uploading file:', error);
+        console.error('Error uploading file:', error instanceof Error ? error.message : String(error));
         setIsUploading(false);
       }
     }, 1500);
@@ -223,7 +224,7 @@ export const ManagerChatPage = () => {
       setSelectedUser({ ...selectedUser, kycStatus: status });
       setIsSettingsModalOpen(false);
     } catch (error) {
-      console.error('Error updating status:', error);
+      console.error('Error updating status:', error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -241,7 +242,7 @@ export const ManagerChatPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <LoadingLogo size="lg" />
       </div>
     );
   }
@@ -416,6 +417,22 @@ export const ManagerChatPage = () => {
                         className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                       >
                         <div className={`max-w-[85%] md:max-w-[70%] group relative`}>
+                          <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${isMe ? 'text-accent' : 'text-zinc-400'}`}>
+                              {isMe ? 'Account Manager' : 
+                               msg.senderId === selectedUser?.id ? selectedUser.fullName : 
+                               'System Admin'}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                              isMe ? 'bg-blue-500/10 text-blue-500' :
+                              msg.senderId === selectedUser?.id ? 'bg-gray-500/10 text-gray-500' :
+                              'bg-red-500/10 text-red-500'
+                            }`}>
+                              {isMe ? 'Account Manager' : 
+                               msg.senderId === selectedUser?.id ? 'User' : 
+                               'System Admin'}
+                            </span>
+                          </div>
                           <div className={`rounded-2xl px-4 py-3 shadow-sm border text-sm ${
                             isMe 
                               ? 'bg-accent border-accent text-white rounded-tr-none' 

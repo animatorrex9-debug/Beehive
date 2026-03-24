@@ -28,7 +28,7 @@ export const VerifyEmailPage = () => {
       await sendEmailVerification(auth.currentUser);
       setSuccess('Verification email resent! Please check your inbox.');
     } catch (err: any) {
-      console.error('Resend verification error:', err);
+      console.error('Resend verification error:', err instanceof Error ? err.message : String(err));
       let msg = 'Failed to resend verification email.';
       const errCode = err.code || '';
       const errMsg = err.message || '';

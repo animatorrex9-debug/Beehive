@@ -59,7 +59,7 @@ export const GrantsPage = () => {
 
       setSuccess(true);
     } catch (err: any) {
-      console.error('Grant application error:', err);
+      console.error('Grant application error:', err instanceof Error ? err.message : String(err));
       setError('Failed to submit application. Please try again.');
     } finally {
       setLoading(false);

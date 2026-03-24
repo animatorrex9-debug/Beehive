@@ -18,10 +18,49 @@ interface CurrencyContextType {
   loading: boolean;
 }
 
-const DEFAULT_CURRENCY: CurrencyInfo = {
+export const DEFAULT_CURRENCY: CurrencyInfo = {
   symbol: '$',
   code: 'USD',
   name: 'United States Dollar'
+};
+
+export const countryMap: Record<string, string> = {
+  'United States': 'USD',
+  'United Kingdom': 'GBP',
+  'Nigeria': 'NGN',
+  'Canada': 'CAD',
+  'Australia': 'AUD',
+  'Germany': 'EUR',
+  'France': 'EUR',
+  'Italy': 'EUR',
+  'Spain': 'EUR',
+  'Japan': 'JPY',
+  'China': 'CNY',
+  'India': 'INR',
+  'South Africa': 'ZAR',
+  'United Arab Emirates': 'AED',
+  'Saudi Arabia': 'SAR',
+  'Egypt': 'EGP',
+  'Kenya': 'KES',
+  'Ghana': 'GHS',
+};
+
+export const getCurrencyByCountry = (countryName: string): CurrencyInfo => {
+  const code = countryMap[countryName] || 'USD';
+  const name = new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
+  
+  const formatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: code,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  
+  const parts = formatter.formatToParts(0);
+  const symbolPart = parts.find(part => part.type === 'currency');
+  const symbol = symbolPart ? symbolPart.value : (code === 'NGN' ? '₦' : '$');
+
+  return { code, name, symbol };
 };
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -52,43 +91,8 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const setCurrencyByCountry = (countryName: string) => {
-    // Simple mapping for common countries
-    const countryMap: Record<string, string> = {
-      'United States': 'USD',
-      'United Kingdom': 'GBP',
-      'Nigeria': 'NGN',
-      'Canada': 'CAD',
-      'Australia': 'AUD',
-      'Germany': 'EUR',
-      'France': 'EUR',
-      'Italy': 'EUR',
-      'Spain': 'EUR',
-      'Japan': 'JPY',
-      'China': 'CNY',
-      'India': 'INR',
-      'South Africa': 'ZAR',
-      'United Arab Emirates': 'AED',
-      'Saudi Arabia': 'SAR',
-      'Egypt': 'EGP',
-      'Kenya': 'KES',
-      'Ghana': 'GHS',
-    };
-
-    const code = countryMap[countryName] || 'USD';
-    const name = new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
-    
-    const formatter = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: code,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    });
-    
-    const parts = formatter.formatToParts(0);
-    const symbolPart = parts.find(part => part.type === 'currency');
-    const symbol = symbolPart ? symbolPart.value : code;
-
-    return setCurrency({ code, name, symbol });
+    const newCurrency = getCurrencyByCountry(countryName);
+    setCurrency(newCurrency);
   };
 
   useEffect(() => {
@@ -129,36 +133,11 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
           if (!response.ok) throw new Error('ipapi failed');
           const data = await response.json();
           
-          if (data.currency) {
-            const code = data.currency;
-            const currencyName = new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
-            
-            const formatter = new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: code,
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            });
-            
-            const parts = formatter.formatToParts(0);
-            const symbolPart = parts.find(part => part.type === 'currency');
-            const symbol = symbolPart ? symbolPart.value : code;
-
-            const detectedCurrency = {
-              code,
-              name: currencyName,
-              symbol
-            };
-            
-            setCurrencyState(detectedCurrency);
-            try {
-              localStorage.setItem('user_currency', safeStringify(detectedCurrency));
-            } catch (e) {
-              console.error('Failed to save currency to localStorage', e);
-            }
+          if (data.country_name) {
+            setCurrencyByCountry(data.country_name);
           }
-        } catch (error) {
-          console.warn('Currency detection failed, using default.', error);
+        } catch (e) {
+          console.error('Currency detection failed', e);
         } finally {
           setLoading(false);
         }

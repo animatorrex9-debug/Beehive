@@ -150,7 +150,7 @@ export const DepositPage = () => {
       setSelectedAccount(details);
       setStep('amount');
     } catch (err) {
-      console.error('Connection error:', err);
+      console.error('Connection error:', err instanceof Error ? err.message : String(err));
       setError('Failed to connect account. Please try again.');
     } finally {
       setLoading(false);
@@ -237,7 +237,7 @@ export const DepositPage = () => {
       setProofFile(null);
       setStep('method');
     } catch (err: any) {
-      console.error('Deposit error:', err);
+      console.error('Deposit error:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to submit deposit request. Please try again.');
     } finally {
       setLoading(false);

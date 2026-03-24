@@ -94,7 +94,7 @@ export const KYCPage = () => {
       await reloadUser();
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Error submitting KYC:', err);
+      console.error('Error submitting KYC:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to submit KYC. Please try again.');
     } finally {
       setIsSubmitting(false);

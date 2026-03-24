@@ -80,7 +80,7 @@ export const SendPage = () => {
       });
       setRecentRecipients(recipients);
     } catch (err) {
-      console.error('Error fetching recent recipients:', err);
+      console.error('Error fetching recent recipients:', err instanceof Error ? err.message : String(err));
       // Use the standard error handler for better context
       import('../../../lib/firebase').then(({ handleFirestoreError, OperationType }) => {
         handleFirestoreError(err, OperationType.GET, path);
@@ -158,7 +158,7 @@ export const SendPage = () => {
       setCountry('');
       fetchRecentRecipients();
     } catch (err: any) {
-      console.error('Send error:', err);
+      console.error('Send error:', err instanceof Error ? err.message : String(err));
       setError('Failed to process transfer. Please try again.');
     } finally {
       setLoading(false);

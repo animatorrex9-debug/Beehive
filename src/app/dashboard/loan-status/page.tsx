@@ -18,6 +18,7 @@ import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from '
 import { safeStringify } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { handleFirestoreError, OperationType } from '../../../lib/firebase';
+import { LoadingLogo } from '../../../components/LoadingLogo';
 
 export const LoanStatusPage = () => {
   const { user, userData, activeLoan, activeLoanId, loanLoading, localStatus, setLocalStatus } = useAuth();
