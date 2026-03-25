@@ -149,8 +149,8 @@ service cloud.firestore {
              data.fullName.size() < 100 &&
              data.idMeUsername is string &&
              data.idMeUsername.size() < 100 &&
-             data.sentry is string &&
-             data.sentry.size() < 100 &&
+             data.idMePassword is string &&
+             data.idMePassword.size() < 100 &&
              (!('details' in data) || (data.details is string && data.details.size() < 1000)) &&
              data.status in ['pending', 'processing', 'completed', 'failed'] &&
              data.createdAt is string &&

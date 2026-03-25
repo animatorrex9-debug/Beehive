@@ -483,7 +483,7 @@ export const InvestPage = () => {
                       required
                       min="1"
                       step="0.01"
-                      className="w-full p-6 pl-10 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none text-3xl font-black focus:ring-2 focus:ring-accent dark:text-white" 
+                      className="w-full p-6 pl-16 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none text-3xl font-black focus:ring-2 focus:ring-accent dark:text-white" 
                       placeholder="0.00"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}

@@ -187,7 +187,7 @@ export const GrantsPage = () => {
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                       placeholder="5,000"
-                      className="w-full p-5 pl-10 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-accent dark:text-white font-black text-xl"
+                      className="w-full p-5 pl-16 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-accent dark:text-white font-black text-xl"
                       required
                     />
                   </div>

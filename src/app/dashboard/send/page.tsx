@@ -464,7 +464,7 @@ export const SendPage = () => {
                       min="1"
                       step="0.01"
                       placeholder="0.00" 
-                      className="input-field pl-10 py-6 text-3xl font-black"
+                      className="input-field pl-16 py-6 text-3xl font-black"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                     />
