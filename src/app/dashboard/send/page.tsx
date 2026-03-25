@@ -3,7 +3,7 @@ import { ArrowUpCircle, User, Globe, Hash, CheckCircle2, AlertCircle, Landmark, 
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../context/CurrencyContext';
-import { db } from '../../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -48,7 +48,8 @@ export const SendPage = () => {
       const q = query(
         collection(db, path),
         where('userId', '==', user.uid),
-        where('type', '==', 'send')
+        where('type', '==', 'send'),
+        limit(20)
       );
       const querySnapshot = await getDocs(q);
       const txsData: any[] = [];
@@ -56,7 +57,7 @@ export const SendPage = () => {
         txsData.push(doc.data());
       });
 
-      // Sort client-side to avoid index requirement
+      // Sort client-side to avoid index requirement for now
       txsData.sort((a, b) => {
         const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
         const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -81,13 +82,7 @@ export const SendPage = () => {
       setRecentRecipients(recipients);
     } catch (err) {
       console.error('Error fetching recent recipients:', err instanceof Error ? err.message : String(err));
-      // Use the standard error handler for better context
-      import('../../../lib/firebase').then(({ handleFirestoreError, OperationType }) => {
-        handleFirestoreError(err, OperationType.GET, path);
-      }).catch(() => {
-        // Fallback if import fails
-        throw err;
-      });
+      handleFirestoreError(err, OperationType.GET, path);
     }
   }, [user]);
 

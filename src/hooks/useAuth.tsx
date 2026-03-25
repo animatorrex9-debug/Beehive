@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc, onSnapshot, query, collection, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, query, collection, where, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db, isConfigured, handleFirestoreError, OperationType } from '../lib/firebase';
+
+import { useCurrency } from '../context/CurrencyContext';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +13,7 @@ interface AuthContextType {
   loading: boolean;
   loanLoading: boolean;
   isAdmin: boolean;
+  isManager: boolean;
   emailVerified: boolean;
   isConfigured: boolean;
   localStatus: string | null;
@@ -26,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true, 
   loanLoading: true,
   isAdmin: false, 
+  isManager: false,
   emailVerified: false,
   isConfigured: false,
   localStatus: null,
@@ -34,6 +38,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const { setCurrencyByCountry } = useCurrency();
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any | null>(null);
   const [activeLoan, setActiveLoan] = useState<any | null>(null);
@@ -52,6 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [loanLoading, setLoanLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isManager, setIsManager] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [localStatus, setLocalStatus] = useState<string | null>(null);
 
@@ -102,6 +108,72 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [activeLoan?.status, localStatus]);
 
+  const ensureUserProfile = async (firebaseUser: User) => {
+    if (!isConfigured) return;
+    
+    try {
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userRef);
+      const userEmail = firebaseUser.email?.toLowerCase().trim() || '';
+      
+      if (!userDoc.exists()) {
+        console.log(`[Auth] No profile found for UID ${firebaseUser.uid}. Checking for existing profile by email: ${userEmail}`);
+        
+        // Try to find by normalized email
+        let q = query(collection(db, 'users'), where('email', '==', userEmail));
+        let querySnapshot = await getDocs(q);
+        
+        // Fallback: Try to find by original email (in case it wasn't normalized before)
+        if (querySnapshot.empty && firebaseUser.email && firebaseUser.email !== userEmail) {
+          console.log(`[Auth] No normalized profile found. Trying original email: ${firebaseUser.email}`);
+          q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
+          querySnapshot = await getDocs(q);
+        }
+        
+        if (!querySnapshot.empty) {
+          const existingDoc = querySnapshot.docs[0];
+          const existingData = existingDoc.data();
+          console.log(`[Auth] Found existing profile with UID ${existingDoc.id}. Linking to new UID ${firebaseUser.uid}...`);
+          
+          await setDoc(userRef, {
+            ...existingData,
+            uid: firebaseUser.uid,
+            email: userEmail,
+            updatedAt: new Date().toISOString(),
+            emailVerified: firebaseUser.emailVerified || existingData.emailVerified || false
+          });
+        } else {
+          // Truly a new user. Initialize basic fields to prevent "dummy" accounts.
+          console.log(`[Auth] Initializing new user profile for ${userEmail}`);
+          await setDoc(userRef, {
+            fullName: firebaseUser.displayName || userEmail.split('@')[0],
+            email: userEmail,
+            role: userEmail === 'animatorrex9@gmail.com' ? 'admin' : 'user',
+            walletBalance: 0,
+            investmentBalance: 0,
+            grantBalance: 0,
+            savings: 0,
+            activeCards: 1,
+            kycStatus: 'unverified',
+            createdAt: new Date().toISOString(),
+            emailVerified: firebaseUser.emailVerified,
+            country: '', // Trigger complete-profile if missing
+            lastReturnCalculationDate: new Date().toISOString(),
+          });
+        }
+      } else {
+        // Profile exists, but let's ensure admin role for the specific email
+        const data = userDoc.data();
+        if (userEmail === 'animatorrex9@gmail.com' && data.role !== 'admin') {
+          console.log('[Auth] Forcing admin role for animatorrex9@gmail.com');
+          await updateDoc(userRef, { role: 'admin' });
+        }
+      }
+    } catch (err) {
+      console.error('[Auth] Error ensuring user profile:', err);
+    }
+  };
+
   const reloadUser = async () => {
     if (isConfigured && auth.currentUser) {
       await auth.currentUser.reload();
@@ -124,20 +196,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setEmailVerified(user?.emailVerified || false);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         console.log(`[Auth] User detected: ${user.email} (UID: ${user.uid})`);
-        // When a user is detected, we should ensure loading is true
-        // until the userData listener has had a chance to fetch the profile
+        
+        // Ensure loading is true until profile is ready
         setLoading(true);
         setLoanLoading(true);
+        setUser(user);
+        setEmailVerified(user.emailVerified);
+        
+        // Ensure user profile exists and is linked correctly
+        await ensureUserProfile(user);
       } else {
         console.log('[Auth] No user detected');
+        setUser(null);
         setUserData(null);
         setActiveLoan(null);
         setIsAdmin(false);
+        setIsManager(false);
+        setEmailVerified(false);
         setLoading(false);
         setLoanLoading(false);
       }
@@ -153,11 +231,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribeDoc = onSnapshot(doc(db, 'users', user.uid), (userDoc) => {
       if (userDoc.exists()) {
         const data = userDoc.data();
-        console.log(`[Firestore] User data loaded for ${user.uid}:`, data.fullName || 'No name');
+        console.log(`[Firestore] User data loaded for ${user.uid}:`, {
+          fullName: data.fullName || 'No name',
+          country: data.country || 'MISSING',
+          role: data.role || 'user'
+        });
         setUserData(data);
-        setIsAdmin(
-          data?.role === 'admin'
-        );
+        setIsAdmin(data?.role === 'admin');
+        setIsManager(data?.role === 'manager');
+        
+        if (data.country) {
+          setCurrencyByCountry(data.country);
+        }
         
         // Sync email verification status if it changed
         if (user.emailVerified && !data.emailVerified) {
@@ -171,6 +256,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setUserData(null);
         setIsAdmin(false);
+        setIsManager(false);
       }
       setLoading(false);
     }, (err) => {
@@ -254,6 +340,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       loading, 
       loanLoading,
       isAdmin, 
+      isManager,
       emailVerified, 
       isConfigured, 
       localStatus,

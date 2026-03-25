@@ -153,7 +153,9 @@ export default function SettingsPage() {
     fullName: userData?.fullName || '',
     phoneNumber: userData?.phoneNumber || '',
     address: userData?.address || '',
-    country: userData?.country || ''
+    address2: userData?.address2 || '',
+    country: userData?.country || '',
+    dob: userData?.dob || ''
   });
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -166,7 +168,9 @@ export default function SettingsPage() {
         fullName: profileForm.fullName,
         phoneNumber: profileForm.phoneNumber,
         address: profileForm.address,
-        country: profileForm.country
+        address2: profileForm.address2,
+        country: profileForm.country,
+        dob: profileForm.dob
       });
       setIsEditingProfile(false);
     } catch (error) {
@@ -184,7 +188,7 @@ export default function SettingsPage() {
       </header>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-zinc-900 rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-zinc-900 rounded-xl w-full overflow-x-auto no-scrollbar">
         {[
           { id: 'profile', label: 'Profile', icon: User },
           { id: 'banking', label: 'Banking & Cards', icon: CreditCard },
@@ -235,7 +239,9 @@ export default function SettingsPage() {
                             fullName: userData?.fullName || '',
                             phoneNumber: userData?.phoneNumber || '',
                             address: userData?.address || '',
-                            country: userData?.country || ''
+                            address2: userData?.address2 || '',
+                            country: userData?.country || '',
+                            dob: userData?.dob || ''
                           });
                           setIsEditingProfile(true);
                         }}
@@ -248,15 +254,26 @@ export default function SettingsPage() {
 
                   {isEditingProfile ? (
                     <form onSubmit={handleUpdateProfile} className="space-y-4 pt-6 border-t border-gray-100 dark:border-zinc-800">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
-                        <input
-                          required
-                          type="text"
-                          value={profileForm.fullName}
-                          onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
+                          <input
+                            required
+                            type="text"
+                            value={profileForm.fullName}
+                            onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={profileForm.dob}
+                            onChange={(e) => setProfileForm({ ...profileForm, dob: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone Number</label>
@@ -268,15 +285,27 @@ export default function SettingsPage() {
                           placeholder="+1 234 567 890"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address</label>
-                        <input
-                          type="text"
-                          value={profileForm.address}
-                          onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
-                          placeholder="123 Main St, City"
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address Line 1</label>
+                          <input
+                            type="text"
+                            value={profileForm.address}
+                            onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                            placeholder="123 Main St"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address Line 2 (Optional)</label>
+                          <input
+                            type="text"
+                            value={profileForm.address2}
+                            onChange={(e) => setProfileForm({ ...profileForm, address2: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                            placeholder="Apt, Suite, etc."
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Country</label>
@@ -306,22 +335,29 @@ export default function SettingsPage() {
                       </div>
                     </form>
                   ) : (
-                    <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-100 dark:border-zinc-800">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-gray-100 dark:border-zinc-800">
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
                         <p className="font-bold dark:text-white mt-1">{userData?.fullName}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Date of Birth</label>
+                        <p className="font-bold dark:text-white mt-1">{userData?.dob || 'Not set'}</p>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone Number</label>
                         <p className="font-bold dark:text-white mt-1">{userData?.phoneNumber || 'Not set'}</p>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address</label>
-                        <p className="font-bold dark:text-white mt-1">{userData?.address || 'Not set'}</p>
-                      </div>
-                      <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Country</label>
                         <p className="font-bold dark:text-white mt-1">{userData?.country || 'Not set'}</p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address</label>
+                        <p className="font-bold dark:text-white mt-1">
+                          {userData?.address || 'Not set'}
+                          {userData?.address2 && <span className="block text-sm font-normal text-gray-500">{userData.address2}</span>}
+                        </p>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">KYC Status</label>

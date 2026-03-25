@@ -20,7 +20,6 @@ import { ArrowLeft, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage = () => {
   const { user, userData, isAdmin, loading: authLoading, isConfigured } = useAuth();
-  const { setCurrencyByCountry } = useCurrency();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,16 +29,18 @@ export const LoginPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!authLoading && user && user.emailVerified) {
+    if (!authLoading && user && user.emailVerified && userData) {
       if (isAdmin) {
         navigate('/admin');
-      } else if (userData?.role === 'account_manager') {
+      } else if (userData.role === 'account_manager') {
         navigate('/manager');
+      } else if (!userData.country) {
+        navigate('/auth/complete-profile');
       } else {
         navigate('/dashboard');
       }
     }
-  }, [user, isAdmin, authLoading, navigate]);
+  }, [user, userData, isAdmin, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +49,8 @@ export const LoginPage = () => {
     setSuccess('');
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.toLowerCase().trim();
+      const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
       if (!user.emailVerified) {
@@ -56,31 +58,8 @@ export const LoginPage = () => {
         setLoading(false);
         return;
       }
-
-      // Fetch user role from Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        setError('User profile not found.');
-        await signOut(auth);
-        setLoading(false);
-        return;
-      }
-
-      const userData = userDoc.data();
-      const role = userData.role;
-      const country = userData.country;
-
-      if (country) {
-        setCurrencyByCountry(country);
-      }
-
-      if (role === 'admin') {
-        navigate('/admin');
-      } else if (role === 'account_manager') {
-        navigate('/manager');
-      } else {
-        navigate('/dashboard');
-      }
+      
+      // The useEffect above will handle navigation once userData is loaded by useAuth
     } catch (err: any) {
       console.error('Login error:', err instanceof Error ? err.message : String(err));
       let msg = 'Failed to log in';
@@ -100,7 +79,6 @@ export const LoginPage = () => {
       else msg = errMsg || msg;
       
       setError(msg);
-    } finally {
       setLoading(false);
     }
   };
@@ -127,66 +105,11 @@ export const LoginPage = () => {
     setError('');
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // Check if user exists in Firestore, if not create (for Google login)
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      let role = 'user';
-      let country = '';
-
-      if (!userDoc.exists()) {
-        // Check if another account exists with this email but different UID
-        const q = query(collection(db, 'users'), where('email', '==', user.email));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const existingDoc = querySnapshot.docs[0];
-          console.warn(`Account mismatch detected. Email ${user.email} already has a profile with UID ${existingDoc.id}, but current UID is ${user.uid}.`);
-          // We'll use the existing profile data as a template if it's a new account, 
-          // but we still need to create a doc for the new UID because of security rules.
-          const existingData = existingDoc.data();
-          await setDoc(doc(db, 'users', user.uid), {
-            ...existingData,
-            uid: user.uid, // Ensure UID is correct for the new doc
-            createdAt: new Date().toISOString(),
-            emailVerified: user.emailVerified,
-          });
-          role = existingData.role || 'user';
-          country = existingData.country || '';
-        } else {
-          await setDoc(doc(db, 'users', user.uid), {
-            fullName: user.displayName || '',
-            email: user.email || '',
-            phone: user.phoneNumber || '',
-            role: 'user',
-            kycStatus: 'unverified',
-            createdAt: new Date().toISOString(),
-            emailVerified: user.emailVerified,
-          });
-        }
-      } else {
-        const data = userDoc.data();
-        role = data.role;
-        country = data.country || '';
-      }
-
-      if (country) {
-        setCurrencyByCountry(country);
-      }
-
-      if (role === 'admin') {
-        navigate('/admin');
-      } else if (role === 'account_manager') {
-        navigate('/manager');
-      } else if (!country) {
-        navigate('/auth/complete-profile');
-      } else {
-        navigate('/dashboard');
-      }
+      await signInWithPopup(auth, provider);
+      // useAuth will handle profile creation/linking and the useEffect will handle navigation
     } catch (err: any) {
+      console.error('Google login error:', err);
       setError(err.message || 'Google login failed');
-    } finally {
       setLoading(false);
     }
   };

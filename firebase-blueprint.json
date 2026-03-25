@@ -13,10 +13,15 @@
         "grantBalance": { "type": "number" },
         "lastReturnCalculationDate": { "type": "string", "format": "date-time" },
         "savings": { "type": "number" },
+        "savingsLockUntil": { "type": "string", "format": "date-time" },
+        "savingsInterestRate": { "type": "number" },
+        "savingsPrincipal": { "type": "number" },
+        "savingsLastInterestCalculationDate": { "type": "string", "format": "date-time" },
         "activeCards": { "type": "number" },
         "activeLoanId": { "type": "string" },
         "dob": { "type": "string" },
         "address": { "type": "string" },
+        "address2": { "type": "string" },
         "stateOfOrigin": { "type": "string" },
         "maritalStatus": { "type": "string" },
         "employmentStatus": { "type": "string" },
@@ -127,6 +132,22 @@
         "status": { "type": "string", "enum": ["active", "completed", "cancelled"] }
       },
       "required": ["title", "amount", "biweeklyReturn", "timestamp", "status"]
+    },
+    "TaxRefund": {
+      "title": "Tax Refund Application",
+      "description": "Details of a tax refund request including ID.me connection",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "idMeUsername": { "type": "string" },
+        "sentry": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "fullName", "idMeUsername", "sentry", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -137,6 +158,10 @@
     "/users/{userId}/investments/{investmentId}": {
       "schema": "Investment",
       "description": "User specific investments"
+    },
+    "/tax_refunds/{refundId}": {
+      "schema": "TaxRefund",
+      "description": "Tax refund applications"
     },
     "/transactions/{transactionId}": {
       "schema": "Transaction",

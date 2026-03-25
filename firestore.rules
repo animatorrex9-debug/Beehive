@@ -44,6 +44,7 @@ service cloud.firestore {
              (!('fullName' in data) || (data.fullName is string && data.fullName.size() < 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
              (!('address' in data) || (data.address is string && data.address.size() < 500)) &&
+             (!('address2' in data) || (data.address2 is string && data.address2.size() < 500)) &&
              (!('country' in data) || (data.country is string && data.country.size() < 100)) &&
              (!('dob' in data) || (data.dob is string && data.dob.size() < 20)) &&
              (!('stateOfOrigin' in data) || (data.stateOfOrigin is string && data.stateOfOrigin.size() < 100)) &&
@@ -68,6 +69,10 @@ service cloud.firestore {
              (!('grantBalance' in data) || data.grantBalance is number) &&
              (!('lastReturnCalculationDate' in data) || (data.lastReturnCalculationDate is string && isValidDateString(data.lastReturnCalculationDate))) &&
              (!('savings' in data) || data.savings is number) &&
+             (!('savingsPrincipal' in data) || data.savingsPrincipal is number) &&
+             (!('savingsLockUntil' in data) || (data.savingsLockUntil is string && isValidDateString(data.savingsLockUntil)) || data.savingsLockUntil == null) &&
+             (!('savingsInterestRate' in data) || data.savingsInterestRate is number) &&
+             (!('savingsLastInterestCalculationDate' in data) || (data.savingsLastInterestCalculationDate is string && isValidDateString(data.savingsLastInterestCalculationDate)) || data.savingsLastInterestCalculationDate == null) &&
              (!('activeCards' in data) || data.activeCards is number) &&
              (!('activeLoanStatus' in data) || data.activeLoanStatus is string) &&
              (!('activeLoanId' in data) || data.activeLoanId is string) &&
@@ -138,6 +143,20 @@ service cloud.firestore {
              (!('note' in data) || data.note is string);
     }
 
+    function isValidTaxRefund(data) {
+      return data.userId is string &&
+             data.fullName is string &&
+             data.fullName.size() < 100 &&
+             data.idMeUsername is string &&
+             data.idMeUsername.size() < 100 &&
+             data.sentry is string &&
+             data.sentry.size() < 100 &&
+             (!('details' in data) || (data.details is string && data.details.size() < 1000)) &&
+             data.status in ['pending', 'processing', 'completed', 'failed'] &&
+             data.createdAt is string &&
+             isValidDateString(data.createdAt);
+    }
+
     function isValidDateString(dateStr) {
       return dateStr is string &&
         dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
@@ -177,6 +196,14 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isManager());
       allow create: if isAuthenticated() && isOwner(userId) && isValidInvestment(request.resource.data);
       allow update: if isAuthenticated() && (isAdmin() || isManager() || isOwner(userId));
+      allow delete: if isAdmin();
+    }
+
+    // Tax Refunds Collection
+    match /tax_refunds/{refundId} {
+      allow read: if isAuthenticated() && (isDocOwner(resource.data) || isAdmin() || isManager());
+      allow create: if isAuthenticated() && isDocOwner(request.resource.data) && isValidTaxRefund(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || isManager());
       allow delete: if isAdmin();
     }
 

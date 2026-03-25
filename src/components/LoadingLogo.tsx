@@ -21,17 +21,49 @@ export const LoadingLogo: React.FC<LoadingLogoProps> = ({ size = 'md', className
       <div className={`${sizeMap[size]} relative`}>
         <motion.svg 
           viewBox="0 0 100 100" 
-          className="w-full h-full fill-accent"
+          className="w-full h-full"
           animate={{
-            scale: [1, 1.1, 1],
+            scale: [1, 1.05, 1],
           }}
           transition={{
-            duration: 2,
+            duration: 3,
             repeat: Infinity,
             ease: "easeInOut"
           }}
         >
-          <g transform="scale(0.85)" transform-origin="center">
+          {/* Outer Spinner Track */}
+          <circle
+            cx="50"
+            cy="50"
+            r="48"
+            stroke="currentColor"
+            strokeWidth="1"
+            fill="none"
+            className="text-accent/10"
+          />
+          
+          {/* Rotating Spinner Segment */}
+          <motion.circle
+            cx="50"
+            cy="50"
+            r="48"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeDasharray="80 200"
+            fill="none"
+            animate={{
+              rotate: 360
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="origin-center text-accent"
+          />
+
+          <g transform="scale(0.7)" className="origin-center fill-accent">
             {/* Background layer for depth */}
             <motion.path 
               d={path}

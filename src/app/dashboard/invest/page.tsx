@@ -434,7 +434,7 @@ export const InvestPage = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white dark:bg-primary w-full max-w-md p-8 rounded-3xl shadow-2xl relative"
+              className="bg-white dark:bg-primary w-full max-w-md p-8 rounded-3xl shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button 
                 onClick={() => setIsModalOpen(false)}

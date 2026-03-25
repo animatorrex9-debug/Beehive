@@ -19,8 +19,7 @@ import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
 import { ArrowLeft, Mail, Lock, User, AlertCircle, CheckCircle2, ShieldCheck, Globe } from 'lucide-react';
 
 export const SignupPage = () => {
-  const { user, isAdmin, loading: authLoading, isConfigured } = useAuth();
-  const { setCurrencyByCountry } = useCurrency();
+  const { user, userData, isAdmin, loading: authLoading, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -53,14 +52,18 @@ export const SignupPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && user && user.emailVerified) {
+    if (!authLoading && user && user.emailVerified && userData) {
       if (isAdmin) {
         navigate('/admin');
+      } else if (userData.role === 'account_manager') {
+        navigate('/manager');
+      } else if (!userData.country) {
+        navigate('/auth/complete-profile');
       } else {
         navigate('/dashboard');
       }
     }
-  }, [user, isAdmin, authLoading, navigate]);
+  }, [user, userData, isAdmin, authLoading, navigate]);
 
   const passwordStrength = useMemo(() => {
     if (!password) return 0;
@@ -112,7 +115,8 @@ export const SignupPage = () => {
     setSuccess('');
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.toLowerCase().trim();
+      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
       
       // Send verification email
@@ -121,10 +125,10 @@ export const SignupPage = () => {
       // Create user profile in Firestore
       await setDoc(doc(db, 'users', user.uid), {
         fullName,
-        email,
+        email: normalizedEmail,
         phone,
         country,
-        role: email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
+        role: normalizedEmail === 'animatorrex9@gmail.com' ? 'admin' : 'user',
         kycStatus: 'unverified',
         walletBalance: 0,
         investmentBalance: 0,
@@ -135,8 +139,6 @@ export const SignupPage = () => {
         createdAt: new Date().toISOString(),
         emailVerified: false,
       });
-
-      setCurrencyByCountry(country);
 
       // Sign out user immediately after signup so they can't login without verification
       // await signOut(auth); // Keep them signed in for the verify page to allow resend
@@ -178,74 +180,11 @@ export const SignupPage = () => {
     setError('');
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // Check if user already exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      if (!userDoc.exists()) {
-        // Check if another account exists with this email but different UID
-        const q = query(collection(db, 'users'), where('email', '==', user.email));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const existingDoc = querySnapshot.docs[0];
-          console.warn(`Account mismatch detected during signup. Email ${user.email} already has a profile with UID ${existingDoc.id}, but current UID is ${user.uid}.`);
-          // We'll use the existing profile data as a template
-          const existingData = existingDoc.data();
-          await setDoc(doc(db, 'users', user.uid), {
-            ...existingData,
-            uid: user.uid,
-            createdAt: new Date().toISOString(),
-            emailVerified: user.emailVerified,
-          });
-          
-          if (existingData.country) {
-            setCurrencyByCountry(existingData.country);
-            navigate('/dashboard');
-          } else {
-            navigate('/auth/complete-profile');
-          }
-        } else {
-          // For Google signup, we might not have NIN or Phone initially
-          // We can redirect them to a profile completion page later, 
-          // but for now let's create the doc with what we have.
-          await setDoc(doc(db, 'users', user.uid), {
-            fullName: user.displayName || '',
-            email: user.email || '',
-            phone: user.phoneNumber || '',
-            country: country || '',
-            role: user.email === 'animatorrex9@gmail.com' ? 'admin' : 'user',
-            kycStatus: 'unverified',
-            walletBalance: 0,
-            investmentBalance: 0,
-            lastReturnCalculationDate: new Date().toISOString(),
-            savings: 0,
-            activeCards: 1,
-            createdAt: new Date().toISOString(),
-            emailVerified: user.emailVerified,
-          });
-          
-          if (country) {
-            setCurrencyByCountry(country);
-            navigate('/dashboard');
-          } else {
-            navigate('/auth/complete-profile');
-          }
-        }
-      } else {
-        const data = userDoc.data();
-        if (data.country) {
-          setCurrencyByCountry(data.country);
-          navigate('/dashboard');
-        } else {
-          navigate('/auth/complete-profile');
-        }
-      }
+      await signInWithPopup(auth, provider);
+      // useAuth will handle profile creation/linking and the useEffect will handle navigation
     } catch (err: any) {
+      console.error('Google signup error:', err);
       setError(err.message || 'Google signup failed');
-    } finally {
       setLoading(false);
     }
   };

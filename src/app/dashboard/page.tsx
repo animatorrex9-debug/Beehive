@@ -1,5 +1,5 @@
 import React from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Wallet, 
@@ -15,7 +15,8 @@ import {
   CreditCard,
   RefreshCw,
   Award,
-  Heart
+  Heart,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCryptoPrices } from '../../hooks/useCryptoPrices';
@@ -33,6 +34,97 @@ export const DashboardPage = () => {
   const [message, setMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [dailyGrowthRate, setDailyGrowthRate] = React.useState<number>(0);
 
+  const handleWithdrawSavings = async (isEarly: boolean = false) => {
+    if (!user || !userData || (userData.savings || 0) <= 0) return;
+
+    try {
+      const savings = userData.savings;
+      let amountToTransfer = savings;
+      let penalty = 0;
+
+      if (isEarly) {
+        penalty = savings * 0.1;
+        amountToTransfer = savings - penalty;
+      }
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        walletBalance: increment(amountToTransfer),
+        savings: 0,
+        savingsPrincipal: 0,
+        savingsLockUntil: null,
+        savingsInterestRate: 0,
+        savingsLastInterestCalculationDate: null
+      });
+
+      await addDoc(collection(db, 'transactions'), {
+        userId: user.uid,
+        userEmail: user.email,
+        type: 'transfer',
+        amount: amountToTransfer,
+        currency: userData?.currency?.code || 'USD',
+        status: 'completed',
+        description: isEarly ? 'Early Savings Withdrawal (10% Penalty)' : 'Savings Withdrawal',
+        timestamp: new Date().toISOString()
+      });
+
+      if (penalty > 0) {
+        await addDoc(collection(db, 'transactions'), {
+          userId: user.uid,
+          userEmail: user.email,
+          type: 'fee',
+          amount: penalty,
+          currency: userData?.currency?.code || 'USD',
+          status: 'completed',
+          description: 'Early Withdrawal Penalty',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (err) {
+      console.error('Error withdrawing savings:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    const calculateInterestAndAutoWithdraw = async () => {
+      if (!user || !userData || !userData.savings || userData.savings <= 0) return;
+
+      const now = new Date();
+      const lockUntil = userData.savingsLockUntil ? new Date(userData.savingsLockUntil) : null;
+      
+      if (lockUntil && now >= lockUntil) {
+        await handleWithdrawSavings(false);
+        return;
+      }
+
+      if (userData.savingsLastInterestCalculationDate) {
+        const lastCalc = new Date(userData.savingsLastInterestCalculationDate);
+        const diffTime = Math.abs(now.getTime() - lastCalc.getTime());
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 0) {
+          const dailyRate = (userData.savingsInterestRate || 0) / 100;
+          const interestToAdd = userData.savings * dailyRate * diffDays;
+
+          if (interestToAdd > 0) {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              savings: increment(interestToAdd),
+              savingsLastInterestCalculationDate: now.toISOString()
+            });
+          } else {
+            await updateDoc(doc(db, 'users', user.uid), {
+              savingsLastInterestCalculationDate: now.toISOString()
+            });
+          }
+        }
+      }
+    };
+
+    calculateInterestAndAutoWithdraw();
+  }, [user, userData?.savings, userData?.savingsLockUntil, userData?.savingsLastInterestCalculationDate]);
+
   const kycStatus = userData?.kycStatus || 'unverified';
 
   // Quick Links with better colors
@@ -41,6 +133,7 @@ export const DashboardPage = () => {
     { icon: <Award className="text-purple-500" />, label: "Grants", to: "/dashboard/grants", bg: "bg-purple-500/10" },
     { icon: <Heart className="text-red-500" />, label: "Charity", to: "/dashboard/charity", bg: "bg-red-500/10" },
     { icon: <TrendingUp className="text-emerald-500" />, label: "Invest", to: "/dashboard/invest", bg: "bg-emerald-500/10" },
+    { icon: <FileText className="text-amber-500" />, label: "Tax Refunds", to: "/dashboard/tax-refunds", bg: "bg-amber-500/10" },
   ];
 
   const handleTransferToWallet = async (type: 'investment' | 'grant') => {

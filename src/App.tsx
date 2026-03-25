@@ -27,6 +27,7 @@ import { SwapPage } from './app/dashboard/swap/page';
 import { TaxPage } from './app/dashboard/tax/page';
 import { CharityPage } from './app/dashboard/charity/page';
 import { GrantsPage } from './app/dashboard/grants/page';
+import { TaxRefundsPage } from './app/dashboard/tax-refunds/page';
 import { PrivacyPolicyPage } from './app/legal/privacy';
 import { TermsOfServicePage } from './app/legal/terms';
 import { CookiePolicyPage } from './app/legal/cookies';
@@ -55,6 +56,19 @@ const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { 
       <LoadingLogo size="lg" />
     </div>
   );
+
+  if (user) {
+    console.log('[ProtectedRoute] User state:', {
+      uid: user.uid,
+      hasUserData: !!userData,
+      country: userData?.country || 'MISSING',
+      role: userData?.role || 'user',
+      isAdmin,
+      path: window.location.pathname,
+      adminOnly,
+      managerOnly
+    });
+  }
 
   if (!user) {
     return <Navigate to={adminOnly ? "/admin/login" : "/auth/login"} />;
@@ -123,6 +137,7 @@ export default function App() {
                   <Route path="tax" element={<TaxPage />} />
                   <Route path="charity" element={<CharityPage />} />
                   <Route path="grants" element={<GrantsPage />} />
+                  <Route path="tax-refunds" element={<TaxRefundsPage />} />
                   <Route path="loan-application" element={<LoanApplicationPage />} />
                   <Route path="loan-status" element={<LoanStatusPage />} />
                   <Route path="chat" element={<ChatPage />} />

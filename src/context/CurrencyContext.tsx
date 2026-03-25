@@ -39,6 +39,8 @@ export const countryMap: Record<string, string> = {
   'India': 'INR',
   'South Africa': 'ZAR',
   'United Arab Emirates': 'AED',
+  'UAE': 'AED',
+  'UK': 'GBP',
   'Saudi Arabia': 'SAR',
   'Egypt': 'EGP',
   'Kenya': 'KES',
@@ -90,9 +92,9 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const setCurrencyByCountry = (countryName: string) => {
+  const setCurrencyByCountry = async (countryName: string) => {
     const newCurrency = getCurrencyByCountry(countryName);
-    setCurrency(newCurrency);
+    await setCurrency(newCurrency);
   };
 
   useEffect(() => {

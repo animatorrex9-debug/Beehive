@@ -1,30 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, CreditCard, History, RefreshCw, ArrowRightLeft, TrendingUp, TrendingDown, AlertCircle, X } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, CreditCard, History, RefreshCw, ArrowRightLeft, TrendingUp, TrendingDown, AlertCircle, X, Clock } from 'lucide-react';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCryptoPrices } from '../../../hooks/useCryptoPrices';
 import { db, handleFirestoreError, OperationType } from '../../../lib/firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 
 export const AccountsPage = () => {
   const { formatAmount } = useCurrency();
   const { user, userData } = useAuth();
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { btcPrice, usdtPrice } = useCryptoPrices();
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [isEarlyWithdrawal, setIsEarlyWithdrawal] = useState(false);
   const [moveAmount, setMoveAmount] = useState('');
+  const [lockPeriod, setLockPeriod] = useState('7'); // Default 7 days
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState('');
-  
+
   const balance = userData?.walletBalance || 0;
   const savings = userData?.savings || 0;
   const btcBalance = userData?.btcBalance || 0;
   const usdtBalance = userData?.usdtBalance || 0;
+  const savingsLockUntil = userData?.savingsLockUntil;
+  const savingsInterestRate = userData?.savingsInterestRate || 0;
+  const savingsPrincipal = userData?.savingsPrincipal || 0;
+  const savingsLastInterestCalculationDate = userData?.savingsLastInterestCalculationDate;
+
+  const lockOptions = [
+    { label: '1 Day', value: '1', rate: 0.05 },
+    { label: '1 Week', value: '7', rate: 0.1 },
+    { label: '1 Month', value: '30', rate: 0.2 },
+    { label: '3 Months', value: '90', rate: 0.5 },
+    { label: '6 Months', value: '180', rate: 0.8 },
+    { label: '1 Year', value: '365', rate: 1.2 },
+  ];
 
   const handleMoveFunds = async () => {
     if (!user || !moveAmount || parseFloat(moveAmount) <= 0) return;
@@ -39,10 +56,19 @@ export const AccountsPage = () => {
     setMoveError('');
 
     try {
+      const selectedOption = lockOptions.find(o => o.value === lockPeriod);
+      const days = parseInt(lockPeriod);
+      const lockUntil = new Date();
+      lockUntil.setDate(lockUntil.getDate() + days);
+
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         walletBalance: increment(-amountNum),
-        savings: increment(amountNum)
+        savings: increment(amountNum),
+        savingsPrincipal: increment(amountNum),
+        savingsLockUntil: lockUntil.toISOString(),
+        savingsInterestRate: selectedOption?.rate || 0.1,
+        savingsLastInterestCalculationDate: new Date().toISOString()
       });
 
       await addDoc(collection(db, 'transactions'), {
@@ -52,7 +78,7 @@ export const AccountsPage = () => {
         amount: amountNum,
         currency: userData?.currency?.code || 'USD',
         status: 'completed',
-        description: 'Transfer to Savings Account',
+        description: `Locked Savings (${selectedOption?.label})`,
         createdAt: serverTimestamp(),
         timestamp: new Date().toISOString()
       });
@@ -66,6 +92,112 @@ export const AccountsPage = () => {
       setMoveLoading(false);
     }
   };
+
+  const handleWithdrawSavings = async (isEarly: boolean = false) => {
+    if (!user || !userData || savings <= 0) return;
+
+    setMoveLoading(true);
+    try {
+      let amountToTransfer = savings;
+      let penalty = 0;
+
+      if (isEarly) {
+        penalty = savings * 0.1;
+        amountToTransfer = savings - penalty;
+      }
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        walletBalance: increment(amountToTransfer),
+        savings: 0,
+        savingsPrincipal: 0,
+        savingsLockUntil: null,
+        savingsInterestRate: 0,
+        savingsLastInterestCalculationDate: null
+      });
+
+      await addDoc(collection(db, 'transactions'), {
+        userId: user.uid,
+        userEmail: user.email,
+        type: 'transfer',
+        amount: amountToTransfer,
+        currency: userData?.currency?.code || 'USD',
+        status: 'completed',
+        description: isEarly ? 'Early Savings Withdrawal (10% Penalty)' : 'Savings Withdrawal',
+        createdAt: serverTimestamp(),
+        timestamp: new Date().toISOString()
+      });
+
+      if (penalty > 0) {
+        await addDoc(collection(db, 'transactions'), {
+          userId: user.uid,
+          userEmail: user.email,
+          type: 'fee',
+          amount: penalty,
+          currency: userData?.currency?.code || 'USD',
+          status: 'completed',
+          description: 'Early Withdrawal Penalty',
+          createdAt: serverTimestamp(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (err) {
+      console.error('Error withdrawing savings:', err);
+    } finally {
+      setMoveLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const calculateInterestAndAutoWithdraw = async () => {
+      if (!user || !userData || !userData.savings || userData.savings <= 0) return;
+
+      const now = new Date();
+      const lockUntil = userData.savingsLockUntil ? new Date(userData.savingsLockUntil) : null;
+      
+      // 1. Check for Auto-Withdrawal
+      if (lockUntil && now >= lockUntil) {
+        console.log('Lock period reached. Auto-withdrawing savings...');
+        await handleWithdrawSavings(false);
+        return;
+      }
+
+      // 2. Calculate Daily Interest
+      if (userData.savingsLastInterestCalculationDate) {
+        const lastCalc = new Date(userData.savingsLastInterestCalculationDate);
+        const diffTime = Math.abs(now.getTime() - lastCalc.getTime());
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 0) {
+          const dailyRate = (userData.savingsInterestRate || 0) / 100;
+          const interestToAdd = userData.savings * dailyRate * diffDays;
+
+          if (interestToAdd > 0) {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              savings: increment(interestToAdd),
+              savingsLastInterestCalculationDate: now.toISOString()
+            });
+            console.log(`Added ${interestToAdd} in savings interest for ${diffDays} days.`);
+          } else {
+            // Update date even if no interest to avoid re-checking
+            await updateDoc(doc(db, 'users', user.uid), {
+              savingsLastInterestCalculationDate: now.toISOString()
+            });
+          }
+        }
+      } else {
+        // Initialize last calculation date if missing
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+          savingsLastInterestCalculationDate: now.toISOString()
+        });
+      }
+    };
+
+    calculateInterestAndAutoWithdraw();
+  }, [user, userData?.savings, userData?.savingsLockUntil, userData?.savingsLastInterestCalculationDate]);
 
   useEffect(() => {
     if (!user) return;
@@ -125,12 +257,18 @@ export const AccountsPage = () => {
           <p className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-2">Main Balance</p>
           <h2 className="text-4xl font-black mb-8">{formatAmount(balance)}</h2>
           <div className="flex gap-4">
-            <Link to="/dashboard/deposit" className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-bold transition-all flex items-center justify-center gap-2">
+            <button 
+              onClick={() => navigate('/dashboard/deposit')}
+              className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-bold transition-all flex items-center justify-center gap-2"
+            >
               <ArrowDownLeft className="w-4 h-4" /> Deposit
-            </Link>
-            <Link to="/dashboard/send" className="flex-1 py-3 rounded-xl bg-accent font-bold transition-all flex items-center justify-center gap-2">
+            </button>
+            <button 
+              onClick={() => navigate('/dashboard/send')}
+              className="flex-1 py-3 rounded-xl bg-accent font-bold transition-all flex items-center justify-center gap-2"
+            >
               <ArrowUpRight className="w-4 h-4" /> Send
-            </Link>
+            </button>
           </div>
         </motion.div>
 
@@ -139,16 +277,66 @@ export const AccountsPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-8 rounded-3xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-xl"
+          className="p-8 rounded-3xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-xl flex flex-col justify-between"
         >
-          <p className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-2">Savings Account</p>
-          <h2 className="text-4xl font-black mb-8 dark:text-white">{formatAmount(savings)}</h2>
-          <button 
-            onClick={() => setShowMoveModal(true)}
-            className="w-full py-3 rounded-xl border-2 border-gray-100 dark:border-zinc-800 font-bold hover:border-accent transition-all dark:text-white"
-          >
-            Move Funds
-          </button>
+          <div>
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Savings Account</p>
+              {savingsLockUntil && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-1 rounded-full">
+                  <Clock className="w-3 h-3" /> LOCKED
+                </div>
+              )}
+            </div>
+            <h2 className="text-4xl font-black mb-1 dark:text-white">{formatAmount(savings)}</h2>
+            {savingsLockUntil && (
+              <p className="text-xs text-gray-500 font-bold mb-4 flex items-center gap-1">
+                Locked until: {new Date(savingsLockUntil).toLocaleDateString()}
+              </p>
+            )}
+            
+            {savings > 0 && (
+              <div className="mb-6 p-3 rounded-xl bg-green-500/5 border border-green-500/10">
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-green-600 mb-1">
+                  <span>Daily Interest</span>
+                  <span>{savingsInterestRate}%</span>
+                </div>
+                <div className="w-full h-1 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: '100%' }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="h-full bg-green-500"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setShowMoveModal(true)}
+              className="flex-1 py-3 rounded-xl border-2 border-gray-100 dark:border-zinc-800 font-bold hover:border-accent transition-all dark:text-white text-sm"
+            >
+              Deposit
+            </button>
+            {savings > 0 && (
+              <button 
+                onClick={() => {
+                  const isEarly = savingsLockUntil ? new Date() < new Date(savingsLockUntil) : false;
+                  if (isEarly) {
+                    setIsEarlyWithdrawal(true);
+                    setShowWithdrawConfirm(true);
+                  } else {
+                    handleWithdrawSavings(false);
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-zinc-800 font-bold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all dark:text-white text-sm"
+              >
+                Withdraw
+              </button>
+            )}
+          </div>
         </motion.div>
 
         {/* Bitcoin Card */}
@@ -277,7 +465,7 @@ export const AccountsPage = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-2xl border border-gray-100 dark:border-zinc-800"
+              className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-2xl border border-gray-100 dark:border-zinc-800 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-black dark:text-white">Move Funds</h3>
@@ -286,7 +474,17 @@ export const AccountsPage = () => {
                 </button>
               </div>
 
-              <p className="text-gray-500 mb-8">Transfer funds from your main balance to your savings account to earn interest.</p>
+              <p className="text-gray-500 mb-4">Transfer funds from your main balance to your savings account to earn daily interest based on your lock period.</p>
+              
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-8">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                  <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider leading-relaxed">
+                    Disclaimer: Funds moved to savings are locked for the selected duration. 
+                    <span className="text-red-500 block mt-1">Early withdrawal will incur a 10% penalty fee on your total savings balance.</span>
+                  </p>
+                </div>
+              </div>
 
               <div className="space-y-6">
                 <div className="space-y-2">
@@ -311,6 +509,43 @@ export const AccountsPage = () => {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Select Lock Period</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {lockOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setLockPeriod(option.value)}
+                        className={`p-3 rounded-xl border-2 transition-all text-center ${
+                          lockPeriod === option.value 
+                            ? 'border-accent bg-accent/5 text-accent' 
+                            : 'border-gray-100 dark:border-zinc-800 text-gray-500 hover:border-gray-200'
+                        }`}
+                      >
+                        <p className="text-xs font-bold">{option.label}</p>
+                        <p className="text-[10px] opacity-60">{option.rate}% Daily</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {parseFloat(moveAmount) > 0 && (
+                  <div className="p-4 rounded-2xl bg-accent/5 border border-accent/10 space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Daily Interest</span>
+                      <span className="font-bold text-accent">
+                        {formatAmount(parseFloat(moveAmount) * (lockOptions.find(o => o.value === lockPeriod)?.rate || 0) / 100)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Estimated Total</span>
+                      <span className="font-bold text-accent">
+                        {formatAmount(parseFloat(moveAmount) + (parseFloat(moveAmount) * (lockOptions.find(o => o.value === lockPeriod)?.rate || 0) / 100 * parseInt(lockPeriod)))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {moveError && (
                   <div className="p-4 bg-red-50 text-red-600 rounded-xl flex items-center gap-3 text-sm">
                     <AlertCircle className="w-5 h-5" />
@@ -330,6 +565,46 @@ export const AccountsPage = () => {
                       <ArrowRightLeft className="w-5 h-5" /> Confirm Transfer
                     </>
                   )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Withdraw Confirmation Modal */}
+      <AnimatePresence>
+        {showWithdrawConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-2xl border border-gray-100 dark:border-zinc-800 text-center"
+            >
+              <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6">
+                <AlertCircle className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-black dark:text-white mb-4 uppercase tracking-tighter">Early Withdrawal</h3>
+              <p className="text-gray-500 mb-8">
+                Your savings are still locked until <span className="font-bold text-accent">{new Date(savingsLockUntil!).toLocaleDateString()}</span>. 
+                Withdrawing now will incur a <span className="font-bold text-red-500">10% penalty fee ({formatAmount(savings * 0.1)})</span>.
+              </p>
+              <div className="space-y-3">
+                <button 
+                  onClick={() => {
+                    handleWithdrawSavings(true);
+                    setShowWithdrawConfirm(false);
+                  }}
+                  className="w-full py-4 bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-red-600 transition-all"
+                >
+                  Confirm & Pay Penalty
+                </button>
+                <button 
+                  onClick={() => setShowWithdrawConfirm(false)}
+                  className="w-full py-4 text-gray-500 font-bold hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                >
+                  Cancel
                 </button>
               </div>
             </motion.div>

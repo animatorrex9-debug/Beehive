@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
@@ -20,7 +20,13 @@ export const CompleteProfilePage = () => {
 
   useEffect(() => {
     if (!authLoading && userData?.country) {
-      navigate('/dashboard');
+      if (userData.role === 'admin') {
+        navigate('/admin');
+      } else if (userData.role === 'account_manager') {
+        navigate('/manager');
+      } else {
+        navigate('/dashboard');
+      }
     }
   }, [userData, authLoading, navigate]);
 
@@ -48,18 +54,35 @@ export const CompleteProfilePage = () => {
     setError('');
 
     try {
+      console.log('[CompleteProfile] Submitting country:', country);
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      
+      // Use setDoc with merge: true to ensure the document exists
+      console.log('[CompleteProfile] Updating Firestore document...');
+      await setDoc(userRef, {
         country,
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
+      console.log('[CompleteProfile] Firestore document updated');
+
+      // Await the currency update
+      console.log('[CompleteProfile] Updating currency settings...');
       await setCurrencyByCountry(country);
+      console.log('[CompleteProfile] Currency settings updated');
       
+      console.log('[CompleteProfile] Profile updated successfully, navigating...');
+
       // Wait a tiny bit for the snapshot listener to catch up
       // This helps prevent the ProtectedRoute from redirecting back
       setTimeout(() => {
-        navigate('/dashboard');
-      }, 500);
+        if (userData?.role === 'admin') {
+          navigate('/admin');
+        } else if (userData?.role === 'account_manager') {
+          navigate('/manager');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 800);
     } catch (err: any) {
       console.error('Error updating profile:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to update profile');
