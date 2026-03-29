@@ -32,6 +32,11 @@ export const KYCPage = () => {
 
   const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
 
+  const cleanImageUrl = (url: string) => {
+    if (url && url.startsWith('data:image/')) return '';
+    return url;
+  };
+
   const [formData, setFormData] = useState({
     fullName: userData?.fullName || '',
     dob: userData?.dob || '',
@@ -43,9 +48,9 @@ export const KYCPage = () => {
     jobTitle: userData?.jobTitle || '',
     monthlyIncome: userData?.monthlyIncome || '',
     ssn: userData?.ssn || '',
-    idCardFrontImage: userData?.idCardFrontImage || userData?.idCardImage || '',
-    idCardBackImage: userData?.idCardBackImage || '',
-    faceImage: userData?.faceImage || '',
+    idCardFrontImage: cleanImageUrl(userData?.idCardFrontImage || userData?.idCardImage || ''),
+    idCardBackImage: cleanImageUrl(userData?.idCardBackImage || ''),
+    faceImage: cleanImageUrl(userData?.faceImage || ''),
   });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'idCardFrontImage' | 'idCardBackImage' | 'faceImage') => {
