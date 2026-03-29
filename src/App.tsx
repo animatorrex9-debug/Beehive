@@ -41,7 +41,6 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { FirebaseSetupGuide } from './components/FirebaseSetupGuide';
-import { DebugControls } from './components/DebugControls';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import { LoadingLogo } from './components/LoadingLogo';
@@ -164,7 +163,6 @@ export default function App() {
                 </Route>
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
-              <DebugControls />
             </AuthProvider>
           </CurrencyProvider>
         </ThemeProvider>
