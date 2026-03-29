@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 
 const STEPS = [
   { id: 'personal', label: 'Personal', icon: User },
@@ -28,6 +29,8 @@ export const KYCPage = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
 
   const [formData, setFormData] = useState({
     fullName: userData?.fullName || '',
@@ -45,14 +48,32 @@ export const KYCPage = () => {
     faceImage: userData?.faceImage || '',
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'idCardFrontImage' | 'idCardBackImage' | 'faceImage') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'idCardFrontImage' | 'idCardBackImage' | 'faceImage') => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (file && user) {
+      setUploading(prev => ({ ...prev, [field]: true }));
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.uid}/${field}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `kyc/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(SUPABASE_BUCKET)
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl: url } } = supabase.storage
+          .from(SUPABASE_BUCKET)
+          .getPublicUrl(filePath);
+
+        setFormData(prev => ({ ...prev, [field]: url }));
+      } catch (err: any) {
+        console.error('Upload error:', err);
+        setError(`Failed to upload ${field.replace('Image', '')}. Please try again.`);
+      } finally {
+        setUploading(prev => ({ ...prev, [field]: false }));
+      }
     }
   };
 
@@ -288,7 +309,12 @@ export const KYCPage = () => {
                       htmlFor="idCardFrontUpload"
                       className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:border-accent/50 transition-all overflow-hidden"
                     >
-                      {formData.idCardFrontImage ? (
+                      {uploading.idCardFrontImage ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-accent">Uploading...</span>
+                        </div>
+                      ) : formData.idCardFrontImage ? (
                         <img src={formData.idCardFrontImage} alt="ID Front" className="w-full h-full object-cover" />
                       ) : (
                         <>
@@ -315,7 +341,12 @@ export const KYCPage = () => {
                       htmlFor="idCardBackUpload"
                       className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:border-accent/50 transition-all overflow-hidden"
                     >
-                      {formData.idCardBackImage ? (
+                      {uploading.idCardBackImage ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-accent">Uploading...</span>
+                        </div>
+                      ) : formData.idCardBackImage ? (
                         <img src={formData.idCardBackImage} alt="ID Back" className="w-full h-full object-cover" />
                       ) : (
                         <>
@@ -342,7 +373,12 @@ export const KYCPage = () => {
                       htmlFor="faceUpload"
                       className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:border-accent/50 transition-all overflow-hidden"
                     >
-                      {formData.faceImage ? (
+                      {uploading.faceImage ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-accent">Uploading...</span>
+                        </div>
+                      ) : formData.faceImage ? (
                         <img src={formData.faceImage} alt="Face Photo" className="w-full h-full object-cover" />
                       ) : (
                         <>
@@ -483,7 +519,7 @@ export const KYCPage = () => {
           {currentStep === STEPS.length - 1 ? (
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || Object.values(uploading).some(Boolean)}
               className="btn-primary px-10 py-3 rounded-2xl text-sm flex items-center gap-2 shadow-xl shadow-accent/20"
             >
               {isSubmitting ? (

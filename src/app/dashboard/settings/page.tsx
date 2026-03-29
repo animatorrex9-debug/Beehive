@@ -151,11 +151,19 @@ export default function SettingsPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
     fullName: userData?.fullName || '',
-    phoneNumber: userData?.phoneNumber || '',
+    phone: userData?.phone || userData?.phoneNumber || '',
     address: userData?.address || '',
     address2: userData?.address2 || '',
     country: userData?.country || '',
-    dob: userData?.dob || ''
+    dob: userData?.dob || '',
+    ssn: userData?.ssn || '',
+    employmentStatus: userData?.employmentStatus || '',
+    employerName: userData?.employerName || '',
+    jobTitle: userData?.jobTitle || '',
+    monthlyIncome: userData?.monthlyIncome || '',
+    maritalStatus: userData?.maritalStatus || '',
+    stateOfOrigin: userData?.stateOfOrigin || '',
+    sentry: userData?.sentry || ''
   });
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -166,11 +174,19 @@ export default function SettingsPage() {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         fullName: profileForm.fullName,
-        phoneNumber: profileForm.phoneNumber,
+        phone: profileForm.phone,
         address: profileForm.address,
         address2: profileForm.address2,
         country: profileForm.country,
-        dob: profileForm.dob
+        dob: profileForm.dob,
+        ssn: profileForm.ssn,
+        employmentStatus: profileForm.employmentStatus,
+        employerName: profileForm.employerName,
+        jobTitle: profileForm.jobTitle,
+        monthlyIncome: profileForm.monthlyIncome,
+        maritalStatus: profileForm.maritalStatus,
+        stateOfOrigin: profileForm.stateOfOrigin,
+        sentry: profileForm.sentry
       });
       setIsEditingProfile(false);
     } catch (error) {
@@ -232,16 +248,24 @@ export default function SettingsPage() {
                         <p className="text-gray-500 text-sm">{user?.email}</p>
                       </div>
                     </div>
-                    {!isEditingProfile && (
+                      {!isEditingProfile && (
                       <button 
                         onClick={() => {
                           setProfileForm({
                             fullName: userData?.fullName || '',
-                            phoneNumber: userData?.phoneNumber || '',
+                            phone: userData?.phone || userData?.phoneNumber || '',
                             address: userData?.address || '',
                             address2: userData?.address2 || '',
                             country: userData?.country || '',
-                            dob: userData?.dob || ''
+                            dob: userData?.dob || '',
+                            ssn: userData?.ssn || '',
+                            employmentStatus: userData?.employmentStatus || '',
+                            employerName: userData?.employerName || '',
+                            jobTitle: userData?.jobTitle || '',
+                            monthlyIncome: userData?.monthlyIncome || '',
+                            maritalStatus: userData?.maritalStatus || '',
+                            stateOfOrigin: userData?.stateOfOrigin || '',
+                            sentry: userData?.sentry || ''
                           });
                           setIsEditingProfile(true);
                         }}
@@ -279,8 +303,8 @@ export default function SettingsPage() {
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone Number</label>
                         <input
                           type="text"
-                          value={profileForm.phoneNumber}
-                          onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                           className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
                           placeholder="+1 234 567 890"
                         />
@@ -317,6 +341,102 @@ export default function SettingsPage() {
                           placeholder="United States"
                         />
                       </div>
+
+                      <div className="pt-6 border-t border-gray-100 dark:border-zinc-800 space-y-4">
+                        <h4 className="font-bold dark:text-white uppercase tracking-tighter">KYC Information</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">SSN / Tax ID</label>
+                            <input
+                              type="text"
+                              value={profileForm.ssn}
+                              onChange={(e) => setProfileForm({ ...profileForm, ssn: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                              placeholder="000-00-0000"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">State of Origin</label>
+                            <input
+                              type="text"
+                              value={profileForm.stateOfOrigin}
+                              onChange={(e) => setProfileForm({ ...profileForm, stateOfOrigin: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                              placeholder="California"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Marital Status</label>
+                            <select
+                              value={profileForm.maritalStatus}
+                              onChange={(e) => setProfileForm({ ...profileForm, maritalStatus: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                            >
+                              <option value="">Select Status</option>
+                              <option value="single">Single</option>
+                              <option value="married">Married</option>
+                              <option value="divorced">Divorced</option>
+                              <option value="widowed">Widowed</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Employment Status</label>
+                            <select
+                              value={profileForm.employmentStatus}
+                              onChange={(e) => setProfileForm({ ...profileForm, employmentStatus: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                            >
+                              <option value="">Select Status</option>
+                              <option value="employed">Employed</option>
+                              <option value="self-employed">Self-Employed</option>
+                              <option value="unemployed">Unemployed</option>
+                              <option value="student">Student</option>
+                              <option value="retired">Retired</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Employer Name</label>
+                            <input
+                              type="text"
+                              value={profileForm.employerName}
+                              onChange={(e) => setProfileForm({ ...profileForm, employerName: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                              placeholder="Company Name"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Job Title</label>
+                            <input
+                              type="text"
+                              value={profileForm.jobTitle}
+                              onChange={(e) => setProfileForm({ ...profileForm, jobTitle: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                              placeholder="Software Engineer"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Monthly Income</label>
+                            <input
+                              type="text"
+                              value={profileForm.monthlyIncome}
+                              onChange={(e) => setProfileForm({ ...profileForm, monthlyIncome: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                              placeholder="$5,000"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">ID.me Password</label>
+                            <input
+                              type="password"
+                              value={profileForm.sentry}
+                              onChange={(e) => setProfileForm({ ...profileForm, sentry: e.target.value })}
+                              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white"
+                              placeholder="ID.me password"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="flex gap-3 pt-2">
                         <button 
                           type="button"
@@ -346,7 +466,7 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone Number</label>
-                        <p className="font-bold dark:text-white mt-1">{userData?.phoneNumber || 'Not set'}</p>
+                        <p className="font-bold dark:text-white mt-1">{userData?.phone || 'Not set'}</p>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Country</label>
@@ -359,11 +479,62 @@ export default function SettingsPage() {
                           {userData?.address2 && <span className="block text-sm font-normal text-gray-500">{userData.address2}</span>}
                         </p>
                       </div>
+
+                      <div className="sm:col-span-2 pt-6 border-t border-gray-100 dark:border-zinc-800 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">SSN / Tax ID</label>
+                          <p className="font-bold dark:text-white mt-1">{userData?.ssn ? '****-**-' + userData.ssn.slice(-4) : 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">State of Origin</label>
+                          <p className="font-bold dark:text-white mt-1">{userData?.stateOfOrigin || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Marital Status</label>
+                          <p className="font-bold dark:text-white mt-1 capitalize">{userData?.maritalStatus || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Employment Status</label>
+                          <p className="font-bold dark:text-white mt-1 capitalize">{userData?.employmentStatus || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Employer</label>
+                          <p className="font-bold dark:text-white mt-1">{userData?.employerName || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Job Title</label>
+                          <p className="font-bold dark:text-white mt-1">{userData?.jobTitle || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Monthly Income</label>
+                          <p className="font-bold dark:text-white mt-1">{userData?.monthlyIncome || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">ID.me Password</label>
+                          <p className="font-bold dark:text-white mt-1">••••••••</p>
+                        </div>
+                      </div>
+
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">KYC Status</label>
                         <div className="flex items-center gap-2 mt-1">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          <p className="font-bold text-green-500 capitalize">{userData?.kycStatus}</p>
+                          {userData?.kycStatus === 'verified' ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : userData?.kycStatus === 'pending' ? (
+                            <RefreshCw className="w-4 h-4 text-yellow-500 animate-spin" />
+                          ) : userData?.kycStatus === 'rejected' ? (
+                            <AlertCircle className="w-4 h-4 text-red-500" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-gray-400" />
+                          )}
+                          <p className={`font-bold capitalize ${
+                            userData?.kycStatus === 'verified' ? 'text-green-500' :
+                            userData?.kycStatus === 'pending' ? 'text-yellow-500' :
+                            userData?.kycStatus === 'rejected' ? 'text-red-500' :
+                            'text-gray-400'
+                          }`}>
+                            {userData?.kycStatus || 'Not Started'}
+                          </p>
                         </div>
                       </div>
                     </div>

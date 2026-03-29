@@ -29,6 +29,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { db, auth } from '../../../lib/firebase';
+import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -186,33 +187,46 @@ export const ManagerChatPage = () => {
     if (!file || !chatId || !user) return;
 
     setIsUploading(true);
-    
-    // Simulate upload delay
-    setTimeout(async () => {
-      try {
-        const messageText = `Sent a file: ${file.name}`;
-        await addDoc(collection(db, 'chats', chatId, 'messages'), {
-          text: messageText,
-          senderId: user.uid,
-          timestamp: serverTimestamp(),
-          read: false,
-          type: 'file',
-          fileName: file.name,
-          fileSize: file.size
-        });
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.uid}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `chats/${chatId}/${fileName}`;
 
-        await updateDoc(doc(db, 'chats', chatId), {
-          lastMessage: messageText,
-          lastMessageAt: serverTimestamp()
-        });
-        
-        setIsUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      } catch (error) {
-        console.error('Error uploading file:', error instanceof Error ? error.message : String(error));
-        setIsUploading(false);
-      }
-    }, 1500);
+      const { error: uploadError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl: url } } = supabase.storage
+        .from(SUPABASE_BUCKET)
+        .getPublicUrl(filePath);
+
+      const messageText = `Sent a file: ${file.name}`;
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        text: messageText,
+        senderId: user.uid,
+        timestamp: serverTimestamp(),
+        read: false,
+        type: 'file',
+        fileUrl: url,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      });
+
+      await updateDoc(doc(db, 'chats', chatId), {
+        lastMessage: file.type.startsWith('image/') ? '📷 Image' : `📎 ${file.name}`,
+        lastMessageAt: serverTimestamp()
+      });
+      
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      console.error('Error uploading file:', error instanceof Error ? error.message : String(error));
+      alert('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleUpdateUserStatus = async (status: string) => {
@@ -438,15 +452,35 @@ export const ManagerChatPage = () => {
                               ? 'bg-accent border-accent text-white rounded-tr-none' 
                               : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 dark:text-white rounded-tl-none'
                           }`}>
-                            {msg.type === 'file' ? (
-                              <div className="flex items-center gap-3">
-                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isMe ? 'bg-white/20' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
-                                  <Paperclip className="w-4 h-4" />
-                                </div>
-                                <div className="flex-grow min-w-0">
-                                  <p className="text-xs font-bold truncate">{msg.fileName}</p>
-                                  <p className="text-[9px] opacity-70">{(msg.fileSize / 1024).toFixed(1)} KB</p>
-                                </div>
+                            {msg.type === 'file' || msg.fileUrl ? (
+                              <div className="space-y-2">
+                                {msg.fileType?.startsWith('image/') ? (
+                                  <img 
+                                    src={msg.fileUrl} 
+                                    alt="Attachment" 
+                                    className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => window.open(msg.fileUrl, '_blank')}
+                                  />
+                                ) : (
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isMe ? 'bg-white/20' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+                                      <Paperclip className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-grow min-w-0">
+                                      <p className="text-xs font-bold truncate">{msg.fileName || 'File'}</p>
+                                      {msg.fileSize && <p className="text-[9px] opacity-70">{(msg.fileSize / 1024).toFixed(1)} KB</p>}
+                                      <a 
+                                        href={msg.fileUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className={`text-[10px] font-bold uppercase tracking-widest underline mt-1 block ${isMe ? 'text-white' : 'text-accent'}`}
+                                      >
+                                        Download
+                                      </a>
+                                    </div>
+                                  </div>
+                                )}
+                                {msg.text && !msg.text.startsWith('Sent a file:') && <p className="leading-relaxed font-medium">{msg.text}</p>}
                               </div>
                             ) : (
                               <p className="leading-relaxed font-medium">{msg.text}</p>

@@ -12,10 +12,15 @@ import {
   ArrowLeft,
   MoreVertical,
   Phone,
-  Video
+  Video,
+  Paperclip,
+  Image as ImageIcon,
+  X,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/firebase';
+import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 import { 
   collection, 
   query, 
@@ -42,6 +47,8 @@ export const ChatPage = () => {
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<{ url: string, name: string, type: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -163,25 +170,63 @@ export const ChatPage = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || !user) return;
+    if ((!newMessage.trim() && !attachedFile) || !selectedChat || !user) return;
 
     const messageText = newMessage.trim();
+    const fileData = attachedFile;
     setNewMessage('');
+    setAttachedFile(null);
 
     try {
       await addDoc(collection(db, `chats/${selectedChat.id}/messages`), {
         senderId: user.uid,
         text: messageText,
+        fileUrl: fileData?.url || null,
+        fileName: fileData?.name || null,
+        fileType: fileData?.type || null,
         timestamp: serverTimestamp(),
         read: false
       });
 
       await updateDoc(doc(db, 'chats', selectedChat.id), {
-        lastMessage: messageText,
+        lastMessage: fileData ? (fileData.type.startsWith('image/') ? '📷 Image' : '📎 File') : messageText,
         lastMessageTimestamp: serverTimestamp()
       });
     } catch (err) {
       console.error('Error sending message:', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !selectedChat) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.uid}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `chats/${selectedChat.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl: url } } = supabase.storage
+        .from(SUPABASE_BUCKET)
+        .getPublicUrl(filePath);
+
+      setAttachedFile({
+        url,
+        name: file.name,
+        type: file.type
+      });
+    } catch (err) {
+      console.error('Chat upload error:', err);
+      alert('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -436,6 +481,30 @@ export const ChatPage = () => {
                           ? 'bg-accent text-white rounded-tr-none' 
                           : 'bg-white dark:bg-zinc-800 dark:text-white rounded-tl-none border border-gray-100 dark:border-zinc-700'
                       }`}>
+                        {msg.fileUrl && (
+                          <div className="mb-2">
+                            {msg.fileType?.startsWith('image/') ? (
+                              <img 
+                                src={msg.fileUrl} 
+                                alt="Attachment" 
+                                className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(msg.fileUrl, '_blank')}
+                              />
+                            ) : (
+                              <a 
+                                href={msg.fileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-2 p-2 rounded-lg border ${
+                                  isMe ? 'bg-white/10 border-white/20' : 'bg-gray-50 dark:bg-zinc-900 border-gray-100 dark:border-zinc-700'
+                                }`}
+                              >
+                                <Paperclip className="w-4 h-4" />
+                                <span className="text-xs truncate max-w-[150px]">{msg.fileName || 'Attachment'}</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
                         {msg.text}
                       </div>
                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest px-1">
@@ -450,20 +519,74 @@ export const ChatPage = () => {
 
             {/* Input Area */}
             <div className="p-6 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800">
-              <form onSubmit={handleSendMessage} className="relative">
-                <input 
-                  type="text"
-                  placeholder="Type your message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  className="w-full pl-6 pr-16 py-4 bg-gray-50 dark:bg-zinc-800 rounded-2xl text-sm focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
-                />
+              <AnimatePresence>
+                {attachedFile && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="mb-4 p-3 bg-gray-50 dark:bg-zinc-800 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      {attachedFile.type.startsWith('image/') ? (
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-200">
+                          <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                          <Paperclip className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-bold dark:text-white truncate max-w-[200px]">{attachedFile.name}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">Ready to send</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setAttachedFile(null)}
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-full transition-all"
+                    >
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <form onSubmit={handleSendMessage} className="relative flex items-center gap-2">
+                <div className="relative flex-grow">
+                  <input 
+                    type="text"
+                    placeholder="Type your message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="w-full pl-6 pr-12 py-4 bg-gray-50 dark:bg-zinc-800 rounded-2xl text-sm focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <input 
+                      type="file"
+                      id="chat-file-upload"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      disabled={isUploading}
+                    />
+                    <label 
+                      htmlFor="chat-file-upload"
+                      className={`p-2 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-xl cursor-pointer transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      {isUploading ? (
+                        <Loader2 className="w-5 h-5 text-accent animate-spin" />
+                      ) : (
+                        <Paperclip className="w-5 h-5 text-gray-400" />
+                      )}
+                    </label>
+                  </div>
+                </div>
                 <button 
                   type="submit"
-                  disabled={!newMessage.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 bg-accent text-white rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                  disabled={(!newMessage.trim() && !attachedFile) || isUploading}
+                  className="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  <Send className="w-5 h-5" />
+                  <Send className="w-6 h-6" />
                 </button>
               </form>
             </div>

