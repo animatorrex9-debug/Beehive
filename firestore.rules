@@ -179,7 +179,7 @@ service cloud.firestore {
         isOwner(userId) || 
         isAdmin() || 
         isManager() || 
-        resource.data.get('role', 'user') in ['account_manager', 'manager', 'admin']
+        (resource != null && request.auth.token.email == resource.data.email)
       );
       
       allow create: if isAuthenticated() && isOwner(userId) && 
@@ -189,13 +189,12 @@ service cloud.firestore {
       
       allow create: if isAdmin();
 
-        allow update: if isAuthenticated() && isValidUser(request.resource.data) && (
-          isAdmin() ||
-          ( (isOwner(userId) || isManager()) && 
-            request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
-          )
-        );
-
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (
+        isAdmin() ||
+        ( (isOwner(userId) || isManager()) && 
+          request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
+        )
+      );
     }
 
     // Investments subcollection

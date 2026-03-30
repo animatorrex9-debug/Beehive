@@ -185,6 +185,7 @@ export const SignupPage = () => {
     } catch (err: any) {
       console.error('Google signup error:', err);
       setError(err.message || 'Google signup failed');
+    } finally {
       setLoading(false);
     }
   };

@@ -84,7 +84,7 @@ export const CompleteProfilePage = () => {
     }
   };
 
-  if (authLoading || (user && !userData)) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-primary">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
@@ -94,6 +94,10 @@ export const CompleteProfilePage = () => {
 
   // If country is already set, don't show the form (useEffect will handle navigation)
   if (userData?.country) {
+    return null;
+  }
+
+  if (!user) {
     return null;
   }
 

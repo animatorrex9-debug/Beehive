@@ -110,6 +110,7 @@ export const LoginPage = () => {
     } catch (err: any) {
       console.error('Google login error:', err);
       setError(err.message || 'Google login failed');
+    } finally {
       setLoading(false);
     }
   };

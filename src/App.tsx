@@ -50,11 +50,16 @@ const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { 
 
   if (!isConfigured) return <FirebaseSetupGuide />;
 
-  if (loading || (user && !userData)) return (
+  if (loading) return (
     <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-primary">
       <LoadingLogo size="lg" />
     </div>
   );
+
+  if (user && !userData && window.location.pathname !== '/auth/complete-profile') {
+    console.log('[ProtectedRoute] User exists but no userData. Redirecting to complete-profile.');
+    return <Navigate to="/auth/complete-profile" />;
+  }
 
   if (user) {
     console.log('[ProtectedRoute] User state:', {
