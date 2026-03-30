@@ -70,19 +70,11 @@ export const CompleteProfilePage = () => {
       await setCurrencyByCountry(country);
       console.log('[CompleteProfile] Currency settings updated');
       
-      console.log('[CompleteProfile] Profile updated successfully, navigating...');
-
-      // Wait a tiny bit for the snapshot listener to catch up
-      // This helps prevent the ProtectedRoute from redirecting back
-      setTimeout(() => {
-        if (userData?.role === 'admin') {
-          navigate('/admin');
-        } else if (userData?.role === 'account_manager') {
-          navigate('/manager');
-        } else {
-          navigate('/dashboard');
-        }
-      }, 800);
+      console.log('[CompleteProfile] Profile updated successfully, waiting for snapshot update...');
+      
+      // We don't need to navigate manually here.
+      // The useEffect at the top of this component will detect the change in userData.country
+      // and navigate the user to the correct dashboard automatically.
     } catch (err: any) {
       console.error('Error updating profile:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to update profile');
@@ -92,7 +84,18 @@ export const CompleteProfilePage = () => {
     }
   };
 
-  if (authLoading) return null;
+  if (authLoading || (user && !userData)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-primary">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+      </div>
+    );
+  }
+
+  // If country is already set, don't show the form (useEffect will handle navigation)
+  if (userData?.country) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-primary">

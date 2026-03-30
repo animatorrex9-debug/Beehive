@@ -20,7 +20,7 @@ import { db } from '../../../lib/firebase';
 
 export default function SettingsPage() {
   const { userData, user } = useAuth();
-  const { currency: currentCurrency, setCurrency } = useCurrency();
+  const { currency: currentCurrency, setCurrency, setCurrencyByCountry } = useCurrency();
   const [activeTab, setActiveTab] = useState<'profile' | 'banking' | 'security'>('profile');
   const [isAddingBank, setIsAddingBank] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -150,21 +150,43 @@ export default function SettingsPage() {
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    fullName: userData?.fullName || '',
-    phone: userData?.phone || userData?.phoneNumber || '',
-    address: userData?.address || '',
-    address2: userData?.address2 || '',
-    country: userData?.country || '',
-    dob: userData?.dob || '',
-    ssn: userData?.ssn || '',
-    employmentStatus: userData?.employmentStatus || '',
-    employerName: userData?.employerName || '',
-    jobTitle: userData?.jobTitle || '',
-    monthlyIncome: userData?.monthlyIncome || '',
-    maritalStatus: userData?.maritalStatus || '',
-    stateOfOrigin: userData?.stateOfOrigin || '',
-    sentry: userData?.sentry || ''
+    fullName: '',
+    phone: '',
+    address: '',
+    address2: '',
+    country: '',
+    dob: '',
+    ssn: '',
+    employmentStatus: '',
+    employerName: '',
+    jobTitle: '',
+    monthlyIncome: '',
+    maritalStatus: '',
+    stateOfOrigin: '',
+    sentry: ''
   });
+
+  // Sync profile form with userData when not editing
+  React.useEffect(() => {
+    if (userData && !isEditingProfile) {
+      setProfileForm({
+        fullName: userData.fullName || '',
+        phone: userData.phone || userData.phoneNumber || '',
+        address: userData.address || '',
+        address2: userData.address2 || '',
+        country: userData.country || '',
+        dob: userData.dob || '',
+        ssn: userData.ssn || '',
+        employmentStatus: userData.employmentStatus || '',
+        employerName: userData.employerName || '',
+        jobTitle: userData.jobTitle || '',
+        monthlyIncome: userData.monthlyIncome || '',
+        maritalStatus: userData.maritalStatus || '',
+        stateOfOrigin: userData.stateOfOrigin || '',
+        sentry: userData.sentry || ''
+      });
+    }
+  }, [userData, isEditingProfile]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,6 +210,12 @@ export default function SettingsPage() {
         stateOfOrigin: profileForm.stateOfOrigin,
         sentry: profileForm.sentry
       });
+
+      // Update currency if country changed
+      if (profileForm.country && profileForm.country !== userData?.country) {
+        await setCurrencyByCountry(profileForm.country);
+      }
+
       setIsEditingProfile(false);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -758,6 +786,26 @@ export default function SettingsPage() {
                       </div>
                       <button className="text-xs font-bold text-accent">Enable</button>
                     </div>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <RefreshCw className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="font-bold text-sm dark:text-white">Sign Out</p>
+                          <p className="text-xs text-gray-500">Sign out of your account on this device</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          import('firebase/auth').then(({ getAuth, signOut }) => {
+                            signOut(getAuth());
+                          });
+                        }}
+                        className="text-xs font-bold text-red-500"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -803,7 +851,9 @@ export default function SettingsPage() {
               ) : userData?.kycStatus === 'rejected' ? (
                 <><AlertCircle className="w-4 h-4" /> Verification Rejected</>
               ) : (
-                <><AlertCircle className="w-4 h-4" /> Unverified Account</>
+                <a href="/dashboard/kyc" className="flex items-center gap-2 hover:underline">
+                  <Plus className="w-4 h-4" /> Complete KYC
+                </a>
               )}
             </div>
           </div>

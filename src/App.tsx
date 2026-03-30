@@ -50,7 +50,7 @@ const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { 
 
   if (!isConfigured) return <FirebaseSetupGuide />;
 
-  if (loading) return (
+  if (loading || (user && !userData)) return (
     <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-primary">
       <LoadingLogo size="lg" />
     </div>

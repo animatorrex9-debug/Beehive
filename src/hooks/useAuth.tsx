@@ -203,11 +203,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Ensure loading is true until profile is ready
         setLoading(true);
         setLoanLoading(true);
-        setUser(user);
-        setEmailVerified(user.emailVerified);
         
         // Ensure user profile exists and is linked correctly
         await ensureUserProfile(user);
+
+        setUser(user);
+        setEmailVerified(user.emailVerified);
       } else {
         console.log('[Auth] No user detected');
         setUser(null);
