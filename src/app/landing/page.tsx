@@ -318,7 +318,7 @@ export const LandingPage = () => {
             >
               <div className="absolute -inset-4 bg-accent/20 rounded-[2rem] blur-3xl -z-10" />
               <img 
-                src="https://images.unsplash.com/photo-1611974717483-9b257a047457?auto=format&fit=crop&q=80&w=1000" 
+                src="https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=1000" 
                 alt="Investment Growth" 
                 className="rounded-3xl shadow-2xl w-full object-cover aspect-[4/3]"
                 referrerPolicy="no-referrer"
@@ -381,7 +381,7 @@ export const LandingPage = () => {
               className="lg:order-1 relative"
             >
               <img 
-                src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80&w=1000" 
+                src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1000" 
                 alt="Business Growth" 
                 className="rounded-3xl shadow-2xl w-full object-cover aspect-[4/3] opacity-80"
                 referrerPolicy="no-referrer"
