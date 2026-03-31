@@ -2,6 +2,9 @@
 @import "react-phone-number-input/style.css";
 @import "tailwindcss";
 
+/* Enable class-based dark mode for Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --color-primary: #000000;
@@ -11,11 +14,11 @@
 
 @layer base {
   body {
-    @apply font-sans bg-white text-primary transition-colors duration-300;
+    @apply font-sans bg-white text-zinc-900 transition-colors duration-300;
   }
 
-  .dark body {
-    @apply bg-primary text-white;
+  html.dark body {
+    @apply bg-zinc-950 text-white;
   }
 }
 

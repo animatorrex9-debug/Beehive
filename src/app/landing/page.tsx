@@ -81,25 +81,25 @@ export const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-primary transition-colors duration-300">
+    <div className="min-h-screen flex flex-col transition-colors duration-300">
       {/* NAVBAR */}
-      <nav className="sticky top-0 z-50 bg-white/80 dark:bg-primary/80 backdrop-blur-md border-b border-gray-100 dark:border-zinc-900">
+      <nav className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-gray-100 dark:border-zinc-900">
         <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
           <Logo />
           
           {/* Desktop Links */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden lg:flex items-center gap-10">
             <NavLink href="#home">Home</NavLink>
             <NavLink href="#about">About</NavLink>
             <NavLink href="#how-it-works">How It Works</NavLink>
             <NavLink href="#faq">FAQ</NavLink>
           </div>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-6">
             <ThemeToggle />
             {user ? (
               <>
-                <Link to="/dashboard" className="font-bold hover:text-accent transition-colors dark:text-white">Dashboard</Link>
+                <Link to="/dashboard" className="text-[13px] font-bold uppercase tracking-wider hover:text-accent transition-colors dark:text-white">Dashboard</Link>
                 <button 
                   onClick={handleSignOut}
                   className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all border border-gray-100 dark:border-zinc-900"
@@ -110,14 +110,14 @@ export const LandingPage = () => {
               </>
             ) : (
               <>
-                <Link to="/auth/login" className="font-bold hover:text-accent transition-colors dark:text-white">Login</Link>
-                <Link to="/auth/signup" className="btn-primary">Get Started</Link>
+                <Link to="/auth/login" className="text-[13px] font-bold uppercase tracking-wider hover:text-accent transition-colors dark:text-white">Login</Link>
+                <Link to="/auth/signup" className="btn-primary text-[13px] px-6 py-2.5">Get Started</Link>
               </>
             )}
           </div>
 
           {/* Mobile Toggle */}
-          <div className="md:hidden flex items-center gap-4">
+          <div className="lg:hidden flex items-center gap-4">
             <ThemeToggle />
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 dark:text-white">
               {isMenuOpen ? <X /> : <Menu />}
@@ -132,7 +132,7 @@ export const LandingPage = () => {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-white dark:bg-primary border-b border-gray-100 dark:border-zinc-900 px-6 py-8 flex flex-col gap-6"
+              className="lg:hidden bg-white dark:bg-zinc-950 border-b border-gray-100 dark:border-zinc-900 px-6 py-8 flex flex-col gap-6"
             >
               <NavLink href="#home" onClick={() => setIsMenuOpen(false)}>Home</NavLink>
               <NavLink href="#about" onClick={() => setIsMenuOpen(false)}>About</NavLink>
@@ -186,7 +186,7 @@ export const LandingPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-xl md:text-2xl text-gray-500 mb-10 max-w-2xl"
+            className="text-xl md:text-2xl text-gray-500 dark:text-gray-400 mb-10 max-w-2xl"
           >
             Save, invest, borrow, and swap. Beehive is the only financial app you'll ever need. This is where money grows.
           </motion.p>
@@ -219,13 +219,13 @@ export const LandingPage = () => {
       </section>
 
       {/* SERVICES GRID */}
-      <section id="services" className="py-24 px-6 bg-gray-50 dark:bg-zinc-950">
+      <section id="services" className="py-24 px-6 bg-gray-50 dark:bg-zinc-900">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6 dark:text-white">
               BEYOND <span className="text-accent">BANKING</span>
             </h2>
-            <p className="text-xl text-gray-500 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
               Everything you need to manage, grow, and protect your money in one powerful ecosystem.
             </p>
           </div>
@@ -284,7 +284,7 @@ export const LandingPage = () => {
                 INVEST IN YOUR <br />
                 <span className="text-accent uppercase">Financial Freedom</span>
               </h2>
-              <p className="text-xl text-gray-500 mb-10 leading-relaxed">
+              <p className="text-xl text-gray-500 dark:text-gray-400 mb-10 leading-relaxed">
                 Don't just save—thrive. Beehive's investment platform gives you the tools to build a diversified portfolio. 
                 Whether you're a beginner or a pro, our AI-assisted insights help you make smarter decisions.
               </p>
@@ -401,12 +401,12 @@ export const LandingPage = () => {
       </section>
 
       {/* GLOBAL CONNECTIVITY */}
-      <section className="py-32 px-6 bg-white dark:bg-primary">
+      <section className="py-32 px-6 bg-white dark:bg-zinc-950">
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-8 dark:text-white">
             BANKING WITHOUT <span className="text-accent">BORDERS</span>
           </h2>
-          <p className="text-xl text-gray-500 max-w-3xl mx-auto mb-20">
+          <p className="text-xl text-gray-500 dark:text-gray-400 max-w-3xl mx-auto mb-20">
             Send money, swap currencies, and spend globally. Beehive connects you to the world economy with the best rates and zero friction.
           </p>
 
@@ -416,28 +416,28 @@ export const LandingPage = () => {
                 <RefreshCw className="w-10 h-10 text-accent" />
               </div>
               <h3 className="text-2xl font-black dark:text-white">Instant Swap</h3>
-              <p className="text-gray-500">Exchange currencies at the mid-market rate with no hidden markups.</p>
+              <p className="text-gray-500 dark:text-gray-400">Exchange currencies at the mid-market rate with no hidden markups.</p>
             </div>
             <div className="space-y-6">
               <div className="w-20 h-20 rounded-3xl bg-accent/10 flex items-center justify-center mx-auto">
                 <Globe className="w-10 h-10 text-accent" />
               </div>
               <h3 className="text-2xl font-black dark:text-white">Global Reach</h3>
-              <p className="text-gray-500">Send money to 150+ countries in minutes, not days.</p>
+              <p className="text-gray-500 dark:text-gray-400">Send money to 150+ countries in minutes, not days.</p>
             </div>
             <div className="space-y-6">
               <div className="w-20 h-20 rounded-3xl bg-accent/10 flex items-center justify-center mx-auto">
                 <CreditCard className="w-10 h-10 text-accent" />
               </div>
               <h3 className="text-2xl font-black dark:text-white">Multi-Currency Card</h3>
-              <p className="text-gray-500">Spend like a local anywhere in the world with your Beehive card.</p>
+              <p className="text-gray-500 dark:text-gray-400">Spend like a local anywhere in the world with your Beehive card.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-32 px-6 bg-gray-50 dark:bg-zinc-950">
+      <section id="how-it-works" className="py-32 px-6 bg-gray-50 dark:bg-zinc-900/50">
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-20 dark:text-white">
             GET STARTED IN <span className="text-accent">MINUTES</span>
@@ -469,7 +469,7 @@ export const LandingPage = () => {
       </section>
 
       {/* TESTIMONIALS */}
-      <section className="py-32 px-6 bg-white dark:bg-primary overflow-hidden">
+      <section className="py-32 px-6 bg-white dark:bg-zinc-950 overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-20 text-center dark:text-white">
             TRUSTED BY <span className="text-accent">THOUSANDS</span>
@@ -507,7 +507,7 @@ export const LandingPage = () => {
             {faqs.map((faq, index) => (
               <div 
                 key={index}
-                className="card p-0 overflow-hidden"
+                className="card p-0 overflow-hidden bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800"
               >
                 <button 
                   onClick={() => setOpenFaq(openFaq === index ? null : index)}
@@ -522,7 +522,7 @@ export const LandingPage = () => {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-6 pb-6 text-gray-500 leading-relaxed"
+                      className="px-6 pb-6 text-gray-500 dark:text-gray-400 leading-relaxed"
                     >
                       {faq.a}
                     </motion.div>
@@ -535,7 +535,7 @@ export const LandingPage = () => {
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-white dark:bg-primary border-t border-gray-100 dark:border-zinc-900 pt-24 pb-12 px-6">
+      <footer className="bg-white dark:bg-zinc-950 border-t border-gray-100 dark:border-zinc-900 pt-24 pb-12 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-20">
             <div className="space-y-6">
@@ -554,7 +554,7 @@ export const LandingPage = () => {
 
             <div>
               <h4 className="font-black text-lg mb-6 dark:text-white">Quick Links</h4>
-              <ul className="space-y-4 text-gray-500 font-bold">
+              <ul className="space-y-4 text-gray-500 dark:text-gray-400 font-bold">
                 <li><a href="#home" className="hover:text-accent transition-colors">Home</a></li>
                 <li><a href="#about" className="hover:text-accent transition-colors">About Us</a></li>
                 <li><a href="#how-it-works" className="hover:text-accent transition-colors">How It Works</a></li>
@@ -564,9 +564,9 @@ export const LandingPage = () => {
 
             <div>
               <h4 className="font-black text-lg mb-6 dark:text-white">Newsletter</h4>
-              <p className="text-gray-500 mb-4">Get the latest financial tips and updates.</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">Get the latest financial tips and updates.</p>
               <div className="flex gap-2">
-                <input type="email" placeholder="Email" className="input-field py-2" />
+                <input type="email" placeholder="Email" className="input-field py-2 bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800" />
                 <button className="btn-primary px-4 py-2">Join</button>
               </div>
             </div>
@@ -590,7 +590,7 @@ const NavLink = ({ href, children, onClick }: { href: string, children: React.Re
   <a 
     href={href} 
     onClick={onClick}
-    className="font-bold text-gray-500 hover:text-accent transition-colors dark:text-gray-400 dark:hover:text-white"
+    className="text-[13px] font-bold uppercase tracking-wider text-gray-500 hover:text-accent transition-colors dark:text-gray-400 dark:hover:text-white"
   >
     {children}
   </a>
@@ -612,7 +612,7 @@ const Step = ({ number, icon, title, description }: { number: string, icon: Reac
       <div className="text-accent">{icon}</div>
     </div>
     <h3 className="text-2xl font-black mb-4 dark:text-white">{title}</h3>
-    <p className="text-gray-500 max-w-xs mx-auto">{description}</p>
+    <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto">{description}</p>
   </div>
 );
 
@@ -625,7 +625,7 @@ const FeatureCardDark = ({ icon, title, description }: { icon: React.ReactNode, 
 );
 
 const TestimonialCard = ({ name, quote, image }: { name: string, quote: string, image: string }) => (
-  <div className="card p-8 flex flex-col h-full">
+  <div className="card p-8 flex flex-col h-full bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800">
     <div className="flex gap-1 mb-6">
       {[...Array(5)].map((_, i) => <Star key={i} className="w-5 h-5 fill-accent text-accent" />)}
     </div>
@@ -634,7 +634,7 @@ const TestimonialCard = ({ name, quote, image }: { name: string, quote: string, 
       <img src={image} alt={name} className="w-12 h-12 rounded-full object-cover" referrerPolicy="no-referrer" />
       <div>
         <p className="font-black dark:text-white">{name}</p>
-        <p className="text-sm text-gray-500">Verified Customer</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Verified Customer</p>
       </div>
     </div>
   </div>
@@ -647,12 +647,12 @@ const SocialIcon = ({ icon }: { icon: React.ReactNode }) => (
 );
 
 const ServiceCard = ({ icon, title, description, link }: { icon: React.ReactNode, title: string, description: string, link: string }) => (
-  <Link to={link} className="card p-8 hover:border-accent transition-all group">
+  <Link to={link} className="card p-8 hover:border-accent transition-all group bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800">
     <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-6 group-hover:scale-110 transition-transform">
       {icon}
     </div>
     <h3 className="text-2xl font-black mb-4 dark:text-white">{title}</h3>
-    <p className="text-gray-500 mb-6">{description}</p>
+    <p className="text-gray-500 dark:text-gray-400 mb-6">{description}</p>
     <div className="flex items-center gap-2 text-accent font-bold">
       Learn More <ArrowRight className="w-4 h-4" />
     </div>

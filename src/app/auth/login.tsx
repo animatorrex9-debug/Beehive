@@ -71,7 +71,7 @@ export const LoginPage = () => {
           <Link to="/" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">
             <ArrowLeft className="w-5 h-5 dark:text-white" />
           </Link>
-          <Logo className="h-5" />
+          <Logo />
         </div>
         <ThemeToggle />
       </div>

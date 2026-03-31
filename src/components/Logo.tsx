@@ -1,9 +1,9 @@
 import React from 'react';
 
-export const Logo = ({ className = "h-8" }: { className?: string }) => {
+export const Logo = ({ className = "" }: { className?: string }) => {
   return (
     <div className={`flex items-center gap-2 font-black text-2xl tracking-tighter ${className}`}>
-      <div className="w-10 h-10 flex-shrink-0 relative">
+      <div className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0 relative">
         <svg viewBox="0 0 100 100" className="w-full h-full fill-accent">
           <g transform="scale(0.85)" className="origin-center">
             {/* Background layer for depth */}
@@ -17,7 +17,7 @@ export const Logo = ({ className = "h-8" }: { className?: string }) => {
           </g>
         </svg>
       </div>
-      <span className="dark:text-white text-primary uppercase">beehive</span>
+      <span className="dark:text-white text-primary uppercase text-xl md:text-2xl">beehive</span>
     </div>
   );
 };
