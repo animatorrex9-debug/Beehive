@@ -21,7 +21,7 @@ service cloud.firestore {
       return isAuthenticated() && (
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin') ||
-        (request.auth.token.email == "animatorrex9@gmail.com" && request.auth.token.email_verified == true)
+        (request.auth.token.email.lower() == "animatorrex9@gmail.com" && request.auth.token.email_verified == true)
       );
     }
 
@@ -31,6 +31,11 @@ service cloud.firestore {
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'account_manager' || 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'manager')
       );
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
     }
 
     // ===============================================================
@@ -164,11 +169,6 @@ service cloud.firestore {
              isValidDateString(data.createdAt);
     }
 
-    function isValidDateString(dateStr) {
-      return dateStr is string &&
-        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
-    }
-
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -179,13 +179,22 @@ service cloud.firestore {
         isOwner(userId) || 
         isAdmin() || 
         isManager() || 
-        (resource != null && request.auth.token.email == resource.data.email)
+        (resource != null && request.auth.token.email.lower() == resource.data.email.lower())
+      );
+      
+      // Allow searching for own profile by email
+      allow list: if isAuthenticated() && (
+        isAdmin() || 
+        isManager() || 
+        (request.auth.token.email != null && 
+         request.query.limit <= 10 && 
+         (resource == null || request.auth.token.email.lower() == resource.data.email.lower()))
       );
       
       allow create: if isAuthenticated() && isOwner(userId) && 
                     isValidUser(request.resource.data) && 
-                    request.resource.data.get('role', 'user') == 'user' &&
-                    request.resource.data.get('walletBalance', 0) == 0;
+                    (request.resource.data.get('role', 'user') == 'user' || isAdmin()) &&
+                    (request.resource.data.get('walletBalance', 0) == 0 || isAdmin());
       
       allow create: if isAdmin();
 

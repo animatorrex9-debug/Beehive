@@ -170,7 +170,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     } catch (err) {
-      console.error('[Auth] Error ensuring user profile:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('[Auth] Error ensuring user profile:', errorMessage);
+      handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid} (ensureUserProfile)`);
     }
   };
 
@@ -204,8 +206,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(true);
         setLoanLoading(true);
         
-        // Ensure user profile exists and is linked correctly
-        await ensureUserProfile(user);
+        try {
+          // Ensure user profile exists and is linked correctly
+          await ensureUserProfile(user);
+        } catch (err) {
+          console.error('[Auth] Critical error in onAuthStateChanged:', err instanceof Error ? err.message : String(err));
+          // We still set the user so the rest of the app can attempt to load/handle errors
+        }
 
         setUser(user);
         setEmailVerified(user.emailVerified);

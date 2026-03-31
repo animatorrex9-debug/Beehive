@@ -97,28 +97,38 @@ export interface FirestoreErrorInfo {
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   // Extract error message safely
   let errorMessage = 'Unknown error';
+  let errorCode = '';
+  
   if (error instanceof Error) {
     errorMessage = error.message;
+    if ('code' in error) errorCode = String((error as any).code);
   } else if (typeof error === 'string') {
     errorMessage = error;
-  } else {
+  } else if (error && typeof error === 'object') {
     try {
-      errorMessage = String(error);
+      errorMessage = (error as any).message || (error as any).description || 'Object error (see console)';
+      if ('code' in error) errorCode = String((error as any).code);
     } catch (e) {
-      errorMessage = 'Error object could not be stringified';
+      errorMessage = 'Error object could not be processed';
     }
+  } else {
+    errorMessage = String(error);
   }
 
+  // Safely extract auth info without including circular objects
+  const currentAuth = auth;
+  const currentUser = currentAuth?.currentUser;
+  
   const errInfo: FirestoreErrorInfo = {
     error: errorMessage,
     authInfo: {
-      userId: auth?.currentUser?.uid,
-      email: auth?.currentUser?.email,
-      emailVerified: auth?.currentUser?.emailVerified,
-      isAnonymous: auth?.currentUser?.isAnonymous,
-      tenantId: auth?.currentUser?.tenantId,
-      providerInfo: Array.isArray(auth?.currentUser?.providerData) 
-        ? auth?.currentUser?.providerData.map((provider: any) => ({
+      userId: currentUser?.uid || undefined,
+      email: currentUser?.email || undefined,
+      emailVerified: currentUser?.emailVerified || undefined,
+      isAnonymous: currentUser?.isAnonymous || undefined,
+      tenantId: currentUser?.tenantId || undefined,
+      providerInfo: Array.isArray(currentUser?.providerData) 
+        ? currentUser?.providerData.map((provider: any) => ({
             providerId: String(provider.providerId || ''),
             displayName: provider.displayName ? String(provider.displayName) : null,
             email: provider.email ? String(provider.email) : null,
@@ -128,6 +138,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     },
     operationType,
     path
+  }
+  
+  // Add error code if available
+  if (errorCode) {
+    (errInfo as any).code = errorCode;
   }
   
   let errString = '';
