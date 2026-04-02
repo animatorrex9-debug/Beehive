@@ -114,7 +114,7 @@ export const ManagerChatPage = () => {
           participants: [selectedUser.id, user.uid],
           createdAt: serverTimestamp(),
           lastMessage: '',
-          lastMessageAt: serverTimestamp()
+          lastMessageTimestamp: serverTimestamp()
         });
         currentChatId = newChat.id;
       } else {
@@ -171,7 +171,7 @@ export const ManagerChatPage = () => {
 
       await updateDoc(doc(db, 'chats', chatId), {
         lastMessage: messageText,
-        lastMessageAt: serverTimestamp()
+        lastMessageTimestamp: serverTimestamp()
       });
     } catch (error) {
       console.error('Error sending message:', error instanceof Error ? error.message : String(error));
@@ -217,7 +217,7 @@ export const ManagerChatPage = () => {
 
       await updateDoc(doc(db, 'chats', chatId), {
         lastMessage: file.type.startsWith('image/') ? '📷 Image' : `📎 ${file.name}`,
-        lastMessageAt: serverTimestamp()
+        lastMessageTimestamp: serverTimestamp()
       });
       
       if (fileInputRef.current) fileInputRef.current.value = '';

@@ -103,6 +103,7 @@
         "userId": { "type": "string" },
         "managerId": { "type": "string" },
         "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
         "lastMessageTimestamp": { "type": "string", "format": "date-time" },
         "unreadCount": { "type": "object" }
       },
@@ -116,7 +117,12 @@
         "senderId": { "type": "string" },
         "text": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
-        "read": { "type": "boolean" }
+        "read": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["text", "file"] },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" },
+        "fileSize": { "type": "number" }
       },
       "required": ["senderId", "text", "timestamp"]
     },

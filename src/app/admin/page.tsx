@@ -343,7 +343,7 @@ export const AdminPage = () => {
 
       await updateDoc(doc(db, 'chats', selectedChatId), {
         lastMessage: fileData ? `📎 ${fileData.name}` : messageText,
-        lastMessageAt: serverTimestamp()
+        lastMessageTimestamp: serverTimestamp()
       });
     } catch (error) {
       console.error('Error sending message as admin:', error instanceof Error ? error.message : String(error));

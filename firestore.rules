@@ -102,14 +102,14 @@ service cloud.firestore {
 
     function isValidMessage(data) {
       return data.senderId is string &&
-             (!('text' in data) || (data.text is string && data.text.size() < 5000)) &&
-             (!('timestamp' in data) || data.timestamp is timestamp) &&
-             (!('read' in data) || data.read is bool) &&
-             (!('type' in data) || data.type in ['text', 'file']) &&
-             (!('fileUrl' in data) || (data.fileUrl is string && data.fileUrl.size() < 2000)) &&
-             (!('fileName' in data) || (data.fileName is string && data.fileName.size() < 255)) &&
-             (!('fileType' in data) || (data.fileType is string && data.fileType.size() < 100)) &&
-             (!('fileSize' in data) || data.fileSize is number);
+             (!('text' in data) || data.text == null || (data.text is string && data.text.size() < 5000)) &&
+             (!('timestamp' in data) || data.timestamp == null || data.timestamp is timestamp) &&
+             (!('read' in data) || data.read == null || data.read is bool) &&
+             (!('type' in data) || data.type == null || data.type in ['text', 'file']) &&
+             (!('fileUrl' in data) || data.fileUrl == null || (data.fileUrl is string && data.fileUrl.size() < 2000)) &&
+             (!('fileName' in data) || data.fileName == null || (data.fileName is string && data.fileName.size() < 255)) &&
+             (!('fileType' in data) || data.fileType == null || (data.fileType is string && data.fileType.size() < 100)) &&
+             (!('fileSize' in data) || data.fileSize == null || data.fileSize is number);
     }
 
     function isValidLoan(data) {
@@ -308,9 +308,11 @@ service cloud.firestore {
       );
       
       allow update: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.managerId == request.auth.uid || 
-        request.auth.uid in resource.data.participants || 
+        ( (resource.data.userId == request.auth.uid || 
+           resource.data.managerId == request.auth.uid || 
+           request.auth.uid in resource.data.participants) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageTimestamp', 'unreadCount', 'lastMessageAt', 'updatedAt', 'participants', 'managerId'])
+        ) || 
         isAdmin() || 
         isManager()
       );
@@ -325,7 +327,8 @@ service cloud.firestore {
         );
         
         allow create: if isAuthenticated() && isValidMessage(request.resource.data) && (
-          request.resource.data.senderId == request.auth.uid ||
+          (request.resource.data.senderId == request.auth.uid && 
+           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
           isAdmin() || 
           isManager()
         );

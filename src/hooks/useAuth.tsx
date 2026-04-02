@@ -120,13 +120,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log(`[Auth] No profile found for UID ${firebaseUser.uid}. Checking for existing profile by email: ${userEmail}`);
         
         // Try to find by normalized email
-        let q = query(collection(db, 'users'), where('email', '==', userEmail));
+        let q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
         let querySnapshot = await getDocs(q);
         
         // Fallback: Try to find by original email (in case it wasn't normalized before)
         if (querySnapshot.empty && firebaseUser.email && firebaseUser.email !== userEmail) {
           console.log(`[Auth] No normalized profile found. Trying original email: ${firebaseUser.email}`);
-          q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
+          q = query(collection(db, 'users'), where('email', '==', firebaseUser.email), limit(1));
           querySnapshot = await getDocs(q);
         }
         
@@ -246,7 +246,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
         setUserData(data);
         setIsAdmin(data?.role === 'admin');
-        setIsManager(data?.role === 'manager');
+        setIsManager(data?.role === 'manager' || data?.role === 'account_manager');
         
         if (data.country) {
           setCurrencyByCountry(data.country);

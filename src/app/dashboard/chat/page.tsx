@@ -48,7 +48,7 @@ export const ChatPage = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<{ url: string, name: string, type: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{ url: string, name: string, type: string, size: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -65,12 +65,12 @@ export const ChatPage = () => {
 
     let q;
     if (isAdmin) {
-      q = query(collection(db, 'chats'), orderBy('lastMessageTimestamp', 'desc'));
+      q = query(collection(db, 'chats'), orderBy('lastMessageAt', 'desc'));
     } else {
       q = query(
         collection(db, 'chats'), 
         where('managerId', '==', user.uid),
-        orderBy('lastMessageTimestamp', 'desc')
+        orderBy('lastMessageAt', 'desc')
       );
     }
 
@@ -107,6 +107,7 @@ export const ChatPage = () => {
               managerId: userData.managerId,
               participants: [user.uid, userData.managerId],
               lastMessage: 'Chat started',
+              lastMessageAt: serverTimestamp(),
               lastMessageTimestamp: serverTimestamp(),
               unreadCount: { [user.uid]: 0, [userData.managerId]: 0 }
             });
@@ -184,12 +185,15 @@ export const ChatPage = () => {
         fileUrl: fileData?.url || null,
         fileName: fileData?.name || null,
         fileType: fileData?.type || null,
+        fileSize: fileData?.size || null,
         timestamp: serverTimestamp(),
-        read: false
+        read: false,
+        type: fileData ? 'file' : 'text'
       });
 
       await updateDoc(doc(db, 'chats', selectedChat.id), {
         lastMessage: fileData ? (fileData.type.startsWith('image/') ? '📷 Image' : '📎 File') : messageText,
+        lastMessageAt: serverTimestamp(),
         lastMessageTimestamp: serverTimestamp()
       });
     } catch (err) {
@@ -220,7 +224,8 @@ export const ChatPage = () => {
       setAttachedFile({
         url,
         name: file.name,
-        type: file.type
+        type: file.type,
+        size: file.size
       });
     } catch (err) {
       console.error('Chat upload error:', err);
@@ -390,7 +395,7 @@ export const ChatPage = () => {
                             {chat.userId === user?.uid ? 'Account Manager' : `User: ${chat.userId?.slice(0, 8) || 'Unknown'}`}
                           </p>
                           <span className={`text-[10px] ${selectedChat?.id === chat.id ? 'text-white/60' : 'text-gray-400'}`}>
-                            {chat.lastMessageTimestamp?.toDate ? new Date(chat.lastMessageTimestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            {(chat.lastMessageAt || chat.lastMessageTimestamp)?.toDate ? new Date((chat.lastMessageAt || chat.lastMessageTimestamp).toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                           </span>
                         </div>
                         <p className={`text-xs truncate ${selectedChat?.id === chat.id ? 'text-white/80' : 'text-gray-500'}`}>
