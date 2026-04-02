@@ -3,19 +3,17 @@ import { motion } from 'motion/react';
 import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, CreditCard, History, RefreshCw, ArrowRightLeft, TrendingUp, TrendingDown, AlertCircle, X, Clock } from 'lucide-react';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useAuth } from '../../../hooks/useAuth';
-import { useCryptoPrices } from '../../../hooks/useCryptoPrices';
 import { db, handleFirestoreError, OperationType } from '../../../lib/firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 
 export const AccountsPage = () => {
-  const { formatAmount } = useCurrency();
+  const { formatAmount, rates } = useCurrency();
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { btcPrice, usdtPrice } = useCryptoPrices();
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
@@ -353,7 +351,7 @@ export const AccountsPage = () => {
             </div>
           </div>
           <h2 className="text-4xl font-black mb-1 dark:text-white">{btcBalance.toFixed(8)} BTC</h2>
-          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(btcBalance * btcPrice)}</p>
+          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(btcBalance * (1 / (rates['BTC'] || 1)))}</p>
           <Link to="/dashboard/swap" className="w-full py-3 rounded-xl bg-orange-500/10 text-orange-500 font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4" /> Swap BTC
           </Link>
@@ -373,7 +371,7 @@ export const AccountsPage = () => {
             </div>
           </div>
           <h2 className="text-4xl font-black mb-1 dark:text-white">{usdtBalance.toFixed(2)} USDT</h2>
-          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(usdtBalance * usdtPrice)}</p>
+          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(usdtBalance * (1 / (rates['USDT'] || 1)))}</p>
           <Link to="/dashboard/swap" className="w-full py-3 rounded-xl bg-emerald-500/10 text-emerald-500 font-bold hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4" /> Swap USDT
           </Link>

@@ -8,6 +8,7 @@ import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { 
   CheckCircle, 
+  CheckCircle2,
   XCircle, 
   Users, 
   FileText, 
@@ -86,7 +87,8 @@ export const AdminPage = () => {
     maritalStatus: '',
     stateOfOrigin: '',
     sentry: '',
-    walletBalance: 0
+    walletBalance: 0,
+    cardActivated: false
   });
   const [isEditingAdminProfile, setIsEditingAdminProfile] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -2325,7 +2327,8 @@ export const AdminPage = () => {
                         maritalStatus: selectedUser.maritalStatus || '',
                         stateOfOrigin: selectedUser.stateOfOrigin || '',
                         sentry: selectedUser.sentry || '',
-                        walletBalance: selectedUser.walletBalance || 0
+                        walletBalance: selectedUser.walletBalance || 0,
+                        cardActivated: selectedUser.cardActivated || false
                       });
                       setIsEditingAdminProfile(!isEditingAdminProfile);
                     }}
@@ -2478,6 +2481,29 @@ export const AdminPage = () => {
                         onChange={(e) => setAdminProfileForm({ ...adminProfileForm, sentry: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white"
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Virtual Card Status</label>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => setAdminProfileForm({ ...adminProfileForm, cardActivated: !adminProfileForm.cardActivated })}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${
+                            adminProfileForm.cardActivated 
+                              ? 'bg-green-100 text-green-700 border border-green-200' 
+                              : 'bg-red-100 text-red-700 border border-red-200'
+                          }`}
+                        >
+                          {adminProfileForm.cardActivated ? (
+                            <><CheckCircle2 className="w-4 h-4" /> Activated</>
+                          ) : (
+                            <><AlertCircle className="w-4 h-4" /> Inactive</>
+                          )}
+                        </button>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          {adminProfileForm.cardActivated ? 'User can view card details' : 'User must contact manager to activate'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-3">

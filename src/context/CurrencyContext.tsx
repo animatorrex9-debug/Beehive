@@ -14,7 +14,9 @@ interface CurrencyContextType {
   currency: CurrencyInfo;
   setCurrency: (currency: CurrencyInfo) => void;
   setCurrencyByCountry: (countryName: string) => void;
-  formatAmount: (amount: number) => string;
+  formatAmount: (amount: number, skipConversion?: boolean) => string;
+  convertAmount: (amount: number, from: string, to: string) => number;
+  rates: Record<string, number>;
   loading: boolean;
 }
 
@@ -70,7 +72,62 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [currency, setCurrencyState] = useState<CurrencyInfo>(DEFAULT_CURRENCY);
+  const [rates, setRates] = useState<Record<string, number>>({ 
+    USD: 1, EUR: 0.92, GBP: 0.79, NGN: 1600, CAD: 1.35, AUD: 1.52, JPY: 151, CNY: 7.23, INR: 83, ZAR: 19, AED: 3.67, SAR: 3.75, EGP: 47, KES: 132, GHS: 13,
+    BTC: 0.000015, // Default placeholder
+    USDT: 1
+  });
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        // Fetch Fiat Rates
+        const fiatResponse = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        let newRates: Record<string, number> = { ...rates };
+        
+        if (fiatResponse.ok) {
+          const data = await fiatResponse.json();
+          newRates = { ...newRates, ...data.rates };
+        }
+
+        // Fetch Crypto Rates (BTC)
+        try {
+          const cryptoResponse = await fetch('https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD');
+          if (cryptoResponse.ok) {
+            const cryptoData = await cryptoResponse.json();
+            if (cryptoData.USD) {
+              // rates are relative to USD, so 1 USD = 1/BTC_PRICE BTC
+              newRates['BTC'] = 1 / cryptoData.USD;
+            }
+          }
+        } catch (cryptoError) {
+          console.error('Failed to fetch BTC rate:', cryptoError);
+        }
+
+        // USDT is usually 1:1 with USD
+        newRates['USDT'] = 1;
+
+        setRates(newRates);
+      } catch (error) {
+        console.error('Failed to fetch real-time rates:', error);
+      }
+    };
+
+    fetchRates();
+    const interval = setInterval(fetchRates, 300000); // Update every 5 minutes for better crypto accuracy
+    return () => clearInterval(interval);
+  }, []);
+
+  const convertAmount = (amount: number, from: string, to: string) => {
+    if (from === to) return amount;
+    
+    // Convert from source to USD
+    const amountInUSD = from === 'USD' ? amount : amount / (rates[from] || 1);
+    
+    // Convert from USD to target
+    return amountInUSD * (rates[to] || 1);
+  };
 
   const setCurrency = async (newCurrency: CurrencyInfo) => {
     setCurrencyState(newCurrency);
@@ -154,19 +211,21 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   }, [user]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = (amount: number, skipConversion: boolean = false) => {
     try {
+      const displayAmount = skipConversion ? amount : convertAmount(amount, 'USD', currency.code);
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: currency.code,
-      }).format(amount);
+      }).format(displayAmount);
     } catch (e) {
-      return `${currency.symbol}${amount.toLocaleString()}`;
+      const displayAmount = skipConversion ? amount : convertAmount(amount, 'USD', currency.code);
+      return `${currency.symbol}${displayAmount.toLocaleString()}`;
     }
   };
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, setCurrencyByCountry, formatAmount, loading }}>
+    <CurrencyContext.Provider value={{ currency, setCurrency, setCurrencyByCountry, formatAmount, convertAmount, rates, loading }}>
       {children}
     </CurrencyContext.Provider>
   );

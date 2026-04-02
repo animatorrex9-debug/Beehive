@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc, onSnapshot, query, collection, where, getDocs, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, query, collection, where, getDocs, setDoc, limit } from 'firebase/firestore';
 import { auth, db, isConfigured, handleFirestoreError, OperationType } from '../lib/firebase';
 
 import { useCurrency } from '../context/CurrencyContext';

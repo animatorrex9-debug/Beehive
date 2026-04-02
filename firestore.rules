@@ -81,6 +81,7 @@ service cloud.firestore {
              (!('activeCards' in data) || data.activeCards is number) &&
              (!('activeLoanStatus' in data) || data.activeLoanStatus is string) &&
              (!('activeLoanId' in data) || data.activeLoanId is string) &&
+             (!('cardActivated' in data) || data.cardActivated is bool) &&
              (!('emailVerified' in data) || data.emailVerified is bool) &&
              (!('createdAt' in data) || data.createdAt is string) &&
              (!('managerId' in data) || data.managerId is string) &&

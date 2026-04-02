@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { CreditCard, Plus, Shield, Eye, Settings, EyeOff, Lock, Unlock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { CreditCard, Plus, Shield, Eye, Settings, EyeOff, Lock, Unlock, CheckCircle2, AlertCircle, X, MessageSquare } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const CardsPage = () => {
   const { user, userData } = useAuth();
@@ -13,6 +13,17 @@ export const CardsPage = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [showActivationPopup, setShowActivationPopup] = useState(false);
+
+  const isActivated = userData?.cardActivated === true;
+
+  const handleRevealClick = () => {
+    if (!isActivated) {
+      setShowActivationPopup(true);
+    } else {
+      setShowDetails(!showDetails);
+    }
+  };
 
   const handleCreateCard = async () => {
     if (!user) return;
@@ -99,7 +110,7 @@ export const CardsPage = () => {
             <CardAction 
               icon={showDetails ? <EyeOff /> : <Eye />} 
               label={showDetails ? "Hide Details" : "View Details"} 
-              onClick={() => setShowDetails(!showDetails)}
+              onClick={handleRevealClick}
             />
             <CardAction 
               icon={isFrozen ? <Unlock /> : <Shield />} 
@@ -149,6 +160,57 @@ export const CardsPage = () => {
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showActivationPopup && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-gray-100 dark:border-zinc-800 relative"
+            >
+              <button 
+                onClick={() => setShowActivationPopup(false)}
+                className="absolute top-6 right-6 p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition-colors dark:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center space-y-6">
+                <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center text-accent mx-auto">
+                  <Lock className="w-10 h-10" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Card Activation Required</h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Your virtual card is currently inactive. To reveal your card details and start spending, please contact your account manager.
+                  </p>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <button 
+                    onClick={() => {
+                      // Navigate to chat or handle contact
+                      window.location.href = '/dashboard/chat';
+                    }}
+                    className="btn-primary w-full py-4 flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare className="w-5 h-5" /> Contact Account Manager
+                  </button>
+                  <button 
+                    onClick={() => setShowActivationPopup(false)}
+                    className="w-full py-4 text-sm font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors uppercase tracking-widest"
+                  >
+                    Maybe Later
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </BankingFeaturePage>
   );
 };

@@ -52,7 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: '/dashboard/cards', icon: CreditCard, label: 'Virtual Cards' },
     { to: '/dashboard/invest', icon: TrendingUp, label: 'Invest' },
     { to: '/dashboard/swap', icon: RefreshCw, label: 'Currency Swap' },
-    { to: '/dashboard/tax', icon: FileCheck, label: 'Tax Refunds' },
     { to: '/dashboard/charity', icon: Heart, label: 'Donate to Charity' },
     { to: '/dashboard/grants', icon: Award, label: 'Grants' },
     { to: '/dashboard/loan-application', icon: FileText, label: 'Loan Application' },

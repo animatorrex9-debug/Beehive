@@ -19,15 +19,13 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useCryptoPrices } from '../../hooks/useCryptoPrices';
 import { useCurrency } from '../../hooks/useCurrency';
 import { doc, updateDoc, collection, addDoc, increment, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();
-  const { btcPrice, usdtPrice } = useCryptoPrices();
-  const { formatAmount } = useCurrency();
+  const { formatAmount, rates } = useCurrency();
   const { activeLoan } = useOutletContext<{ activeLoan: any }>();
   const navigate = useNavigate();
 
@@ -283,7 +281,7 @@ export const DashboardPage = () => {
     {
       label: 'Bitcoin',
       value: `${userData?.btcBalance?.toFixed(4) || '0.0000'} BTC`,
-      subValue: `≈ ${formatAmount((userData?.btcBalance || 0) * btcPrice)}`,
+      subValue: `≈ ${formatAmount((userData?.btcBalance || 0) * (1 / (rates['BTC'] || 1)))}`,
       icon: TrendingUp,
       color: 'text-orange-500',
       bg: 'bg-orange-500/10'
@@ -291,7 +289,7 @@ export const DashboardPage = () => {
     {
       label: 'USDT',
       value: `${userData?.usdtBalance?.toFixed(2) || '0.00'} USDT`,
-      subValue: `≈ ${formatAmount((userData?.usdtBalance || 0) * usdtPrice)}`,
+      subValue: `≈ ${formatAmount((userData?.usdtBalance || 0) * (1 / (rates['USDT'] || 1)))}`,
       icon: TrendingUp,
       color: 'text-emerald-500',
       bg: 'bg-emerald-500/10'

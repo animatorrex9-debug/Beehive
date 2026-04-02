@@ -3,7 +3,6 @@ import { RefreshCw, ArrowRightLeft, CheckCircle2, AlertCircle } from 'lucide-rea
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { useCryptoPrices } from '../../../hooks/useCryptoPrices';
 import { db } from '../../../lib/firebase';
 import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,8 +10,7 @@ import { ChevronDown } from 'lucide-react';
 
 export const SwapPage = () => {
   const { user, userData } = useAuth();
-  const { currency } = useCurrency();
-  const { btcPrice, usdtPrice } = useCryptoPrices();
+  const { currency, rates, convertAmount } = useCurrency();
   const [fromAmount, setFromAmount] = useState('100');
   const [fromCurrency, setFromCurrency] = useState(userData?.currency?.code || currency.code || 'USD');
   const [toCurrency, setToCurrency] = useState('BTC');
@@ -24,21 +22,19 @@ export const SwapPage = () => {
     { code: userData?.currency?.code || currency.code || 'USD', name: userData?.currency?.name || currency.name || 'US Dollar', icon: userData?.currency?.symbol || currency.symbol || '$' },
     { code: 'BTC', name: 'Bitcoin', icon: '₿' },
     { code: 'USDT', name: 'Tether', icon: '₮' },
-    { code: 'EUR', name: 'Euro', icon: '€' },
-    { code: 'GBP', name: 'British Pound', icon: '£' },
-    { code: 'USD', name: 'US Dollar', icon: '$' },
+    ...Object.keys(rates).filter(code => !['BTC', 'USDT', userData?.currency?.code, currency.code].includes(code)).slice(0, 10).map(code => ({
+      code,
+      name: new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code,
+      icon: '' // Will be handled by code
+    }))
   ].filter((c, index, self) => 
     index === self.findIndex((t) => t.code === c.code)
   );
 
   const getPrice = (code: string) => {
-    if (code === (userData?.currency?.code || currency.code || 'USD')) return 1;
-    if (code === 'BTC') return btcPrice;
-    if (code === 'USDT') return usdtPrice;
-    if (code === 'EUR') return 1.08; // Fixed for now
-    if (code === 'GBP') return 1.27; // Fixed for now
-    if (code === 'USD') return 1;
-    return 1;
+    // rates are relative to USD, so price in USD is 1 / rate
+    // e.g. if rate is 0.000015 BTC/USD, price is 1 / 0.000015 = 66666 USD/BTC
+    return 1 / (rates[code] || 1);
   };
 
   const exchangeRate = getPrice(fromCurrency) / getPrice(toCurrency);
