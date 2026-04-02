@@ -18,15 +18,20 @@ export const SwapPage = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  const walletCurrency = userData?.currency?.code || currency.code || 'USD';
+  const cryptoCurrencies = ['BTC', 'USDT'];
+
+  // Sync fromCurrency with wallet currency when it loads
+  React.useEffect(() => {
+    if (userData?.currency?.code) {
+      setFromCurrency(userData.currency.code);
+    }
+  }, [userData?.currency?.code]);
+
   const currencies = [
     { code: userData?.currency?.code || currency.code || 'USD', name: userData?.currency?.name || currency.name || 'US Dollar', icon: userData?.currency?.symbol || currency.symbol || '$' },
     { code: 'BTC', name: 'Bitcoin', icon: '₿' },
     { code: 'USDT', name: 'Tether', icon: '₮' },
-    ...Object.keys(rates).filter(code => !['BTC', 'USDT', userData?.currency?.code, currency.code].includes(code)).slice(0, 10).map(code => ({
-      code,
-      name: new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code,
-      icon: '' // Will be handled by code
-    }))
   ].filter((c, index, self) => 
     index === self.findIndex((t) => t.code === c.code)
   );
@@ -38,10 +43,10 @@ export const SwapPage = () => {
   };
 
   const exchangeRate = getPrice(fromCurrency) / getPrice(toCurrency);
-  const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(fromCurrency === (userData?.currency?.code || currency.code || 'USD') && toCurrency === 'BTC' ? 8 : 2);
+  const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(fromCurrency === walletCurrency && toCurrency === 'BTC' ? 8 : 2);
 
   const getBalance = (code: string) => {
-    if (code === (userData?.currency?.code || currency.code || 'USD')) return userData?.walletBalance || 0;
+    if (code === walletCurrency) return userData?.walletBalance || 0;
     if (code === 'BTC') return userData?.btcBalance || 0;
     if (code === 'USDT') return userData?.usdtBalance || 0;
     return 0;
@@ -49,13 +54,39 @@ export const SwapPage = () => {
 
   const handleSwap = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !fromAmount || parseFloat(fromAmount) <= 0) return;
-
+    setError('');
+    
+    if (!user) {
+      setError('You must be logged in to swap.');
+      return;
+    }
+    
     const swapAmount = parseFloat(fromAmount);
+    if (isNaN(swapAmount) || swapAmount <= 0) {
+      setError('Please enter a valid amount.');
+      return;
+    }
+
     const currentBalance = getBalance(fromCurrency);
     
     if (currentBalance < swapAmount) {
       setError(`Insufficient ${fromCurrency} balance.`);
+      return;
+    }
+
+    // Validation: Only Wallet <-> Crypto allowed
+    const isFromWallet = fromCurrency === walletCurrency;
+    const isToWallet = toCurrency === walletCurrency;
+    const isFromCrypto = cryptoCurrencies.includes(fromCurrency);
+    const isToCrypto = cryptoCurrencies.includes(toCurrency);
+
+    if (fromCurrency === toCurrency) {
+      setError('Cannot swap the same currency.');
+      return;
+    }
+
+    if (!((isFromWallet && isToCrypto) || (isFromCrypto && isToWallet))) {
+      setError('Swaps are only permitted between your wallet and cryptocurrency.');
       return;
     }
 
@@ -67,13 +98,17 @@ export const SwapPage = () => {
       const updates: any = {};
 
       // Deduct from source
-      if (fromCurrency === (userData?.currency?.code || currency.code || 'USD')) updates.walletBalance = increment(-swapAmount);
+      if (fromCurrency === walletCurrency) updates.walletBalance = increment(-swapAmount);
       else if (fromCurrency === 'BTC') updates.btcBalance = increment(-swapAmount);
       else if (fromCurrency === 'USDT') updates.usdtBalance = increment(-swapAmount);
 
       // Add to destination
       const receivedAmount = parseFloat(toAmount);
-      if (toCurrency === (userData?.currency?.code || currency.code || 'USD')) updates.walletBalance = increment(receivedAmount);
+      if (isNaN(receivedAmount) || receivedAmount <= 0) {
+        throw new Error('Invalid exchange amount calculated.');
+      }
+      
+      if (toCurrency === walletCurrency) updates.walletBalance = increment(receivedAmount);
       else if (toCurrency === 'BTC') updates.btcBalance = increment(receivedAmount);
       else if (toCurrency === 'USDT') updates.usdtBalance = increment(receivedAmount);
 
@@ -162,7 +197,9 @@ export const SwapPage = () => {
                   className="bg-gray-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl dark:text-white font-bold outline-none appearance-none cursor-pointer pr-8"
                 >
                   {currencies.map(c => (
-                    <option key={c.code} value={c.code}>{c.code}</option>
+                    <option key={c.code} value={c.code}>
+                      {c.code === walletCurrency ? `Wallet (${c.code})` : c.code}
+                    </option>
                   ))}
                 </select>
                 <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none dark:text-white" />
@@ -201,7 +238,9 @@ export const SwapPage = () => {
                   className="bg-gray-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl dark:text-white font-bold outline-none appearance-none cursor-pointer pr-8"
                 >
                   {currencies.map(c => (
-                    <option key={c.code} value={c.code}>{c.code}</option>
+                    <option key={c.code} value={c.code}>
+                      {c.code === walletCurrency ? `Wallet (${c.code})` : c.code}
+                    </option>
                   ))}
                 </select>
                 <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none dark:text-white" />
