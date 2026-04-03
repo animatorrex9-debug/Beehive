@@ -10,7 +10,7 @@ import { ChevronDown } from 'lucide-react';
 
 export const SwapPage = () => {
   const { user, userData } = useAuth();
-  const { currency, rates, convertAmount } = useCurrency();
+  const { currency, rates, convertAmount, formatAmount } = useCurrency();
   const [fromAmount, setFromAmount] = useState('100');
   const [fromCurrency, setFromCurrency] = useState(userData?.currency?.code || currency.code || 'USD');
   const [toCurrency, setToCurrency] = useState('BTC');
@@ -46,7 +46,10 @@ export const SwapPage = () => {
   const toAmount = (parseFloat(fromAmount || '0') * exchangeRate).toFixed(fromCurrency === walletCurrency && toCurrency === 'BTC' ? 8 : 2);
 
   const getBalance = (code: string) => {
-    if (code === walletCurrency) return userData?.walletBalance || 0;
+    if (code === walletCurrency) {
+      const balanceUSD = userData?.walletBalance || 0;
+      return convertAmount(balanceUSD, 'USD', walletCurrency);
+    }
     if (code === 'BTC') return userData?.btcBalance || 0;
     if (code === 'USDT') return userData?.usdtBalance || 0;
     return 0;
@@ -98,7 +101,10 @@ export const SwapPage = () => {
       const updates: any = {};
 
       // Deduct from source
-      if (fromCurrency === walletCurrency) updates.walletBalance = increment(-swapAmount);
+      if (fromCurrency === walletCurrency) {
+        const amountInUSD = convertAmount(swapAmount, fromCurrency, 'USD');
+        updates.walletBalance = increment(-amountInUSD);
+      }
       else if (fromCurrency === 'BTC') updates.btcBalance = increment(-swapAmount);
       else if (fromCurrency === 'USDT') updates.usdtBalance = increment(-swapAmount);
 
@@ -108,7 +114,10 @@ export const SwapPage = () => {
         throw new Error('Invalid exchange amount calculated.');
       }
       
-      if (toCurrency === walletCurrency) updates.walletBalance = increment(receivedAmount);
+      if (toCurrency === walletCurrency) {
+        const amountInUSD = convertAmount(receivedAmount, toCurrency, 'USD');
+        updates.walletBalance = increment(amountInUSD);
+      }
       else if (toCurrency === 'BTC') updates.btcBalance = increment(receivedAmount);
       else if (toCurrency === 'USDT') updates.usdtBalance = increment(receivedAmount);
 
@@ -205,7 +214,13 @@ export const SwapPage = () => {
                 <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none dark:text-white" />
               </div>
             </div>
-            <p className="text-xs text-gray-400">Available: {getBalance(fromCurrency).toLocaleString()} {fromCurrency}</p>
+            <p className="text-xs text-gray-400">
+              Available: {
+                fromCurrency === walletCurrency 
+                  ? formatAmount(getBalance(fromCurrency), true)
+                  : `${getBalance(fromCurrency).toLocaleString(undefined, { maximumFractionDigits: 8 })} ${fromCurrency}`
+              }
+            </p>
           </div>
 
           <div className="flex justify-center">

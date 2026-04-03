@@ -1416,6 +1416,34 @@ export const AdminPage = () => {
             </form>
 
             <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
+              <h3 className="text-lg font-bold mb-6 dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Admin</h3>
+              <div className="space-y-4">
+                <div className="relative">
+                  <select 
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleUpdateRole(e.target.value, 'admin');
+                        e.target.value = '';
+                      }
+                    }}
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
+                  >
+                    <option value="">Select a user to appoint as admin...</option>
+                    {users.filter(u => u.role !== 'admin').map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.email} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest italic">
+                  Appointed admins will have full access to this panel.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
               <h3 className="text-lg font-bold mb-6 dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Account Manager</h3>
               <div className="space-y-4">
                 <div className="relative">
@@ -2539,6 +2567,44 @@ export const AdminPage = () => {
                     <DetailItem label="KYC Status" value={selectedUser.kycStatus || 'Not Started'} />
                     <DetailItem label="Currency" value={selectedUser.currency || 'USD'} />
                     <DetailItem label="Joined" value={formatDate(selectedUser.createdAt)} />
+                  </DetailSection>
+
+                  <DetailSection title="Role Management">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedUser.role !== 'admin' && (
+                        <button
+                          onClick={() => handleUpdateRole(selectedUser.id, 'admin')}
+                          disabled={isUpdatingRole}
+                          className="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center gap-1.5"
+                        >
+                          <ShieldCheck className="w-3 h-3" />
+                          Appoint as Admin
+                        </button>
+                      )}
+                      {selectedUser.role !== 'account_manager' && (
+                        <button
+                          onClick={() => handleUpdateRole(selectedUser.id, 'account_manager')}
+                          disabled={isUpdatingRole}
+                          className="px-3 py-1.5 bg-accent/10 text-accent rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-accent/20 transition-all flex items-center gap-1.5"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          Make Manager
+                        </button>
+                      )}
+                      {selectedUser.role && selectedUser.role !== 'user' && (
+                        <button
+                          onClick={() => handleUpdateRole(selectedUser.id, 'user')}
+                          disabled={isUpdatingRole}
+                          className="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all flex items-center gap-1.5"
+                        >
+                          <UserIcon className="w-3 h-3" />
+                          Demote to User
+                        </button>
+                      )}
+                    </div>
+                    {isUpdatingRole && (
+                      <p className="text-[10px] text-accent animate-pulse font-bold uppercase tracking-widest">Updating role...</p>
+                    )}
                   </DetailSection>
 
                   <DetailSection title="Personal Info">
