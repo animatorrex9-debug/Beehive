@@ -32,10 +32,13 @@ import { ThemeToggle } from '../../components/ThemeToggle';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useAuth } from '../../hooks/useAuth';
 import { auth } from '../../lib/firebase';
+import { CharityTab } from './CharityTab';
+import { LoansTab } from './LoansTab';
 
 export const LandingPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'home' | 'charity' | 'loans'>('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [loanAmount, setLoanAmount] = useState(500000);
   const [loanDuration, setLoanDuration] = useState(12);
@@ -85,14 +88,37 @@ export const LandingPage = () => {
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-gray-100 dark:border-zinc-900">
         <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
-          <Logo />
+          <div onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="cursor-pointer">
+            <Logo />
+          </div>
           
           {/* Desktop Links */}
-          <div className="hidden lg:flex items-center gap-10">
-            <NavLink href="#home">Home</NavLink>
-            <NavLink href="#about">About</NavLink>
-            <NavLink href="#how-it-works">How It Works</NavLink>
-            <NavLink href="#faq">FAQ</NavLink>
+          <div className="hidden lg:flex items-center gap-8">
+            <button 
+              onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className={`text-[13px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'home' ? 'text-accent' : 'text-gray-500 hover:text-accent dark:text-gray-400 dark:hover:text-white'}`}
+            >
+              Home
+            </button>
+            <button 
+              onClick={() => { setActiveTab('charity'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className={`text-[13px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'charity' ? 'text-accent' : 'text-gray-500 hover:text-accent dark:text-gray-400 dark:hover:text-white'}`}
+            >
+              Charity Mission
+            </button>
+            <button 
+              onClick={() => { setActiveTab('loans'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className={`text-[13px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'loans' ? 'text-accent' : 'text-gray-500 hover:text-accent dark:text-gray-400 dark:hover:text-white'}`}
+            >
+              Loan Mission
+            </button>
+            {activeTab === 'home' && (
+              <>
+                <NavLink href="#about">About</NavLink>
+                <NavLink href="#how-it-works">How It Works</NavLink>
+                <NavLink href="#faq">FAQ</NavLink>
+              </>
+            )}
           </div>
 
           <div className="hidden lg:flex items-center gap-6">
@@ -134,10 +160,31 @@ export const LandingPage = () => {
               exit={{ opacity: 0, height: 0 }}
               className="lg:hidden bg-white dark:bg-zinc-950 border-b border-gray-100 dark:border-zinc-900 px-6 py-8 flex flex-col gap-6"
             >
-              <NavLink href="#home" onClick={() => setIsMenuOpen(false)}>Home</NavLink>
-              <NavLink href="#about" onClick={() => setIsMenuOpen(false)}>About</NavLink>
-              <NavLink href="#how-it-works" onClick={() => setIsMenuOpen(false)}>How It Works</NavLink>
-              <NavLink href="#faq" onClick={() => setIsMenuOpen(false)}>FAQ</NavLink>
+              <button 
+                onClick={() => { setActiveTab('home'); setIsMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`font-bold text-left text-sm uppercase tracking-wider ${activeTab === 'home' ? 'text-accent' : 'text-gray-500 dark:text-white'}`}
+              >
+                Home
+              </button>
+              <button 
+                onClick={() => { setActiveTab('charity'); setIsMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`font-bold text-left text-sm uppercase tracking-wider ${activeTab === 'charity' ? 'text-accent' : 'text-gray-500 dark:text-white'}`}
+              >
+                Charity Mission
+              </button>
+              <button 
+                onClick={() => { setActiveTab('loans'); setIsMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`font-bold text-left text-sm uppercase tracking-wider ${activeTab === 'loans' ? 'text-accent' : 'text-gray-500 dark:text-white'}`}
+              >
+                Loan Mission
+              </button>
+              {activeTab === 'home' && (
+                <>
+                  <NavLink href="#about" onClick={() => setIsMenuOpen(false)}>About</NavLink>
+                  <NavLink href="#how-it-works" onClick={() => setIsMenuOpen(false)}>How It Works</NavLink>
+                  <NavLink href="#faq" onClick={() => setIsMenuOpen(false)}>FAQ</NavLink>
+                </>
+              )}
               <hr className="border-gray-100 dark:border-zinc-800" />
               {user ? (
                 <>
@@ -163,8 +210,10 @@ export const LandingPage = () => {
         </AnimatePresence>
       </nav>
 
-      {/* HERO SECTION */}
-      <section id="home" className="pt-20 pb-32 px-6">
+      {activeTab === 'home' && (
+        <>
+          {/* HERO SECTION */}
+          <section id="home" className="pt-20 pb-32 px-6">
         <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -533,6 +582,11 @@ export const LandingPage = () => {
           </div>
         </div>
       </section>
+      </>
+      )}
+
+      {activeTab === 'charity' && <CharityTab />}
+      {activeTab === 'loans' && <LoansTab />}
 
       {/* FOOTER */}
       <footer className="bg-white dark:bg-zinc-950 border-t border-gray-100 dark:border-zinc-900 pt-24 pb-12 px-6">
@@ -554,11 +608,29 @@ export const LandingPage = () => {
 
             <div>
               <h4 className="font-black text-lg mb-6 dark:text-white">Quick Links</h4>
-              <ul className="space-y-4 text-gray-500 dark:text-gray-400 font-bold">
-                <li><a href="#home" className="hover:text-accent transition-colors">Home</a></li>
-                <li><a href="#about" className="hover:text-accent transition-colors">About Us</a></li>
-                <li><a href="#how-it-works" className="hover:text-accent transition-colors">How It Works</a></li>
-                <li><a href="#faq" className="hover:text-accent transition-colors">FAQ</a></li>
+              <ul className="space-y-4 text-gray-500 dark:text-gray-400 font-bold flex flex-col items-start">
+                <li>
+                  <button onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-accent transition-colors text-left cursor-pointer">
+                    Home
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => { setActiveTab('charity'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-accent transition-colors text-left cursor-pointer">
+                    Charity Mission
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => { setActiveTab('loans'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-accent transition-colors text-left cursor-pointer">
+                    Loan Mission
+                  </button>
+                </li>
+                {activeTab === 'home' && (
+                  <>
+                    <li><a href="#about" className="hover:text-accent transition-colors">About Us</a></li>
+                    <li><a href="#how-it-works" className="hover:text-accent transition-colors">How It Works</a></li>
+                    <li><a href="#faq" className="hover:text-accent transition-colors">FAQ</a></li>
+                  </>
+                )}
               </ul>
             </div>
 
