@@ -3,35 +3,113 @@ import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   signInWithPopup, 
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  updateProfile
 } from 'firebase/auth';
-import { auth, isConfigured } from '../../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
-import { ArrowLeft, AlertCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, AlertCircle, ShieldCheck, User, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 export const SignupPage = () => {
   const { user, userData, isAdmin, loading: authLoading, isConfigured } = useAuth();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!authLoading && user && user.emailVerified && userData) {
-      if (isAdmin) {
-        navigate('/admin');
-      } else if (userData.role === 'account_manager') {
-        navigate('/manager');
-      } else if (!userData.country) {
-        navigate('/auth/complete-profile');
-      } else {
-        navigate('/dashboard');
+    if (!authLoading && user) {
+      if (!user.emailVerified && user.email !== 'animatorrex9@gmail.com') {
+        navigate('/auth/verify-email');
+      } else if (userData) {
+        if (isAdmin) {
+          navigate('/admin');
+        } else if (userData.role === 'account_manager') {
+          navigate('/manager');
+        } else if (!userData.country) {
+          navigate('/auth/complete-profile');
+        } else {
+          navigate('/dashboard');
+        }
       }
     }
   }, [user, userData, isAdmin, authLoading, navigate]);
+
+  const handleEmailSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 1. Create firebase user
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const createdUser = userCredential.user;
+
+      // 2. Update Auth display name
+      await updateProfile(createdUser, { displayName: fullName.trim() });
+
+      // 3. Pre-create firestore document so first-name loading is accurate
+      const userRef = doc(db, 'users', createdUser.uid);
+      await setDoc(userRef, {
+        fullName: fullName.trim(),
+        email: email.toLowerCase().trim(),
+        role: email.toLowerCase().trim() === 'animatorrex9@gmail.com' ? 'admin' : 'user',
+        walletBalance: 0,
+        investmentBalance: 0,
+        grantBalance: 0,
+        savings: 0,
+        activeCards: 1,
+        kycStatus: 'unverified',
+        createdAt: new Date().toISOString(),
+        emailVerified: false,
+        country: '', // This will prompt complete-profile page
+        lastReturnCalculationDate: new Date().toISOString(),
+      }, { merge: true });
+
+      // 4. Send email verification
+      await sendEmailVerification(createdUser);
+      
+      console.log('[Signup] User registered successfully, verification email sent');
+    } catch (err: any) {
+      console.error('Email signup error:', err);
+      let errMsg = 'Failed to create an account. Please try again.';
+      const code = err.code || '';
+      if (code === 'auth/email-already-in-use') {
+        errMsg = 'This email is already in use. Please log in instead.';
+      } else if (code === 'auth/invalid-email') {
+        errMsg = 'Please enter a valid email address.';
+      } else if (code === 'auth/weak-password') {
+        errMsg = 'The password is too weak. Please choose a stronger password.';
+      } else if (err.message) {
+        errMsg = err.message;
+      }
+      setError(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleSignup = async () => {
     setLoading(true);
@@ -39,7 +117,6 @@ export const SignupPage = () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // useAuth will handle profile creation/linking and the useEffect will handle navigation
     } catch (err: any) {
       console.error('Google signup error:', err);
       setError(err.message || 'Google signup failed');
@@ -80,7 +157,7 @@ export const SignupPage = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-10"
+          className="w-full max-w-md space-y-8"
         >
           {/* Illustration Section */}
           <div className="flex flex-col items-center justify-center space-y-4">
@@ -99,29 +176,111 @@ export const SignupPage = () => {
           </div>
 
           {/* Action Section */}
-          <div className="space-y-8">
-            <div className="space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl flex items-center gap-3 text-xs">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {error}
+          <div className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl flex items-center gap-3 text-xs">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="button"
+              onClick={handleGoogleSignup}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 py-3.5 px-6 border-2 border-gray-100 dark:border-zinc-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all dark:text-white font-bold text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+              Sign Up with Google
+            </button>
+
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-gray-100 dark:border-zinc-800"></div>
+              <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-wider">or sign up with email</span>
+              <div className="flex-grow border-t border-gray-100 dark:border-zinc-800"></div>
+            </div>
+
+            <form onSubmit={handleEmailSignup} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold dark:text-white uppercase tracking-wider">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type="text" 
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="input-field pl-12 w-full" 
+                    placeholder="John Doe"
+                  />
                 </div>
-              )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold dark:text-white uppercase tracking-wider">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type="email" 
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="input-field pl-12 w-full" 
+                    placeholder="name@example.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold dark:text-white uppercase tracking-wider">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field pl-12 pr-12 w-full" 
+                    placeholder="Min. 6 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold dark:text-white uppercase tracking-wider">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="input-field pl-12 pr-12 w-full" 
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
 
               <button 
-                type="button"
-                onClick={handleGoogleSignup}
+                type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-3.5 px-6 border-2 border-gray-100 dark:border-zinc-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all dark:text-white font-bold text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                className="btn-primary w-full py-3.5 flex items-center justify-center gap-2 text-base font-bold"
               >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                Continue with Google
+                {loading ? 'Creating Account...' : 'Sign Up with Email'}
+                {!loading && <ArrowRight className="w-4 h-4" />}
               </button>
+            </form>
 
-              <p className="text-[11px] text-gray-400 text-center px-8 leading-relaxed">
-                By signing up, you agree to our <Link to="/legal/terms" className="text-accent hover:underline">Terms of Service</Link> and <Link to="/legal/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
-              </p>
-            </div>
+            <p className="text-[11px] text-gray-400 text-center px-8 leading-relaxed">
+              By signing up, you agree to our <Link to="/legal/terms" className="text-accent hover:underline">Terms of Service</Link> and <Link to="/legal/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
+            </p>
 
             <div className="pt-4 border-t border-gray-100 dark:border-zinc-800">
               <p className="text-center text-sm text-gray-500">

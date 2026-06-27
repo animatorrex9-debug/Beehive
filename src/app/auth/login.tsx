@@ -3,35 +3,69 @@ import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   signInWithPopup, 
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  signInWithEmailAndPassword
 } from 'firebase/auth';
 import { auth, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
-import { ArrowLeft, AlertCircle, KeyRound } from 'lucide-react';
+import { ArrowLeft, AlertCircle, KeyRound, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 export const LoginPage = () => {
   const { user, userData, isAdmin, loading: authLoading, isConfigured } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!authLoading && user && user.emailVerified && userData) {
-      if (isAdmin) {
-        navigate('/admin');
-      } else if (userData.role === 'account_manager') {
-        navigate('/manager');
-      } else if (!userData.country) {
-        navigate('/auth/complete-profile');
-      } else {
-        navigate('/dashboard');
+    if (!authLoading && user) {
+      if (!user.emailVerified && user.email !== 'animatorrex9@gmail.com') {
+        navigate('/auth/verify-email');
+      } else if (userData) {
+        if (isAdmin) {
+          navigate('/admin');
+        } else if (userData.role === 'account_manager') {
+          navigate('/manager');
+        } else if (!userData.country) {
+          navigate('/auth/complete-profile');
+        } else {
+          navigate('/dashboard');
+        }
       }
     }
   }, [user, userData, isAdmin, authLoading, navigate]);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch (err: any) {
+      console.error('Email login error:', err);
+      let errMsg = 'Invalid email or password. Please try again.';
+      const code = err.code || '';
+      if (code === 'auth/invalid-email') {
+        errMsg = 'Please enter a valid email address.';
+      } else if (code === 'auth/user-disabled') {
+        errMsg = 'This account has been disabled. Please contact support.';
+      } else if (code === 'auth/too-many-requests') {
+        errMsg = 'Too many failed login attempts. Please try again later.';
+      } else if (err.message && err.message.includes('auth/')) {
+        errMsg = err.message;
+      }
+      setError(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -39,7 +73,6 @@ export const LoginPage = () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // useAuth will handle profile creation/linking and the useEffect will handle navigation
     } catch (err: any) {
       console.error('Google login error:', err);
       setError(err.message || 'Google login failed');
@@ -80,7 +113,7 @@ export const LoginPage = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-10"
+          className="w-full max-w-md space-y-8"
         >
           {/* Illustration Section */}
           <div className="flex flex-col items-center justify-center space-y-4">
@@ -99,25 +132,77 @@ export const LoginPage = () => {
           </div>
 
           {/* Action Section */}
-          <div className="space-y-8">
-            <div className="space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl flex items-center gap-3 text-xs">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {error}
+          <div className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl flex items-center gap-3 text-xs">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 py-3.5 px-6 border-2 border-gray-100 dark:border-zinc-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all dark:text-white font-bold text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+              Continue with Google
+            </button>
+
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-gray-100 dark:border-zinc-800"></div>
+              <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-wider">or sign in with email</span>
+              <div className="flex-grow border-t border-gray-100 dark:border-zinc-800"></div>
+            </div>
+
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold dark:text-white uppercase tracking-wider">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type="email" 
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="input-field pl-12 w-full" 
+                    placeholder="name@example.com"
+                  />
                 </div>
-              )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold dark:text-white uppercase tracking-wider">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field pl-12 pr-12 w-full" 
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
 
               <button 
-                type="button"
-                onClick={handleGoogleLogin}
+                type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-3.5 px-6 border-2 border-gray-100 dark:border-zinc-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all dark:text-white font-bold text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                className="btn-primary w-full py-3.5 flex items-center justify-center gap-2 text-base font-bold"
               >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                Continue with Google
+                {loading ? 'Logging in...' : 'Log In with Email'}
+                {!loading && <ArrowRight className="w-4 h-4" />}
               </button>
-            </div>
+            </form>
 
             <div className="pt-4 border-t border-gray-100 dark:border-zinc-800">
               <p className="text-center text-sm text-gray-500">

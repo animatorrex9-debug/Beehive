@@ -91,19 +91,55 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
           newRates = { ...newRates, ...data.rates };
         }
 
-        // Fetch Crypto Rates (BTC)
+        // Fetch Crypto Rates (BTC) with robust fallbacks
+        let btcPriceInUSD = 64000; // default backup price
+        let btcFetched = false;
+
         try {
           const cryptoResponse = await fetch('https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD');
           if (cryptoResponse.ok) {
             const cryptoData = await cryptoResponse.json();
-            if (cryptoData.USD) {
-              // rates are relative to USD, so 1 USD = 1/BTC_PRICE BTC
-              newRates['BTC'] = 1 / cryptoData.USD;
+            if (cryptoData && cryptoData.USD) {
+              btcPriceInUSD = cryptoData.USD;
+              btcFetched = true;
             }
           }
         } catch (cryptoError) {
-          console.error('Failed to fetch BTC rate:', cryptoError);
+          console.warn('[CurrencyContext] Cryptocompare BTC fetch failed, trying fallbacks...');
         }
+
+        if (!btcFetched) {
+          try {
+            const binanceResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+            if (binanceResponse.ok) {
+              const binanceData = await binanceResponse.json();
+              if (binanceData && binanceData.price) {
+                btcPriceInUSD = parseFloat(binanceData.price);
+                btcFetched = true;
+              }
+            }
+          } catch (binanceError) {
+            console.warn('[CurrencyContext] Binance BTC fetch failed...');
+          }
+        }
+
+        if (!btcFetched) {
+          try {
+            const coincapResponse = await fetch('https://api.coincap.io/v2/assets/bitcoin');
+            if (coincapResponse.ok) {
+              const coincapData = await coincapResponse.json();
+              if (coincapData && coincapData.data && coincapData.data.priceUsd) {
+                btcPriceInUSD = parseFloat(coincapData.data.priceUsd);
+                btcFetched = true;
+              }
+            }
+          } catch (coincapError) {
+            console.warn('[CurrencyContext] CoinCap BTC fetch failed...');
+          }
+        }
+
+        // Rates are relative to USD, so 1 USD = 1/BTC_PRICE BTC
+        newRates['BTC'] = 1 / btcPriceInUSD;
 
         // USDT is usually 1:1 with USD
         newRates['USDT'] = 1;
