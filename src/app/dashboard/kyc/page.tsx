@@ -281,19 +281,19 @@ export const KYCPage = () => {
                 <ShieldCheck className="w-6 h-6 text-accent shrink-0 mt-1" />
                 <div>
                   <h4 className="font-black text-accent uppercase tracking-tighter mb-1">Identity Verification</h4>
-                  <p className="text-sm text-accent/70">Please provide your Social Security Number and upload clear photos of your ID card and your face for verification.</p>
+                  <p className="text-sm text-accent/70">Please provide your National Identity Number and upload clear photos of your ID card and your face for verification.</p>
                 </div>
               </div>
               
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-400">Social Security Number (SSN)</label>
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">National Identity Number</label>
                 <input 
                   type="text" 
                   name="ssn"
                   value={formData.ssn}
                   onChange={handleInputChange}
-                  className="input-field text-2xl font-black tracking-widest"
-                  placeholder="000-00-0000"
+                  className="input-field text-xl font-bold tracking-wider"
+                  placeholder="Enter National Identity Number"
                   required
                 />
               </div>
@@ -433,8 +433,8 @@ export const KYCPage = () => {
                     <p className="font-bold dark:text-white">{formData.monthlyIncome}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">SSN</p>
-                    <p className="font-bold dark:text-white tracking-widest">{formData.ssn}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">National ID Number</p>
+                    <p className="font-bold dark:text-white tracking-wider">{formData.ssn}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 mt-6">

