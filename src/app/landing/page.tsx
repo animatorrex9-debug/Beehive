@@ -24,7 +24,9 @@ import {
   FileText,
   CreditCard,
   Headphones,
-  LogOut
+  LogOut,
+  Heart,
+  Users
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '../../components/Logo';
@@ -298,24 +300,149 @@ export const LandingPage = () => {
               description="Funding for innovative projects and community-driven initiatives."
               link="/dashboard/grants"
             />
-            <ServiceCard 
-              icon={<RefreshCw className="w-8 h-8" />}
-              title="Currency Swap"
-              description="Exchange between 50+ currencies at real-time interbank rates."
-              link="/dashboard/swap"
-            />
-            <ServiceCard 
-              icon={<Globe className="w-8 h-8" />}
-              title="Global Transfers"
-              description="Send money across borders instantly with zero hidden fees."
-              link="/dashboard/send"
-            />
-            <ServiceCard 
-              icon={<CreditCard className="w-8 h-8" />}
-              title="Virtual Cards"
-              description="Generate secure virtual cards for all your online subscriptions."
-              link="/dashboard/cards"
-            />
+            <div className="hidden lg:block">
+              <ServiceCard 
+                icon={<RefreshCw className="w-8 h-8" />}
+                title="Currency Swap"
+                description="Exchange between 50+ currencies at real-time interbank rates."
+                link="/dashboard/swap"
+              />
+            </div>
+            <div className="hidden lg:block">
+              <ServiceCard 
+                icon={<Globe className="w-8 h-8" />}
+                title="Global Transfers"
+                description="Send money across borders instantly with zero hidden fees."
+                link="/dashboard/send"
+              />
+            </div>
+            <div className="hidden lg:block">
+              <ServiceCard 
+                icon={<CreditCard className="w-8 h-8" />}
+                title="Virtual Cards"
+                description="Generate secure virtual cards for all your online subscriptions."
+                link="/dashboard/cards"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CHARITY SPOTLIGHT SECTION */}
+      <section className="py-32 px-6 bg-white dark:bg-zinc-950 overflow-hidden border-t border-b border-gray-100 dark:border-zinc-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="space-y-8"
+            >
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-green-500/10 text-accent font-bold text-xs uppercase tracking-wider">
+                <Heart className="w-3.5 h-3.5 animate-pulse" /> Our Heartbeat
+              </div>
+              <h2 className="text-4xl md:text-6xl font-black tracking-tighter dark:text-white leading-tight">
+                A BANKING MODEL <br />
+                <span className="text-accent">BUILT ON EMPATHY</span>
+              </h2>
+              <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400 leading-relaxed">
+                Traditional banking stacks capital into silent reserves. At Beehive, we believe money should breathe, move, and heal. Every time you spend, save, or trade, our platform channels a portion of our transactional spread to vetted global causes—at absolutely zero cost to you.
+              </p>
+              
+              <div className="grid sm:grid-cols-2 gap-6 pt-4">
+                <div className="flex gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-accent flex-shrink-0">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold dark:text-white text-md">Global Circularity</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Connecting daily capital with critical grassroots operations worldwide.</p>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-accent flex-shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold dark:text-white text-md">Democratic Funding</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Members vote directly on which emergency or structural projects receive matching grants.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={() => { setActiveTab('charity'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="btn-primary px-8 py-4 text-base font-bold flex items-center gap-2 cursor-pointer"
+                >
+                  Explore Our Charity Mission <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Emotional Interactive Stock Photo Collage */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="grid grid-cols-2 gap-4 relative"
+            >
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-2xl aspect-[3/4] shadow-md relative group">
+                  <img 
+                    src="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&q=80&w=500" 
+                    alt="Children laughing" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
+                  <span className="absolute bottom-4 left-4 text-xs font-bold text-white uppercase tracking-wider bg-black/40 backdrop-blur-md px-3 py-1 rounded-full">
+                    Education & Joy
+                  </span>
+                </div>
+                <div className="overflow-hidden rounded-2xl aspect-square shadow-md relative group">
+                  <img 
+                    src="https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&q=80&w=500" 
+                    alt="Planting trees" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
+                  <span className="absolute bottom-4 left-4 text-xs font-bold text-white uppercase tracking-wider bg-black/40 backdrop-blur-md px-3 py-1 rounded-full">
+                    Sustaining Ecosystems
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-8">
+                <div className="overflow-hidden rounded-2xl aspect-square shadow-md relative group">
+                  <img 
+                    src="https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&q=80&w=500" 
+                    alt="Clean water" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
+                  <span className="absolute bottom-4 left-4 text-xs font-bold text-white uppercase tracking-wider bg-black/40 backdrop-blur-md px-3 py-1 rounded-full">
+                    Fresh Wells
+                  </span>
+                </div>
+                <div className="overflow-hidden rounded-2xl aspect-[3/4] shadow-md relative group">
+                  <img 
+                    src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=500" 
+                    alt="Medical care" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
+                  <span className="absolute bottom-4 left-4 text-xs font-bold text-white uppercase tracking-wider bg-black/40 backdrop-blur-md px-3 py-1 rounded-full">
+                    Healthcare Access
+                  </span>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>

@@ -209,18 +209,34 @@ export const CharityTab = () => {
       </section>
 
       {/* THE COMMUNITY MISSION STATEMENT */}
-      <section className="bg-zinc-900 dark:bg-zinc-900 text-white py-20 px-6 rounded-[2rem] max-w-7xl mx-auto overflow-hidden relative">
+      <section className="bg-zinc-900 dark:bg-zinc-900 text-white py-16 px-8 rounded-[2rem] max-w-7xl mx-auto overflow-hidden relative">
         <div className="absolute -inset-10 bg-gradient-to-r from-green-500/10 to-emerald-500/10 blur-3xl opacity-30" />
-        <div className="max-w-4xl mx-auto relative z-10 text-center">
-          <Heart className="w-12 h-12 text-accent mx-auto mb-6" />
-          <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-6">Our Mission Philosophy</h2>
-          <p className="text-lg md:text-xl text-zinc-300 leading-relaxed font-light">
-            "Traditional banking concentrates capital into stagnant reserves. Beehive’s core philosophy is that capital must flow dynamically to heal social structures and revitalize communities. Through micro-donations and direct-profit pledges, we ensure every transaction generates a circular return of social goodwill."
-          </p>
-          <div className="mt-8 flex justify-center gap-8 text-sm font-bold tracking-widest text-zinc-400 uppercase">
-            <span>● Radically Transparent</span>
-            <span>● 100% Fee-Free</span>
-            <span>● Democratic Control</span>
+        <div className="grid lg:grid-cols-12 gap-12 items-center relative z-10">
+          <div className="lg:col-span-7 space-y-6">
+            <Heart className="w-12 h-12 text-accent" />
+            <h2 className="text-3xl md:text-5xl font-black tracking-tight">Our Mission Philosophy</h2>
+            <p className="text-lg text-zinc-300 leading-relaxed font-light">
+              "Traditional banking concentrates capital into stagnant reserves. Beehive’s core philosophy is that capital must flow dynamically to heal social structures and revitalize communities. Through micro-donations and direct-profit pledges, we ensure every transaction generates a circular return of social goodwill."
+            </p>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-bold tracking-widest text-zinc-400 uppercase">
+              <span>● Radically Transparent</span>
+              <span>● 100% Fee-Free</span>
+              <span>● Democratic Control</span>
+            </div>
+          </div>
+          <div className="lg:col-span-5">
+            <div className="overflow-hidden rounded-2xl aspect-[4/3] shadow-2xl relative group">
+              <img 
+                src="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&q=80&w=600" 
+                alt="Community and hope" 
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+              <span className="absolute bottom-4 left-4 text-xs font-bold text-white uppercase tracking-wider bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
+                Empowering Communities Collectively
+              </span>
+            </div>
           </div>
         </div>
       </section>
