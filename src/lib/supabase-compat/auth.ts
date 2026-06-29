@@ -255,12 +255,98 @@ export class GoogleAuthProvider {
 }
 
 export async function signInWithPopup(auth: AuthCompat, provider: any) {
+  const redirectUrl = window.location.origin;
+  
+  console.log('[Supabase Auth] Starting Google OAuth popup flow...', { redirectUrl });
+  
+  // 1. Get OAuth login URL from Supabase without redirecting the iframe
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin
+      redirectTo: redirectUrl,
+      skipBrowserRedirect: true
     }
   });
+
   if (error) throw error;
-  return { user: auth.currentUser };
+  if (!data?.url) throw new Error('Failed to get Google OAuth URL from Supabase.');
+
+  // 2. Open the OAuth provider's login URL in a popup
+  const popup = window.open(
+    data.url,
+    'supabase_google_oauth',
+    'width=600,height=700,status=no,resizable=yes,scrollbars=yes'
+  );
+
+  if (!popup) {
+    throw new Error('Popup blocked! Please allow popups for this website to sign in with Google.');
+  }
+
+  // 3. Wait for popup to complete authentication
+  return new Promise<{ user: FirebaseUserCompat | null }>((resolve, reject) => {
+    let checkTimer: any = null;
+    let messageListener: any = null;
+
+    const cleanup = () => {
+      if (checkTimer) clearInterval(checkTimer);
+      if (messageListener) window.removeEventListener('message', messageListener);
+    };
+
+    // Fallback: Check if popup was closed by user
+    checkTimer = setInterval(() => {
+      if (popup.closed) {
+        cleanup();
+        // Check if session was updated anyway before rejecting
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+          if (session?.user) {
+            const mappedUser = await (auth as any).mapUser(session.user);
+            auth.currentUser = mappedUser;
+            (auth as any).notifyListeners();
+            resolve({ user: mappedUser });
+          } else {
+            reject(new Error('Google sign-in was canceled or closed.'));
+          }
+        });
+      }
+    }, 1000);
+
+    // Primary: Listen for OAUTH_AUTH_SUCCESS message from popup
+    messageListener = async (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        cleanup();
+        try {
+          popup.close();
+        } catch (e) {}
+
+        // Fetch session to load the user in the parent iframe
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const mappedUser = await (auth as any).mapUser(session.user);
+          auth.currentUser = mappedUser;
+          (auth as any).notifyListeners();
+          resolve({ user: mappedUser });
+        } else {
+          // If session wasn't immediately visible, wait 500ms and try once more
+          setTimeout(async () => {
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (retrySession?.user) {
+              const mappedUser = await (auth as any).mapUser(retrySession.user);
+              auth.currentUser = mappedUser;
+              (auth as any).notifyListeners();
+              resolve({ user: mappedUser });
+            } else {
+              reject(new Error('Successfully authenticated but failed to fetch user session.'));
+            }
+          }, 500);
+        }
+      }
+    };
+
+    window.addEventListener('message', messageListener);
+  });
 }
