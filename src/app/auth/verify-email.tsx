@@ -119,7 +119,7 @@ export const VerifyEmailPage = () => {
           </div>
           <h1 className="text-4xl font-black tracking-tighter dark:text-white mb-4 uppercase">Check your email</h1>
           <p className="text-gray-500 text-lg">
-            We've sent a verification link to your email address. Please click the link to confirm your account.
+            We've sent a verification code or link to your email address. Please check your inbox and confirm your account.
           </p>
         </div>
 

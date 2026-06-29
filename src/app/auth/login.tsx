@@ -4,7 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   signInWithPopup, 
   GoogleAuthProvider,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  signInAsGuest
 } from 'firebase/auth';
 import { auth, isConfigured } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
@@ -81,6 +82,21 @@ export const LoginPage = () => {
     }
   };
 
+  const handleDemoBypass = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      console.log('[Login] Bypassing login with sandbox demo mode...');
+      await signInAsGuest(auth);
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Demo login bypass failed:', err);
+      setError(err.message || 'Demo login bypass failed. Please try standard sign up/log in.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isConfigured || showSetupGuide) return (
     <div className="relative">
       {showSetupGuide && (
@@ -139,6 +155,15 @@ export const LoginPage = () => {
                 {error}
               </div>
             )}
+
+            <button 
+              type="button"
+              onClick={handleDemoBypass}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-6 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-2xl transition-all font-black text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              ⚡ Explore with Demo Account (Sandbox)
+            </button>
 
             <button 
               type="button"

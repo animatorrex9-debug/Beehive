@@ -6,7 +6,8 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  updateProfile
+  updateProfile,
+  signInAsGuest
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db, isConfigured } from '../../lib/firebase';
@@ -67,31 +68,14 @@ export const SignupPage = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const createdUser = userCredential.user;
 
-      // 2. Update Auth display name
+      // 2. Update Auth display name (this will be used by ensureUserProfile on auth state change)
       await updateProfile(createdUser, { displayName: fullName.trim() });
 
-      // 3. Pre-create firestore document so first-name loading is accurate
-      const userRef = doc(db, 'users', createdUser.uid);
-      await setDoc(userRef, {
-        fullName: fullName.trim(),
-        email: email.toLowerCase().trim(),
-        role: email.toLowerCase().trim() === 'animatorrex9@gmail.com' ? 'admin' : 'user',
-        walletBalance: 0,
-        investmentBalance: 0,
-        grantBalance: 0,
-        savings: 0,
-        activeCards: 1,
-        kycStatus: 'unverified',
-        createdAt: new Date().toISOString(),
-        emailVerified: false,
-        country: '', // This will prompt complete-profile page
-        lastReturnCalculationDate: new Date().toISOString(),
-      }, { merge: true });
-
-      // 4. Send email verification
+      // 3. Send email verification
       await sendEmailVerification(createdUser);
       
       console.log('[Signup] User registered successfully, verification email sent');
+      navigate('/auth/verify-email');
     } catch (err: any) {
       console.error('Email signup error:', err);
       let errMsg = 'Failed to create an account. Please try again.';
@@ -104,13 +88,28 @@ export const SignupPage = () => {
         errMsg = 'The password is too weak. Please choose a stronger password.';
       } else if (err.message) {
         const msg = err.message.toLowerCase();
-        if (msg.includes('rate limit') || msg.includes('45 seconds') || msg.includes('security purposes')) {
+        if (msg.includes('rate limit') || msg.includes('45 seconds') || msg.includes('security purposes') || msg.includes('limit exceeded')) {
           errMsg = 'Verification email limit exceeded. Your account may have been created; please wait 45 seconds and try logging in, or check your email inbox for a confirmation link.';
         } else {
           errMsg = err.message;
         }
       }
       setError(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoBypass = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      console.log('[Signup] Bypassing signup with sandbox demo mode...');
+      await signInAsGuest(auth);
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Demo login bypass failed:', err);
+      setError(err.message || 'Demo login bypass failed. Please try standard sign up/log in.');
     } finally {
       setLoading(false);
     }
@@ -183,11 +182,40 @@ export const SignupPage = () => {
           {/* Action Section */}
           <div className="space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl flex items-center gap-3 text-xs">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
+              <div className="space-y-3">
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 text-amber-800 dark:text-amber-200 p-4 rounded-2xl flex flex-col gap-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-600 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold">Security Cooldown / Rate Limit Active</p>
+                      <p className="text-xs leading-relaxed opacity-90">
+                        {error}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {(error.includes('limit') || error.includes('45 seconds') || error.includes('rate limit')) && (
+                    <button
+                      type="button"
+                      onClick={handleDemoBypass}
+                      disabled={loading}
+                      className="w-full mt-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      ⚡ Skip Signup & Log In with Demo Account
+                    </button>
+                  )}
+                </div>
               </div>
             )}
+
+            <button 
+              type="button"
+              onClick={handleDemoBypass}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-6 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-2xl transition-all font-black text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              ⚡ Explore with Demo Account (Sandbox)
+            </button>
 
             <button 
               type="button"

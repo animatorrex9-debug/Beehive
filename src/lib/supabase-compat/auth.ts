@@ -133,6 +133,46 @@ export async function signInWithEmailAndPassword(auth: AuthCompat, email: string
   return { user: auth.currentUser };
 }
 
+export async function signInAsGuest(auth: AuthCompat) {
+  const guestEmail = 'demo_user@beehive.com';
+  const guestPassword = 'DemoPassword123!';
+  const fullName = 'Demo User';
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: guestEmail,
+      password: guestPassword
+    });
+
+    if (error) {
+      console.log('[Supabase Auth] Demo user not found, attempting auto-creation...');
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: guestEmail,
+        password: guestPassword,
+        options: {
+          data: {
+            full_name: fullName,
+            email_verified: true
+          }
+        }
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+      
+      const user = auth.currentUser || await (auth as any).mapUser(signUpData.user);
+      return { user };
+    }
+
+    const user = auth.currentUser || await (auth as any).mapUser(data.user);
+    return { user };
+  } catch (err) {
+    console.error('[Supabase Auth] Demo login bypass failed:', err);
+    throw err;
+  }
+}
+
 export async function createUserWithEmailAndPassword(auth: AuthCompat, email: string, password: string) {
   try {
     const { data, error } = await supabase.auth.signUp({
