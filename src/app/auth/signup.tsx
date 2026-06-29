@@ -103,7 +103,12 @@ export const SignupPage = () => {
       } else if (code === 'auth/weak-password') {
         errMsg = 'The password is too weak. Please choose a stronger password.';
       } else if (err.message) {
-        errMsg = err.message;
+        const msg = err.message.toLowerCase();
+        if (msg.includes('rate limit') || msg.includes('45 seconds') || msg.includes('security purposes')) {
+          errMsg = 'Verification email limit exceeded. Your account may have been created; please wait 45 seconds and try logging in, or check your email inbox for a confirmation link.';
+        } else {
+          errMsg = err.message;
+        }
       }
       setError(errMsg);
     } finally {

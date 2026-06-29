@@ -171,8 +171,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error('[Auth] Error ensuring user profile:', errorMessage);
-      handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid} (ensureUserProfile)`);
+      console.warn('[Auth] Ignored error during ensureUserProfile (expected if user is not fully verified or session is missing):', errorMessage);
     }
   };
 

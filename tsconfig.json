@@ -18,6 +18,18 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "firebase/app": [
+        "./src/lib/supabase-compat/app.ts"
+      ],
+      "firebase/auth": [
+        "./src/lib/supabase-compat/auth.ts"
+      ],
+      "firebase/firestore": [
+        "./src/lib/supabase-compat/firestore.ts"
+      ],
+      "firebase/storage": [
+        "./src/lib/supabase-compat/storage.ts"
       ]
     },
     "allowImportingTsExtensions": true,

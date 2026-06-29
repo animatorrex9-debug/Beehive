@@ -85,7 +85,7 @@ export const VerifyEmailPage = () => {
       const errCode = err.code || '';
       const errMsg = err.message || '';
       
-      if (errCode === 'auth/too-many-requests' || errMsg.includes('too-many-requests')) msg = 'Too many requests. Please wait a few minutes before trying again.';
+      if (errCode === 'auth/too-many-requests' || errMsg.includes('too-many-requests') || errMsg.toLowerCase().includes('rate limit') || errMsg.toLowerCase().includes('45 seconds') || errMsg.toLowerCase().includes('security purposes')) msg = 'Verification email limit exceeded. Please wait 45 seconds before trying again, or check your spam folder for previous links.';
       else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
       else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. Please check your connection.';
       else msg = errMsg || msg;
