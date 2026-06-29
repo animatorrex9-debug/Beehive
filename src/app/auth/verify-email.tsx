@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, ArrowLeft, RefreshCw, AlertCircle, CheckCircle2, LogOut } from 'lucide-react';
 import { auth, isConfigured } from '../../lib/supabase-service';
 import { sendEmailVerification, signOut } from 'supabase/auth';
@@ -13,6 +13,10 @@ export const VerifyEmailPage = () => {
 
   const { user, reloadUser, userData } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const stateEmail = location.state?.email || '';
+  const isRegistered = location.state?.registered || false;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,10 +32,10 @@ export const VerifyEmailPage = () => {
           navigate('/auth/complete-profile');
         }
       }
-    } else if (!loading) {
+    } else if (!loading && !isRegistered) {
       navigate('/auth/login');
     }
-  }, [user, userData, navigate]);
+  }, [user, userData, navigate, loading, isRegistered]);
 
   // Auto-poll verification status every 4 seconds
   useEffect(() => {
@@ -128,7 +132,7 @@ export const VerifyEmailPage = () => {
             <p className="font-bold mb-1">Didn't receive the email?</p>
             <ul className="list-disc list-inside space-y-1 opacity-80">
               <li>Check your spam or junk folder</li>
-              <li>Verify that <span className="font-bold">{user?.email}</span> is correct</li>
+              <li>Verify that <span className="font-bold">{stateEmail || user?.email || 'your email'}</span> is correct</li>
               <li>Wait a few minutes and try again</li>
             </ul>
           </div>
@@ -148,23 +152,35 @@ export const VerifyEmailPage = () => {
           )}
 
           <div className="space-y-3">
-            <button
-              onClick={handleCheckStatus}
-              disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-3.5 text-base font-bold rounded-2xl"
-            >
-              {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-              I Have Verified My Email
-            </button>
+            {!user ? (
+              <Link
+                to="/auth/login"
+                className="btn-primary w-full flex items-center justify-center gap-2 py-3.5 text-base font-bold rounded-2xl"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Go to Login
+              </Link>
+            ) : (
+              <>
+                <button
+                  onClick={handleCheckStatus}
+                  disabled={loading}
+                  className="btn-primary w-full flex items-center justify-center gap-2 py-3.5 text-base font-bold rounded-2xl"
+                >
+                  {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                  I Have Verified My Email
+                </button>
 
-            <button
-              onClick={handleResend}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 dark:border-zinc-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors font-semibold text-gray-700 dark:text-gray-300"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Resend Verification Email
-            </button>
+                <button
+                  onClick={handleResend}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 dark:border-zinc-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors font-semibold text-gray-700 dark:text-gray-300"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Resend Verification Email
+                </button>
+              </>
+            )}
           </div>
 
           <div className="pt-4 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between">
@@ -176,13 +192,15 @@ export const VerifyEmailPage = () => {
               Back to Login
             </Link>
 
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-red-500 hover:text-red-600 font-bold transition-colors text-sm"
-            >
-              <LogOut className="w-4 h-4" />
-              Log Out
-            </button>
+            {user && (
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-red-500 hover:text-red-600 font-bold transition-colors text-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                Log Out
+              </button>
+            )}
           </div>
         </div>
 

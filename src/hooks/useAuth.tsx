@@ -19,6 +19,7 @@ interface AuthContextType {
   localStatus: string | null;
   setLocalStatus: (status: string | null) => void;
   reloadUser: () => Promise<void>;
+  refreshUserData: () => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -34,7 +35,8 @@ const AuthContext = createContext<AuthContextType>({
   isConfigured: false,
   localStatus: null,
   setLocalStatus: () => {},
-  reloadUser: async () => {} 
+  reloadUser: async () => {},
+  refreshUserData: async () => null
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -188,6 +190,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
     }
+  };
+
+  const refreshUserData = async () => {
+    if (!isConfigured || !auth.currentUser) return null;
+    try {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        console.log(`[Auth] Refreshed user data manually for ${auth.currentUser.uid}:`, {
+          fullName: data.fullName || 'No name',
+          country: data.country || 'MISSING',
+          role: data.role || 'user'
+        });
+        setUserData(data);
+        setIsAdmin(data?.role === 'admin');
+        setIsManager(data?.role === 'manager' || data?.role === 'account_manager');
+        if (data.country) {
+          setCurrencyByCountry(data.country);
+        }
+        return data;
+      }
+    } catch (err) {
+      console.error('[Auth] Error refreshing user data:', err);
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -352,7 +380,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isConfigured, 
       localStatus,
       setLocalStatus,
-      reloadUser 
+      reloadUser,
+      refreshUserData
     }}>
       {children}
     </AuthContext.Provider>

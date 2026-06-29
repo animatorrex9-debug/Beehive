@@ -6,6 +6,15 @@ function isUUID(str: string): boolean {
   return uuidRegex.test(str);
 }
 
+export function enhanceSupabaseError(error: any): Error {
+  if (!error) return new Error('Unknown database error');
+  const message = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+  if (message.toLowerCase().includes('infinite recursion') || error.code === '42P17') {
+    return new Error('Database Error: Infinite recursion detected in your Supabase RLS policies. Please apply the updated "supabase_schema.sql" file in your Supabase SQL Editor to fix this issue.');
+  }
+  return new Error(message);
+}
+
 // 1. References
 export class SupabaseRef {
   constructor(public path: string) {}
@@ -278,8 +287,9 @@ export async function getDoc(docRef: DocumentReference) {
     .maybeSingle();
 
   if (error) {
-    console.error(`[Supabase DB] Error in getDoc on ${table}/${id}:`, error);
-    throw error;
+    const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
+    console.error(`[Supabase DB] Error in getDoc on ${table}/${id}:`, errMsg);
+    throw enhanceSupabaseError(error);
   }
 
   return new DocumentSnapshotCompat(docRef, data, !!data);
@@ -327,8 +337,9 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
 
   const { data, error } = await builder;
   if (error) {
-    console.error(`[Supabase DB] Error in getDocs on ${table}:`, error);
-    throw error;
+    const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
+    console.error(`[Supabase DB] Error in getDocs on ${table}:`, errMsg);
+    throw enhanceSupabaseError(error);
   }
 
   const docs = (data || []).map(row => {
@@ -365,7 +376,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
 
   if (error) {
     console.error(`[Supabase DB] Error adding doc to ${table}:`, error);
-    throw error;
+    throw enhanceSupabaseError(error);
   }
 
   return new DocumentReference(`${collectionRef.path}/${inserted.id}`);
@@ -401,7 +412,7 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
       return;
     }
     console.error(`[Supabase DB] Error setting doc in ${table}:`, error);
-    throw error;
+    throw enhanceSupabaseError(error);
   }
 }
 
@@ -444,7 +455,7 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
 
   if (error) {
     console.error(`[Supabase DB] Error updating ${table}/${id}:`, error);
-    throw error;
+    throw enhanceSupabaseError(error);
   }
 }
 

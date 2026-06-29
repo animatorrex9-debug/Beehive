@@ -78,7 +78,7 @@ export const SignupPage = () => {
       await sendEmailVerification(createdUser);
       
       console.log('[Signup] User registered successfully, verification email sent');
-      navigate('/auth/verify-email');
+      navigate('/auth/verify-email', { state: { email: email.trim(), registered: true } });
     } catch (err: any) {
       console.error('Email signup error:', err);
       let errMsg = 'Failed to create an account. Please try again.';

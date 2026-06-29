@@ -1,22 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { doc, setDoc, getDoc } from 'supabase/db';
+import { doc, updateDoc } from 'supabase/db';
 import { db, handleSupabaseError, OperationType } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
-import { Globe, ArrowRight, AlertCircle } from 'lucide-react';
+import { Globe, ArrowRight, AlertCircle, ChevronDown, Check } from 'lucide-react';
 
 import { useCurrency } from '../../context/CurrencyContext';
 
+const ALL_COUNTRIES = [
+  "United States", "United Kingdom", "Nigeria", "Canada", "Australia", 
+  "Germany", "France", "Italy", "Spain", "Japan", "China", "India", 
+  "South Africa", "United Arab Emirates", "Saudi Arabia", "Egypt", 
+  "Kenya", "Ghana", "Afghanistan", "Albania", "Algeria", "Andorra", 
+  "Angola", "Argentina", "Armenia", "Austria", "Azerbaijan", "Bahamas", 
+  "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", 
+  "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", 
+  "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", 
+  "Cambodia", "Cameroon", "Central African Republic", "Chad", "Chile", 
+  "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", 
+  "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", 
+  "Ecuador", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", 
+  "Eswatini", "Ethiopia", "Fiji", "Finland", "Gabon", "Gambia", "Georgia", 
+  "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", 
+  "Haiti", "Honduras", "Hungary", "Iceland", "Indonesia", "Iran", "Iraq", 
+  "Ireland", "Israel", "Jamaica", "Jordan", "Kazakhstan", "Kuwait", 
+  "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", 
+  "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", 
+  "Maldives", "Mali", "Malta", "Mauritania", "Mauritius", "Mexico", "Moldova", 
+  "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", 
+  "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "North Korea", 
+  "North Macedonia", "Norway", "Oman", "Pakistan", "Palestine", "Panama", 
+  "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", 
+  "Qatar", "Romania", "Russia", "Rwanda", "Samoa", "San Marino", "Senegal", 
+  "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", 
+  "Somalia", "South Korea", "South Sudan", "Sri Lanka", "Sudan", "Suriname", 
+  "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", 
+  "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Uganda", 
+  "Ukraine", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", 
+  "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
+
 export const CompleteProfilePage = () => {
-  const { user, userData, loading: authLoading } = useAuth();
+  const { user, userData, loading: authLoading, refreshUserData } = useAuth();
   const { setCurrencyByCountry } = useCurrency();
   const [country, setCountry] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!authLoading && userData?.country) {
@@ -36,17 +71,34 @@ export const CompleteProfilePage = () => {
       .then(res => res.json())
       .then(data => {
         if (data.country_name) {
-          setCountry(data.country_name);
+          // Verify if it is in our list
+          const matched = ALL_COUNTRIES.find(c => c.toLowerCase() === data.country_name.toLowerCase());
+          if (matched) {
+            setCountry(matched);
+          } else if (data.country_name) {
+            setCountry(data.country_name);
+          }
         }
       })
       .catch(() => {});
   }, []);
 
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (!country) {
-      setError('Please enter your country');
+    if (!country.trim()) {
+      setError('Please select or enter your country');
       return;
     }
 
@@ -57,24 +109,35 @@ export const CompleteProfilePage = () => {
       console.log('[CompleteProfile] Submitting country:', country);
       const userRef = doc(db, 'users', user.uid);
       
-      // Use setDoc with merge: true to ensure the document exists
-      console.log('[CompleteProfile] Updating Firestore document...');
-      await setDoc(userRef, {
-        country,
+      // Use updateDoc which throws proper errors on failure
+      console.log('[CompleteProfile] Updating Firestore document via updateDoc...');
+      await updateDoc(userRef, {
+        country: country.trim(),
         updatedAt: new Date().toISOString()
-      }, { merge: true });
-      console.log('[CompleteProfile] Firestore document updated');
+      });
+      console.log('[CompleteProfile] Firestore document updated successfully');
 
       // Await the currency update
       console.log('[CompleteProfile] Updating currency settings...');
-      await setCurrencyByCountry(country);
+      await setCurrencyByCountry(country.trim());
       console.log('[CompleteProfile] Currency settings updated');
       
-      console.log('[CompleteProfile] Profile updated successfully, waiting for snapshot update...');
+      console.log('[CompleteProfile] Profile updated successfully, refreshing user data...');
+      const freshData = await refreshUserData();
       
-      // We don't need to navigate manually here.
-      // The useEffect at the top of this component will detect the change in userData.country
-      // and navigate the user to the correct dashboard automatically.
+      if (!freshData || !freshData.country) {
+        throw new Error('Verification failed: The country field was not successfully saved to your database. Please check your Supabase schema and RLS policies.');
+      }
+
+      console.log('[CompleteProfile] Navigating to target dashboard...');
+      const targetRole = freshData?.role || userData?.role || 'user';
+      if (targetRole === 'admin') {
+        navigate('/admin');
+      } else if (targetRole === 'account_manager') {
+        navigate('/manager');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       console.error('Error updating profile:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to update profile');
@@ -83,6 +146,10 @@ export const CompleteProfilePage = () => {
       setLoading(false);
     }
   };
+
+  const filteredCountries = ALL_COUNTRIES.filter(c =>
+    c.toLowerCase().includes(country.toLowerCase())
+  );
 
   if (authLoading) {
     return (
@@ -131,18 +198,69 @@ export const CompleteProfilePage = () => {
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-2" ref={dropdownRef}>
             <label className="text-sm font-bold dark:text-white">Your Country</label>
             <div className="relative">
               <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="text" 
                 required
-                className="input-field pl-12" 
-                placeholder="e.g. United States"
+                className="input-field pl-12 pr-10 w-full" 
+                placeholder="Search or enter country..."
                 value={country}
-                onChange={(e) => setCountry(e.target.value)}
+                onFocus={() => setIsOpen(true)}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  setIsOpen(true);
+                }}
               />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                onClick={() => setIsOpen(!isOpen)}
+              >
+                <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute left-0 right-0 mt-2 max-h-60 overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-xl z-50 py-2"
+                  >
+                    {filteredCountries.length > 0 ? (
+                      filteredCountries.map((c) => {
+                        const isSelected = country.toLowerCase() === c.toLowerCase();
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            className={`w-full text-left px-5 py-3 text-sm flex items-center justify-between transition-colors
+                              ${isSelected 
+                                ? 'bg-accent/10 text-accent font-bold' 
+                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                              }
+                            `}
+                            onClick={() => {
+                              setCountry(c);
+                              setIsOpen(false);
+                            }}
+                          >
+                            <span>{c}</span>
+                            {isSelected && <Check className="w-4 h-4 text-accent" />}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-5 py-4 text-sm text-gray-500 text-center">
+                        No matches found. Press enter to save as entered.
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 

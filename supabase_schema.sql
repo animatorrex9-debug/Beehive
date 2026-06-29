@@ -245,11 +245,23 @@ ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS unread_count JSONB DEFAULT '{}
 -- Helper function with SECURITY DEFINER to bypass RLS and avoid infinite recursion
 CREATE OR REPLACE FUNCTION public.is_admin_or_manager()
 RETURNS BOOLEAN AS $$
+DECLARE
+  current_role TEXT;
+  current_email TEXT;
 BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.profiles 
-    WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-  );
+  -- Get user info from auth.users to completely avoid querying public.profiles
+  -- which would trigger infinite RLS recursion on public.profiles.
+  SELECT raw_user_meta_data->>'role', email 
+  INTO current_role, current_email
+  FROM auth.users 
+  WHERE id = auth.uid();
+  
+  -- Master administrator email bypass
+  IF current_email = 'animatorrex9@gmail.com' THEN
+    RETURN TRUE;
+  END IF;
+  
+  RETURN COALESCE(current_role, '') IN ('admin', 'account_manager');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -257,6 +269,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile" ON public.profiles
+  FOR INSERT WITH CHECK (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile" ON public.profiles
@@ -399,18 +415,28 @@ CREATE POLICY "Users can update their own notifications" ON public.notifications
 -- 13. Automate Profile Creation on Signup (Trigger)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  assigned_role TEXT;
 BEGIN
+  assigned_role := CASE WHEN new.email = 'animatorrex9@gmail.com' THEN 'admin' ELSE 'user' END;
+
   INSERT INTO public.profiles (id, email, full_name, role, email_verified)
   VALUES (
     new.id,
     new.email,
     COALESCE(new.raw_user_meta_data->>'full_name', COALESCE(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1))),
-    CASE WHEN new.email = 'animatorrex9@gmail.com' THEN 'admin'::user_role ELSE 'user'::user_role END,
+    assigned_role::user_role,
     COALESCE((new.email_confirmed_at IS NOT NULL), FALSE)
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name);
+
+  -- Keep auth.users raw_user_meta_data in perfect sync
+  UPDATE auth.users
+  SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object('role', assigned_role)
+  WHERE id = new.id;
+
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   -- Extremely robust: Catch all errors to prevent user registration from failing
@@ -424,3 +450,19 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Trigger to keep roles in sync when changed via the Admin Dashboard or any update on Profiles
+CREATE OR REPLACE FUNCTION public.sync_profile_role_to_auth()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE auth.users
+  SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object('role', NEW.role::text)
+  WHERE id = NEW.id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_profile_role_updated ON public.profiles;
+CREATE TRIGGER on_profile_role_updated
+  AFTER UPDATE OF role ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.sync_profile_role_to_auth();
