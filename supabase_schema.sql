@@ -63,7 +63,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   bank_details JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  email_verified BOOLEAN DEFAULT FALSE
+  email_verified BOOLEAN DEFAULT FALSE,
+  id_card_front_image TEXT DEFAULT '',
+  id_card_back_image TEXT DEFAULT '',
+  face_image TEXT DEFAULT '',
+  id_card_image TEXT DEFAULT '',
+  kyc_submitted_at TEXT DEFAULT '',
+  rejection_reason TEXT DEFAULT '',
+  kyc_reviewed_at TEXT DEFAULT '',
+  kyc_reviewed_by TEXT DEFAULT ''
 );
 
 -- Enable Row Level Security (RLS)
@@ -466,3 +474,14 @@ DROP TRIGGER IF EXISTS on_profile_role_updated ON public.profiles;
 CREATE TRIGGER on_profile_role_updated
   AFTER UPDATE OF role ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.sync_profile_role_to_auth();
+
+-- 14. Retroactively add columns to public.profiles if they don't exist for existing users' database schemas
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_card_front_image TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_card_back_image TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS face_image TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_card_image TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_submitted_at TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_reviewed_at TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT '';
+

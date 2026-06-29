@@ -180,7 +180,9 @@ const VALID_COLUMNS: Record<string, string[]> = {
     'address', 'address2', 'dob', 'ssn', 'employment_status', 'employer_name', 
     'job_title', 'monthly_income', 'marital_status', 'state_of_origin', 'sentry', 
     'last_return_calculation_date', 'credit_cards', 'bank_accounts', 'card_details', 
-    'bank_details', 'created_at', 'updated_at', 'email_verified'
+    'bank_details', 'created_at', 'updated_at', 'email_verified',
+    'id_card_front_image', 'id_card_back_image', 'face_image', 'id_card_image',
+    'kyc_submitted_at', 'rejection_reason', 'kyc_reviewed_at', 'kyc_reviewed_by'
   ],
   loans: [
     'id', 'user_id', 'amount', 'purpose', 'status', 'bank_details', 'additional_details', 
