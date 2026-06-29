@@ -3,8 +3,8 @@ import { RefreshCw, ArrowRightLeft, CheckCircle2, AlertCircle } from 'lucide-rea
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { db } from '../../../lib/firebase';
-import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { doc, updateDoc, collection, addDoc, increment } from 'supabase/db';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 

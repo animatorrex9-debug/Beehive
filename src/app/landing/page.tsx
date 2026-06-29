@@ -33,7 +33,7 @@ import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useAuth } from '../../hooks/useAuth';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../lib/supabase-service';
 import { CharityTab } from './CharityTab';
 import { LoansTab } from './LoansTab';
 

@@ -3,8 +3,8 @@ import { FileCheck, Send, CheckCircle2, AlertCircle, Calculator, Info, ShieldChe
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { db } from '../../../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { collection, addDoc } from 'supabase/db';
 
 export const TaxPage = () => {
   const { user, userData } = useAuth();

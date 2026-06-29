@@ -3,8 +3,8 @@ import { Heart, Send, CheckCircle2, AlertCircle, Globe, Leaf, GraduationCap, Act
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { db } from '../../../lib/firebase';
-import { collection, addDoc, doc, updateDoc, increment, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { collection, addDoc, doc, updateDoc, increment, query, where, onSnapshot, orderBy, limit } from 'supabase/db';
 import { useEffect } from 'react';
 
 export const CharityPage = () => {

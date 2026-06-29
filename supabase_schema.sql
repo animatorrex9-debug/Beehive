@@ -242,6 +242,17 @@ ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS unread_count JSONB DEFAULT '{}
 
 -- 12. Row Level Security (RLS) Policies
 
+-- Helper function with SECURITY DEFINER to bypass RLS and avoid infinite recursion
+CREATE OR REPLACE FUNCTION public.is_admin_or_manager()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles 
+    WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Profiles Policies
 DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile" ON public.profiles
@@ -253,21 +264,11 @@ CREATE POLICY "Users can update their own profile" ON public.profiles
 
 DROP POLICY IF EXISTS "Admins and managers can view all profiles" ON public.profiles;
 CREATE POLICY "Admins and managers can view all profiles" ON public.profiles
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR SELECT USING (public.is_admin_or_manager());
 
 DROP POLICY IF EXISTS "Admins and managers can update all profiles" ON public.profiles;
 CREATE POLICY "Admins and managers can update all profiles" ON public.profiles
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR UPDATE USING (public.is_admin_or_manager());
 
 -- Loans Policies
 DROP POLICY IF EXISTS "Users can view their own loans" ON public.loans;
@@ -284,12 +285,7 @@ CREATE POLICY "Users can update their own loans" ON public.loans
 
 DROP POLICY IF EXISTS "Admins and managers can manage all loans" ON public.loans;
 CREATE POLICY "Admins and managers can manage all loans" ON public.loans
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR ALL USING (public.is_admin_or_manager());
 
 -- Transactions Policies
 DROP POLICY IF EXISTS "Users can view their own transactions" ON public.transactions;
@@ -302,12 +298,7 @@ CREATE POLICY "Users can insert their own transactions" ON public.transactions
 
 DROP POLICY IF EXISTS "Admins and managers can view all transactions" ON public.transactions;
 CREATE POLICY "Admins and managers can view all transactions" ON public.transactions
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR SELECT USING (public.is_admin_or_manager());
 
 -- Chats Policies
 DROP POLICY IF EXISTS "Users can view their own chats" ON public.chats;
@@ -320,12 +311,7 @@ CREATE POLICY "Users can post to their own chats" ON public.chats
 
 DROP POLICY IF EXISTS "Admins and managers can manage all chats" ON public.chats;
 CREATE POLICY "Admins and managers can manage all chats" ON public.chats
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR ALL USING (public.is_admin_or_manager());
 
 -- Messages Policies
 DROP POLICY IF EXISTS "Users can view messages in their chats" ON public.messages;
@@ -334,10 +320,7 @@ CREATE POLICY "Users can view messages in their chats" ON public.messages
     EXISTS (
       SELECT 1 FROM public.chats 
       WHERE id = chat_id AND (user_id = auth.uid() OR participants @> ARRAY[auth.uid()])
-    ) OR EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
+    ) OR public.is_admin_or_manager()
   );
 
 DROP POLICY IF EXISTS "Users can insert messages in their chats" ON public.messages;
@@ -347,10 +330,7 @@ CREATE POLICY "Users can insert messages in their chats" ON public.messages
       EXISTS (
         SELECT 1 FROM public.chats 
         WHERE id = chat_id AND (user_id = auth.uid() OR participants @> ARRAY[auth.uid()])
-      ) OR EXISTS (
-        SELECT 1 FROM public.profiles 
-        WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-      )
+      ) OR public.is_admin_or_manager()
     )
   );
 
@@ -365,12 +345,7 @@ CREATE POLICY "Users can insert their own tax refunds" ON public.tax_refunds
 
 DROP POLICY IF EXISTS "Admins and managers can manage all tax refunds" ON public.tax_refunds;
 CREATE POLICY "Admins and managers can manage all tax refunds" ON public.tax_refunds
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR ALL USING (public.is_admin_or_manager());
 
 -- Grants Policies
 DROP POLICY IF EXISTS "Users can view their own grants" ON public.grants;
@@ -383,12 +358,7 @@ CREATE POLICY "Users can insert their own grants" ON public.grants
 
 DROP POLICY IF EXISTS "Admins and managers can manage all grants" ON public.grants;
 CREATE POLICY "Admins and managers can manage all grants" ON public.grants
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR ALL USING (public.is_admin_or_manager());
 
 -- Tax Filings Policies
 DROP POLICY IF EXISTS "Users can view their own tax filings" ON public.tax_filings;
@@ -401,12 +371,7 @@ CREATE POLICY "Users can insert their own tax filings" ON public.tax_filings
 
 DROP POLICY IF EXISTS "Admins and managers can manage all tax filings" ON public.tax_filings;
 CREATE POLICY "Admins and managers can manage all tax filings" ON public.tax_filings
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'account_manager')
-    )
-  );
+  FOR ALL USING (public.is_admin_or_manager());
 
 -- Donations Policies
 DROP POLICY IF EXISTS "Users can view their own donations" ON public.donations;

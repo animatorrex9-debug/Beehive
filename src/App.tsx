@@ -40,7 +40,7 @@ import { ManagerLayout } from './components/manager/ManagerLayout';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
 import { CurrencyProvider } from './context/CurrencyContext';
-import { FirebaseSetupGuide } from './components/FirebaseSetupGuide';
+import { SupabaseSetupGuide } from './components/SupabaseSetupGuide';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import { LoadingLogo } from './components/LoadingLogo';
@@ -48,7 +48,7 @@ import { LoadingLogo } from './components/LoadingLogo';
 const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }: { children: React.ReactNode, adminOnly?: boolean, managerOnly?: boolean }) => {
   const { user, loading, isAdmin, userData, emailVerified, isConfigured } = useAuth();
 
-  if (!isConfigured) return <FirebaseSetupGuide />;
+  if (!isConfigured) return <SupabaseSetupGuide />;
 
   if (loading) return (
     <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-primary">

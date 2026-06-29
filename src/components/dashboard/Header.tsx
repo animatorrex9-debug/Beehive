@@ -4,7 +4,7 @@ import { NotificationCenter } from './NotificationCenter';
 import { useAuth } from '../../hooks/useAuth';
 
 import { LogOut } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../lib/supabase-service';
 import { useNavigate } from 'react-router-dom';
 
 export const Header: React.FC = () => {

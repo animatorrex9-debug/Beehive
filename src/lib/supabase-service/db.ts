@@ -7,7 +7,7 @@ function isUUID(str: string): boolean {
 }
 
 // 1. References
-export class FirestoreRef {
+export class SupabaseRef {
   constructor(public path: string) {}
   get id() {
     const parts = this.path.split('/').filter(Boolean);
@@ -15,8 +15,8 @@ export class FirestoreRef {
   }
 }
 
-export class DocumentReference extends FirestoreRef {}
-export class CollectionReference extends FirestoreRef {}
+export class DocumentReference extends SupabaseRef {}
+export class CollectionReference extends SupabaseRef {}
 
 export function collection(db: any, ...parts: string[]) {
   const path = parts.join('/');
@@ -134,7 +134,7 @@ function toSnakeCase(str: string): string {
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
-function mapRowToFirestore(row: any): any {
+function mapRowToSupabase(row: any): any {
   if (!row) return row;
   const res: any = {};
   for (const key of Object.keys(row)) {
@@ -144,7 +144,7 @@ function mapRowToFirestore(row: any): any {
   return res;
 }
 
-function mapFirestoreToRow(data: any): any {
+function mapSupabaseToRow(data: any): any {
   if (!data) return data;
   const res: any = {};
   for (const key of Object.keys(data)) {
@@ -233,7 +233,7 @@ export class DocumentSnapshotCompat {
   }
 
   data() {
-    return this._exists ? mapRowToFirestore(this._data) : undefined;
+    return this._exists ? mapRowToSupabase(this._data) : undefined;
   }
 
   get id() {
@@ -248,7 +248,7 @@ export class QueryDocumentSnapshotCompat {
   ) {}
 
   data() {
-    return mapRowToFirestore(this._data);
+    return mapRowToSupabase(this._data);
   }
 
   get id() {
@@ -269,7 +269,7 @@ export class QuerySnapshotCompat {
 
 export async function getDoc(docRef: DocumentReference) {
   const { table, id } = parsePath(docRef.path);
-  if (!id) throw new Error('[Supabase Firestore Compat] Cannot get doc without ID.');
+  if (!id) throw new Error('[Supabase DB] Cannot get doc without ID.');
 
   const { data, error } = await supabase
     .from(table)
@@ -278,7 +278,7 @@ export async function getDoc(docRef: DocumentReference) {
     .maybeSingle();
 
   if (error) {
-    console.error(`[Supabase Firestore Compat] Error in getDoc on ${table}/${id}:`, error);
+    console.error(`[Supabase DB] Error in getDoc on ${table}/${id}:`, error);
     throw error;
   }
 
@@ -327,7 +327,7 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
 
   const { data, error } = await builder;
   if (error) {
-    console.error(`[Supabase Firestore Compat] Error in getDocs on ${table}:`, error);
+    console.error(`[Supabase DB] Error in getDocs on ${table}:`, error);
     throw error;
   }
 
@@ -354,7 +354,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     }
   }
 
-  const row = mapFirestoreToRow(mergedData);
+  const row = mapSupabaseToRow(mergedData);
   const filteredRow = filterColumns(row, table);
 
   const { data: inserted, error } = await supabase
@@ -364,7 +364,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     .single();
 
   if (error) {
-    console.error(`[Supabase Firestore Compat] Error adding doc to ${table}:`, error);
+    console.error(`[Supabase DB] Error adding doc to ${table}:`, error);
     throw error;
   }
 
@@ -373,7 +373,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
 
 export async function setDoc(docRef: DocumentReference, data: any, options?: { merge?: boolean }) {
   const { table, id, parentId, parentField } = parsePath(docRef.path);
-  if (!id) throw new Error('[Supabase Firestore Compat] Cannot set doc without ID.');
+  if (!id) throw new Error('[Supabase DB] Cannot set doc without ID.');
 
   const mergedData = { ...data };
   if (parentId && parentField) {
@@ -388,7 +388,7 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
     }
   }
 
-  const row = mapFirestoreToRow(mergedData);
+  const row = mapSupabaseToRow(mergedData);
   const filteredRow = filterColumns(row, table);
 
   const { error } = await supabase
@@ -397,17 +397,17 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
 
   if (error) {
     if (table === 'profiles') {
-      console.warn(`[Supabase Firestore Compat] Profile upsert error was caught and ignored (this is normal if RLS requires session which is pending verification):`, error);
+      console.warn(`[Supabase DB] Profile upsert error was caught and ignored (expected behavior during initial signup sync):`, error);
       return;
     }
-    console.error(`[Supabase Firestore Compat] Error setting doc in ${table}:`, error);
+    console.error(`[Supabase DB] Error setting doc in ${table}:`, error);
     throw error;
   }
 }
 
 export async function updateDoc(docRef: DocumentReference, data: any) {
   const { table, id } = parsePath(docRef.path);
-  if (!id) throw new Error('[Supabase Firestore Compat] Cannot update doc without ID.');
+  if (!id) throw new Error('[Supabase DB] Cannot update doc without ID.');
 
   // Fetch current to resolve increments and arrayUnion
   const { data: current } = await supabase
@@ -416,7 +416,7 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     .eq('id', id)
     .maybeSingle();
 
-  const currentCamel = current ? mapRowToFirestore(current) : {};
+  const currentCamel = current ? mapRowToSupabase(current) : {};
 
   const mergedData: any = {};
   for (const key of Object.keys(data)) {
@@ -434,7 +434,7 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     }
   }
 
-  const row = mapFirestoreToRow(mergedData);
+  const row = mapSupabaseToRow(mergedData);
   const filteredRow = filterColumns(row, table);
 
   const { error } = await supabase
@@ -443,7 +443,7 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     .eq('id', id);
 
   if (error) {
-    console.error(`[Supabase Firestore Compat] Error updating ${table}/${id}:`, error);
+    console.error(`[Supabase DB] Error updating ${table}/${id}:`, error);
     throw error;
   }
 }
@@ -477,7 +477,7 @@ export function onSnapshot(
   run();
 
   const channel = supabase
-    .channel(`compat-onSnapshot-${targetRef.path}-${Math.random()}`)
+    .channel(`supabase-onSnapshot-${targetRef.path}-${Math.random()}`)
     .on(
       'postgres_changes',
       {
@@ -522,8 +522,8 @@ export function writeBatch(db: any) {
   return new WriteBatchCompat();
 }
 
-// 7. Dummy Firestore Root DB
-export const dbInstance = { name: '[Supabase Firestore Compat DB]' };
+// 7. Supabase Database Instance
+export const dbInstance = { name: '[Supabase Database]' };
 
 export function getFirestore(app?: any) {
   return dbInstance;

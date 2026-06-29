@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { doc, updateDoc, arrayUnion } from 'supabase/db';
+import { db } from '../../../lib/supabase-service';
 
 export default function SettingsPage() {
   const { userData, user } = useAuth();
@@ -797,7 +797,7 @@ export default function SettingsPage() {
                       </div>
                       <button 
                         onClick={() => {
-                          import('firebase/auth').then(({ getAuth, signOut }) => {
+                          import('supabase/auth').then(({ getAuth, signOut }) => {
                             signOut(getAuth());
                           });
                         }}

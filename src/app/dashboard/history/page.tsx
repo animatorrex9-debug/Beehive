@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { db } from '../../../lib/firebase';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { collection, query, where, orderBy, getDocs } from 'supabase/db';
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 

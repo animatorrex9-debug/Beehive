@@ -19,17 +19,17 @@
       "@/*": [
         "./*"
       ],
-      "firebase/app": [
-        "./src/lib/supabase-compat/app.ts"
+      "supabase/app": [
+        "./src/lib/supabase-service/app.ts"
       ],
-      "firebase/auth": [
-        "./src/lib/supabase-compat/auth.ts"
+      "supabase/auth": [
+        "./src/lib/supabase-service/auth.ts"
       ],
-      "firebase/firestore": [
-        "./src/lib/supabase-compat/firestore.ts"
+      "supabase/db": [
+        "./src/lib/supabase-service/db.ts"
       ],
-      "firebase/storage": [
-        "./src/lib/supabase-compat/storage.ts"
+      "supabase/storage": [
+        "./src/lib/supabase-service/storage.ts"
       ]
     },
     "allowImportingTsExtensions": true,

@@ -4,8 +4,8 @@ import { ArrowDownCircle, Banknote, CreditCard, QrCode, CheckCircle2, AlertCircl
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../context/CurrencyContext';
-import { db } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, arrayUnion } from 'supabase/db';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 

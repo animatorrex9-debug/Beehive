@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { doc, setDoc, getDoc } from 'supabase/db';
+import { db, handleSupabaseError, OperationType } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
@@ -78,7 +78,7 @@ export const CompleteProfilePage = () => {
     } catch (err: any) {
       console.error('Error updating profile:', err instanceof Error ? err.message : String(err));
       setError(err.message || 'Failed to update profile');
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+      handleSupabaseError(err, OperationType.UPDATE, `users/${user.uid}`);
     } finally {
       setLoading(false);
     }

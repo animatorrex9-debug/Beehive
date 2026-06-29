@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, updateDoc, onSnapshot } from 'supabase/db';
+import { db } from '../lib/supabase-service';
 import { safeStringify } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 

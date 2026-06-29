@@ -3,8 +3,8 @@ import { motion } from 'motion/react';
 import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, CreditCard, History, RefreshCw, ArrowRightLeft, TrendingUp, TrendingDown, AlertCircle, X, Clock } from 'lucide-react';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useAuth } from '../../../hooks/useAuth';
-import { db, handleFirestoreError, OperationType } from '../../../lib/firebase';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from 'supabase/db';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 

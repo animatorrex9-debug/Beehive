@@ -12,8 +12,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { db } from '../../../lib/firebase';
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'supabase/db';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 
 const STEPS = [

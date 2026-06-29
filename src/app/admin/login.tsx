@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, isConfigured } from '../../lib/firebase';
+import { signInWithEmailAndPassword, signOut } from 'supabase/auth';
+import { doc, getDoc } from 'supabase/db';
+import { auth, db, isConfigured } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
-import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
+import { SupabaseSetupGuide } from '../../components/SupabaseSetupGuide';
 import { Mail, Lock, AlertCircle, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 export const AdminLoginPage = () => {
@@ -64,7 +64,7 @@ export const AdminLoginPage = () => {
       else if (errCode === 'auth/wrong-password' || errMsg.includes('wrong-password')) msg = 'Incorrect password.';
       else if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) msg = 'Invalid email or password.';
       else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) {
-        msg = 'Network error. This is often caused by incorrect Firebase configuration or missing Authorized Domains.';
+        msg = 'Network error. This is often caused by incorrect Supabase configuration or missing Authorized Redirect URLs.';
         setShowSetupGuide(true);
       }
       else msg = errMsg || msg;
@@ -86,7 +86,7 @@ export const AdminLoginPage = () => {
           Back to Admin Login
         </button>
       )}
-      <FirebaseSetupGuide />
+      <SupabaseSetupGuide />
     </div>
   );
   

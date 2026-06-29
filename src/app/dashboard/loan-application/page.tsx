@@ -10,8 +10,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { db } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'supabase/db';
 import { useCurrency } from '../../../hooks/useCurrency';
 
 export const LoanApplicationPage = () => {

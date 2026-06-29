@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { CreditCard, Plus, Shield, Eye, Settings, EyeOff, Lock, Unlock, CheckCircle2, AlertCircle, X, MessageSquare } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
-import { db } from '../../../lib/firebase';
-import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { doc, updateDoc, collection, addDoc, increment } from 'supabase/db';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const CardsPage = () => {

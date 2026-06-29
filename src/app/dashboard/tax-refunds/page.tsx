@@ -19,8 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { db, handleFirestoreError, OperationType } from '../../../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
+import { collection, addDoc } from 'supabase/db';
 
 export const TaxRefundsPage = () => {
   const { user, userData } = useAuth();

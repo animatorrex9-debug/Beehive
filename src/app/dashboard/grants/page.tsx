@@ -24,8 +24,8 @@ import { useNavigate } from 'react-router-dom';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { db } from '../../../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../../../lib/supabase-service';
+import { collection, addDoc } from 'supabase/db';
 
 export const GrantsPage = () => {
   const { user, userData } = useAuth();

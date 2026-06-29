@@ -6,15 +6,14 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  updateProfile,
-  signInAsGuest
-} from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db, isConfigured } from '../../lib/firebase';
+  updateProfile
+} from 'supabase/auth';
+import { doc, setDoc } from 'supabase/db';
+import { auth, db, isConfigured } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
-import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
+import { SupabaseSetupGuide } from '../../components/SupabaseSetupGuide';
 import { ArrowLeft, AlertCircle, ShieldCheck, User, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 export const SignupPage = () => {
@@ -43,6 +42,10 @@ export const SignupPage = () => {
         } else {
           navigate('/dashboard');
         }
+      } else {
+        // If user is authenticated but userData is still loading/null, redirect to complete-profile
+        // as a safe transition stage (which redirects to dashboard once userData loads if country is present).
+        navigate('/auth/complete-profile');
       }
     }
   }, [user, userData, isAdmin, authLoading, navigate]);
@@ -64,7 +67,7 @@ export const SignupPage = () => {
     setLoading(true);
 
     try {
-      // 1. Create firebase user
+      // 1. Create Supabase user
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const createdUser = userCredential.user;
 
@@ -100,21 +103,6 @@ export const SignupPage = () => {
     }
   };
 
-  const handleDemoBypass = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      console.log('[Signup] Bypassing signup with sandbox demo mode...');
-      await signInAsGuest(auth);
-      navigate('/dashboard');
-    } catch (err: any) {
-      console.error('Demo login bypass failed:', err);
-      setError(err.message || 'Demo login bypass failed. Please try standard sign up/log in.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleGoogleSignup = async () => {
     setLoading(true);
     setError('');
@@ -140,7 +128,7 @@ export const SignupPage = () => {
           Back to Signup
         </button>
       )}
-      <FirebaseSetupGuide />
+      <SupabaseSetupGuide />
     </div>
   );
 
@@ -193,29 +181,9 @@ export const SignupPage = () => {
                       </p>
                     </div>
                   </div>
-                  
-                  {(error.includes('limit') || error.includes('45 seconds') || error.includes('rate limit')) && (
-                    <button
-                      type="button"
-                      onClick={handleDemoBypass}
-                      disabled={loading}
-                      className="w-full mt-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                      ⚡ Skip Signup & Log In with Demo Account
-                    </button>
-                  )}
                 </div>
               </div>
             )}
-
-            <button 
-              type="button"
-              onClick={handleDemoBypass}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-6 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-2xl transition-all font-black text-base shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50"
-            >
-              ⚡ Explore with Demo Account (Sandbox)
-            </button>
 
             <button 
               type="button"

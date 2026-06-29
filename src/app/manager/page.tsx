@@ -17,8 +17,8 @@ import {
   query, 
   where, 
   onSnapshot, 
-} from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+} from 'supabase/db';
+import { db } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrency, getCurrencyByCountry, CurrencyInfo } from '../../context/CurrencyContext';
 import { motion } from 'motion/react';

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { ThemeToggle } from '../ThemeToggle';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 
 export const ManagerSidebar: React.FC = () => {

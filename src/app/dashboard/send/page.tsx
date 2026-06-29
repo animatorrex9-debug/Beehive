@@ -3,8 +3,8 @@ import { ArrowUpCircle, User, Globe, Hash, CheckCircle2, AlertCircle, Landmark, 
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../context/CurrencyContext';
-import { db, handleFirestoreError, OperationType } from '../../../lib/firebase';
-import { doc, updateDoc, collection, addDoc, increment, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
+import { doc, updateDoc, collection, addDoc, increment, serverTimestamp, query, where, orderBy, limit, getDocs } from 'supabase/db';
 import { motion, AnimatePresence } from 'motion/react';
 
 type TransferType = 'beehive' | 'local' | 'international' | 'thirdparty';

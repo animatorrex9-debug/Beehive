@@ -13,11 +13,10 @@ import {
   ArrowRight,
   ChevronRight
 } from 'lucide-react';
-import { db } from '../../../lib/firebase';
-import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from 'firebase/firestore';
+import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
+import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from 'supabase/db';
 import { safeStringify } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
-import { handleFirestoreError, OperationType } from '../../../lib/firebase';
 import { LoadingLogo } from '../../../components/LoadingLogo';
 
 export const LoanStatusPage = () => {

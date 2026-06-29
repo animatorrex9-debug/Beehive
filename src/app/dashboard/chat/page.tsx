@@ -19,7 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { db } from '../../../lib/firebase';
+import { db } from '../../../lib/supabase-service';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 import { 
   collection, 
@@ -35,10 +35,10 @@ import {
   updateDoc,
   getDocs,
   limit
-} from 'firebase/firestore';
+} from 'supabase/db';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { handleFirestoreError, OperationType } from '../../../lib/firebase';
+import { handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
 import { LoadingLogo } from '../../../components/LoadingLogo';
 
 export const ChatPage = () => {

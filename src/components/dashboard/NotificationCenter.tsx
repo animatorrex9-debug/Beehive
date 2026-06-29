@@ -10,8 +10,8 @@ import {
   updateDoc, 
   writeBatch,
   getDocs
-} from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+} from 'supabase/db';
+import { db } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 
 interface Notification {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy } from 'supabase/db';
+import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { CurrencyInfo, getCurrencyByCountry, DEFAULT_CURRENCY } from '../../context/CurrencyContext';
 import { Logo } from '../../components/Logo';
@@ -42,7 +42,7 @@ import {
   Image as ImageIcon,
   CreditCard
 } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../lib/supabase-service';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';

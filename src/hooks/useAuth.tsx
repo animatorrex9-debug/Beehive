@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc, onSnapshot, query, collection, where, getDocs, setDoc, limit } from 'firebase/firestore';
-import { auth, db, isConfigured, handleFirestoreError, OperationType } from '../lib/firebase';
+import { onAuthStateChanged, User } from 'supabase/auth';
+import { doc, getDoc, updateDoc, onSnapshot, query, collection, where, getDocs, setDoc, limit } from 'supabase/db';
+import { auth, db, isConfigured, handleSupabaseError as handleFirestoreError, OperationType } from '../lib/supabase-service';
 
 import { useCurrency } from '../context/CurrencyContext';
 
@@ -108,45 +108,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [activeLoan?.status, localStatus]);
 
-  const ensureUserProfile = async (firebaseUser: User) => {
+  const ensureUserProfile = async (authUser: User) => {
     if (!isConfigured) return;
     
     try {
-      const userRef = doc(db, 'users', firebaseUser.uid);
+      const userRef = doc(db, 'users', authUser.uid);
       const userDoc = await getDoc(userRef);
-      const userEmail = firebaseUser.email?.toLowerCase().trim() || '';
+      const userEmail = authUser.email?.toLowerCase().trim() || '';
       
       if (!userDoc.exists()) {
-        console.log(`[Auth] No profile found for UID ${firebaseUser.uid}. Checking for existing profile by email: ${userEmail}`);
+        console.log(`[Auth] No profile found for UID ${authUser.uid}. Checking for existing profile by email: ${userEmail}`);
         
         // Try to find by normalized email
         let q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
         let querySnapshot = await getDocs(q);
         
         // Fallback: Try to find by original email (in case it wasn't normalized before)
-        if (querySnapshot.empty && firebaseUser.email && firebaseUser.email !== userEmail) {
-          console.log(`[Auth] No normalized profile found. Trying original email: ${firebaseUser.email}`);
-          q = query(collection(db, 'users'), where('email', '==', firebaseUser.email), limit(1));
+        if (querySnapshot.empty && authUser.email && authUser.email !== userEmail) {
+          console.log(`[Auth] No normalized profile found. Trying original email: ${authUser.email}`);
+          q = query(collection(db, 'users'), where('email', '==', authUser.email), limit(1));
           querySnapshot = await getDocs(q);
         }
         
         if (!querySnapshot.empty) {
           const existingDoc = querySnapshot.docs[0];
           const existingData = existingDoc.data();
-          console.log(`[Auth] Found existing profile with UID ${existingDoc.id}. Linking to new UID ${firebaseUser.uid}...`);
+          console.log(`[Auth] Found existing profile with UID ${existingDoc.id}. Linking to new UID ${authUser.uid}...`);
           
           await setDoc(userRef, {
             ...existingData,
-            uid: firebaseUser.uid,
+            uid: authUser.uid,
             email: userEmail,
             updatedAt: new Date().toISOString(),
-            emailVerified: firebaseUser.emailVerified || existingData.emailVerified || false
+            emailVerified: authUser.emailVerified || existingData.emailVerified || false
           });
         } else {
           // Truly a new user. Initialize basic fields to prevent "dummy" accounts.
           console.log(`[Auth] Initializing new user profile for ${userEmail}`);
           await setDoc(userRef, {
-            fullName: firebaseUser.displayName || userEmail.split('@')[0],
+            fullName: authUser.displayName || userEmail.split('@')[0],
             email: userEmail,
             role: userEmail === 'animatorrex9@gmail.com' ? 'admin' : 'user',
             walletBalance: 0,
@@ -156,7 +156,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             activeCards: 1,
             kycStatus: 'unverified',
             createdAt: new Date().toISOString(),
-            emailVerified: firebaseUser.emailVerified,
+            emailVerified: authUser.emailVerified,
             country: '', // Trigger complete-profile if missing
             lastReturnCalculationDate: new Date().toISOString(),
           });
@@ -181,7 +181,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser({ ...auth.currentUser });
       setEmailVerified(auth.currentUser.emailVerified);
       
-      // Update Firestore if verified
+      // Update Supabase if verified
       if (auth.currentUser.emailVerified) {
         await updateDoc(doc(db, 'users', auth.currentUser.uid), {
           emailVerified: true

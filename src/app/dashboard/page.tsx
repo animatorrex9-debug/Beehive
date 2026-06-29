@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrency } from '../../hooks/useCurrency';
-import { doc, updateDoc, collection, addDoc, increment, getDocs, query, where, writeBatch } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { doc, updateDoc, collection, addDoc, increment, getDocs, query, where, writeBatch } from 'supabase/db';
+import { db, auth, handleSupabaseError as handleFirestoreError, OperationType } from '../../lib/supabase-service';
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();

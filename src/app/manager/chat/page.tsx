@@ -27,8 +27,8 @@ import {
   updateDoc,
   getDocs,
   limit
-} from 'firebase/firestore';
-import { db, auth } from '../../../lib/firebase';
+} from 'supabase/db';
+import { db, auth } from '../../../lib/supabase-service';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';

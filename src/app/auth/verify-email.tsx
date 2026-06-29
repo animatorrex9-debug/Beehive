@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, ArrowLeft, RefreshCw, AlertCircle, CheckCircle2, LogOut } from 'lucide-react';
-import { auth, isConfigured } from '../../lib/firebase';
-import { sendEmailVerification, signOut } from 'firebase/auth';
+import { auth, isConfigured } from '../../lib/supabase-service';
+import { sendEmailVerification, signOut } from 'supabase/auth';
 import { Logo } from '../../components/Logo';
-import { FirebaseSetupGuide } from '../../components/FirebaseSetupGuide';
+import { SupabaseSetupGuide } from '../../components/SupabaseSetupGuide';
 import { useAuth } from '../../hooks/useAuth';
 
 export const VerifyEmailPage = () => {
-  if (!isConfigured) return <FirebaseSetupGuide />;
+  if (!isConfigured) return <SupabaseSetupGuide />;
 
   const { user, reloadUser, userData } = useAuth();
   const navigate = useNavigate();
@@ -86,7 +86,7 @@ export const VerifyEmailPage = () => {
       const errMsg = err.message || '';
       
       if (errCode === 'auth/too-many-requests' || errMsg.includes('too-many-requests') || errMsg.toLowerCase().includes('rate limit') || errMsg.toLowerCase().includes('45 seconds') || errMsg.toLowerCase().includes('security purposes')) msg = 'Verification email limit exceeded. Please wait 45 seconds before trying again, or check your spam folder for previous links.';
-      else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.';
+      else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) msg = 'This domain is not authorized in Supabase. Please add it to Authorized Redirect URLs in Supabase Dashboard.';
       else if (errCode === 'auth/network-request-failed' || errMsg.includes('network-request-failed')) msg = 'Network error. Please check your connection.';
       else msg = errMsg || msg;
       

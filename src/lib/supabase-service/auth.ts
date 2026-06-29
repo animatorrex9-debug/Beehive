@@ -1,7 +1,7 @@
 import { supabase } from '../supabase';
 
-// High-fidelity Firebase User structure mapped from Supabase User
-export interface FirebaseUserCompat {
+// High-fidelity Supabase User structure
+export interface SupabaseUser {
   uid: string;
   email: string | null;
   emailVerified: boolean;
@@ -14,11 +14,11 @@ export interface FirebaseUserCompat {
   reload: () => Promise<void>;
 }
 
-export type User = FirebaseUserCompat;
+export type User = SupabaseUser;
 
-export class AuthCompat {
-  private listeners: ((user: FirebaseUserCompat | null) => void)[] = [];
-  public currentUser: FirebaseUserCompat | null = null;
+export class SupabaseAuthService {
+  private listeners: ((user: SupabaseUser | null) => void)[] = [];
+  public currentUser: SupabaseUser | null = null;
 
   constructor() {
     this.init();
@@ -46,7 +46,7 @@ export class AuthCompat {
     this.notifyListeners();
   }
 
-  private async mapUser(sbUser: any): Promise<FirebaseUserCompat> {
+  private async mapUser(sbUser: any): Promise<SupabaseUser> {
     const reload = async () => {
       const { data: { user: latestUser } } = await supabase.auth.getUser();
       if (latestUser) {
@@ -86,7 +86,7 @@ export class AuthCompat {
     }
   }
 
-  public onAuthStateChanged(callback: (user: FirebaseUserCompat | null) => void) {
+  public onAuthStateChanged(callback: (user: SupabaseUser | null) => void) {
     this.listeners.push(callback);
     // Call immediately with current state
     callback(this.currentUser);
@@ -95,7 +95,7 @@ export class AuthCompat {
     };
   }
 
-  // Support legacy OOP-style auth.signOut()
+  // Support legacy auth.signOut()
   public async signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -105,7 +105,7 @@ export class AuthCompat {
 }
 
 // Global Auth Instance
-export const authInstance = new AuthCompat();
+export const authInstance = new SupabaseAuthService();
 
 export function getAuth(app?: any) {
   return authInstance;
@@ -119,11 +119,11 @@ export const browserLocalPersistence = 'local';
 export const indexedDBLocalPersistence = 'indexeddb';
 export const browserPopupRedirectResolver = {};
 
-export function onAuthStateChanged(auth: AuthCompat, callback: (user: FirebaseUserCompat | null) => void) {
+export function onAuthStateChanged(auth: SupabaseAuthService, callback: (user: SupabaseUser | null) => void) {
   return auth.onAuthStateChanged(callback);
 }
 
-export async function signInWithEmailAndPassword(auth: AuthCompat, email: string, password: string) {
+export async function signInWithEmailAndPassword(auth: SupabaseAuthService, email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password
@@ -133,7 +133,7 @@ export async function signInWithEmailAndPassword(auth: AuthCompat, email: string
   return { user: auth.currentUser };
 }
 
-export async function signInAsGuest(auth: AuthCompat) {
+export async function signInAsGuest(auth: SupabaseAuthService) {
   const guestEmail = 'demo_user@beehive.com';
   const guestPassword = 'DemoPassword123!';
   const fullName = 'Demo User';
@@ -173,7 +173,7 @@ export async function signInAsGuest(auth: AuthCompat) {
   }
 }
 
-export async function createUserWithEmailAndPassword(auth: AuthCompat, email: string, password: string) {
+export async function createUserWithEmailAndPassword(auth: SupabaseAuthService, email: string, password: string) {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -216,16 +216,16 @@ export async function createUserWithEmailAndPassword(auth: AuthCompat, email: st
   }
 }
 
-export async function signOut(auth: AuthCompat) {
+export async function signOut(auth: SupabaseAuthService) {
   await auth.signOut();
 }
 
-export async function sendEmailVerification(user: FirebaseUserCompat) {
+export async function sendEmailVerification(user: SupabaseUser) {
   console.log('[Supabase Auth] Verification email requested for:', user.email);
   return Promise.resolve();
 }
 
-export async function updateProfile(user: FirebaseUserCompat, profile: { displayName?: string | null; photoURL?: string | null }) {
+export async function updateProfile(user: SupabaseUser, profile: { displayName?: string | null; photoURL?: string | null }) {
   try {
     const { error } = await supabase.auth.updateUser({
       data: {
@@ -249,12 +249,12 @@ export async function updateProfile(user: FirebaseUserCompat, profile: { display
   }
 }
 
-// Google Authentication Compatibility
+// Google Authentication
 export class GoogleAuthProvider {
   static PROVIDER_ID = 'google.com';
 }
 
-export async function signInWithPopup(auth: AuthCompat, provider: any) {
+export async function signInWithPopup(auth: SupabaseAuthService, provider: any) {
   const redirectUrl = window.location.origin;
   
   console.log('[Supabase Auth] Starting Google OAuth popup flow...', { redirectUrl });
@@ -283,10 +283,10 @@ export async function signInWithPopup(auth: AuthCompat, provider: any) {
   }
 
   // 3. Wait for popup to complete authentication
-  return new Promise<{ user: FirebaseUserCompat | null }>((resolve, reject) => {
+  return new Promise<{ user: SupabaseUser | null }>((resolve, reject) => {
     let checkTimer: any = null;
     let messageListener: any = null;
-
+ 
     const cleanup = () => {
       if (checkTimer) clearInterval(checkTimer);
       if (messageListener) window.removeEventListener('message', messageListener);
