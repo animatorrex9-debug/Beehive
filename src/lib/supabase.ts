@@ -17,8 +17,17 @@ if (isSupabaseConfigured) {
   console.warn('[Supabase] Credentials not fully configured. Please check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
 }
 
-// Initialize client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Initialize client with custom lock function to prevent AbortError: Lock broken by another request with the 'steal' option in iframe environments
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => {
+      return await fn();
+    },
+  },
+});
 
 // Resilient fallback mechanism for Supabase storage upload
 const memoryStorage = new Map<string, string>();

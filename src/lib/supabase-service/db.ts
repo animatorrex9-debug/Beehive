@@ -305,23 +305,47 @@ export async function getDoc(docRef: DocumentReference) {
   const { table, id } = parsePath(docRef.path);
   if (!id) throw new Error('[Supabase DB] Cannot get doc without ID.');
 
-  const { data, error } = await supabase
-    .from(table)
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
+  try {
+    let res = await supabase
+      .from(table)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
 
-  if (error) {
-    if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
-      console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty snapshot for ${docRef.path}.`);
+    if (res.error && (res.error.message?.includes('AbortError') || res.error.message?.includes('steal') || res.error.message?.includes('Lock broken') || res.error.message?.includes('Failed to fetch'))) {
+      // Retry once if request was aborted or failed due to network/lock contention
+      res = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+    }
+
+    const { data, error } = res;
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty snapshot for ${docRef.path}.`);
+        return new DocumentSnapshotCompat(docRef, null, false);
+      }
+      if (error.message?.includes('AbortError') || error.message?.includes('steal') || error.message?.includes('Lock broken') || error.message?.includes('Failed to fetch')) {
+        console.warn(`[Supabase DB] Lock/Abort/Fetch issue on ${table}/${id}. Returning fallback snapshot.`);
+        return new DocumentSnapshotCompat(docRef, null, false);
+      }
+      const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
+      console.error(`[Supabase DB] Error in getDoc on ${table}/${id}:`, errMsg);
+      throw enhanceSupabaseError(error);
+    }
+
+    return new DocumentSnapshotCompat(docRef, data, !!data);
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (err?.name === 'TypeError' || msg.includes('Failed to fetch') || msg.includes('AbortError') || msg.includes('steal') || msg.includes('Lock broken')) {
+      console.warn(`[Supabase DB] Network/Fetch exception on ${table}/${id}: ${msg}. Returning fallback empty snapshot.`);
       return new DocumentSnapshotCompat(docRef, null, false);
     }
-    const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
-    console.error(`[Supabase DB] Error in getDoc on ${table}/${id}:`, errMsg);
-    throw enhanceSupabaseError(error);
+    throw enhanceSupabaseError(err);
   }
-
-  return new DocumentSnapshotCompat(docRef, data, !!data);
 }
 
 export async function getDocs(queryRef: CollectionReference | QueryCompat) {
@@ -329,58 +353,76 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
   const constraints = queryRef instanceof QueryCompat ? queryRef.constraints : [];
   
   const { table, parentId, parentField } = parsePath(ref.path);
-  
-  let builder = supabase.from(table).select('*');
-  
-  if (parentId && parentField) {
-    builder = builder.eq(parentField, parentId);
-  }
-  
-  for (const c of constraints) {
-    if (c.type === 'where') {
-      const snakeField = toSnakeCase(c.field);
-      if (c.op === '==' || c.op === '===') {
-        builder = builder.eq(snakeField, c.value);
-      } else if (c.op === '!=') {
-        builder = builder.neq(snakeField, c.value);
-      } else if (c.op === '>') {
-        builder = builder.gt(snakeField, c.value);
-      } else if (c.op === '>=') {
-        builder = builder.gte(snakeField, c.value);
-      } else if (c.op === '<') {
-        builder = builder.lt(snakeField, c.value);
-      } else if (c.op === '<=') {
-        builder = builder.lte(snakeField, c.value);
-      } else if (c.op === 'in') {
-        builder = builder.in(snakeField, c.value);
-      } else if (c.op === 'array-contains') {
-        builder = builder.contains(snakeField, [c.value]);
-      }
-    } else if (c.type === 'orderBy') {
-      const snakeField = toSnakeCase(c.field);
-      builder = builder.order(snakeField, { ascending: c.direction === 'asc' });
-    } else if (c.type === 'limit') {
-      builder = builder.limit(c.value);
-    }
-  }
 
-  const { data, error } = await builder;
-  if (error) {
-    if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
-      console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty list for ${ref.path}.`);
+  try {
+    let builder = supabase.from(table).select('*');
+    
+    if (parentId && parentField) {
+      builder = builder.eq(parentField, parentId);
+    }
+    
+    for (const c of constraints) {
+      if (c.type === 'where') {
+        const snakeField = toSnakeCase(c.field);
+        if (c.op === '==' || c.op === '===') {
+          builder = builder.eq(snakeField, c.value);
+        } else if (c.op === '!=') {
+          builder = builder.neq(snakeField, c.value);
+        } else if (c.op === '>') {
+          builder = builder.gt(snakeField, c.value);
+        } else if (c.op === '>=') {
+          builder = builder.gte(snakeField, c.value);
+        } else if (c.op === '<') {
+          builder = builder.lt(snakeField, c.value);
+        } else if (c.op === '<=') {
+          builder = builder.lte(snakeField, c.value);
+        } else if (c.op === 'in') {
+          builder = builder.in(snakeField, c.value);
+        } else if (c.op === 'array-contains') {
+          builder = builder.contains(snakeField, [c.value]);
+        }
+      } else if (c.type === 'orderBy') {
+        const snakeField = toSnakeCase(c.field);
+        builder = builder.order(snakeField, { ascending: c.direction === 'asc' });
+      } else if (c.type === 'limit') {
+        builder = builder.limit(c.value);
+      }
+    }
+
+    let res = await builder;
+    if (res.error && (res.error.message?.includes('AbortError') || res.error.message?.includes('steal') || res.error.message?.includes('Lock broken') || res.error.message?.includes('Failed to fetch'))) {
+      res = await builder;
+    }
+
+    const { data, error } = res;
+    if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty list for ${ref.path}.`);
+        return new QuerySnapshotCompat([], true);
+      }
+      if (error.message?.includes('AbortError') || error.message?.includes('steal') || error.message?.includes('Lock broken') || error.message?.includes('Failed to fetch')) {
+        console.warn(`[Supabase DB] Lock/Abort/Fetch issue on ${table}. Returning empty list.`);
+        return new QuerySnapshotCompat([], true);
+      }
+      const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
+      console.error(`[Supabase DB] Error in getDocs on ${table}:`, errMsg);
+      throw enhanceSupabaseError(error);
+    }
+
+    const docs = (data || []).map(row => {
+      const docRef = new DocumentReference(`${ref.path}/${row.id}`);
+      return new QueryDocumentSnapshotCompat(docRef, row);
+    });
+
+    return new QuerySnapshotCompat(docs, docs.length === 0);
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (err?.name === 'TypeError' || msg.includes('Failed to fetch') || msg.includes('AbortError') || msg.includes('steal') || msg.includes('Lock broken')) {
+      console.warn(`[Supabase DB] Network/Fetch exception on ${table}: ${msg}. Returning empty snapshot list.`);
       return new QuerySnapshotCompat([], true);
     }
-    const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
-    console.error(`[Supabase DB] Error in getDocs on ${table}:`, errMsg);
-    throw enhanceSupabaseError(error);
+    throw enhanceSupabaseError(err);
   }
-
-  const docs = (data || []).map(row => {
-    const docRef = new DocumentReference(`${ref.path}/${row.id}`);
-    return new QueryDocumentSnapshotCompat(docRef, row);
-  });
-
-  return new QuerySnapshotCompat(docs, docs.length === 0);
 }
 
 export async function addDoc(collectionRef: CollectionReference, data: any) {
