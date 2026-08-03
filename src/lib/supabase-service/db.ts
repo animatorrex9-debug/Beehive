@@ -12,6 +12,9 @@ export function enhanceSupabaseError(error: any): Error {
   if (message.toLowerCase().includes('infinite recursion') || error.code === '42P17') {
     return new Error('Database Error: Infinite recursion detected in your Supabase RLS policies. Please apply the updated "supabase_schema.sql" file in your Supabase SQL Editor to fix this issue.');
   }
+  if (error.code === 'PGRST205' || message.includes('Could not find the table')) {
+    return new Error(`Database Table Missing: ${message}. Please run the latest "supabase_schema.sql" script in your Supabase SQL Editor to create missing database tables.`);
+  }
   return new Error(message);
 }
 
@@ -73,6 +76,14 @@ function parsePath(path: string): ParsedPath {
   const parts = path.split('/').filter(Boolean);
   
   if (parts[0] === 'users') {
+    if (parts.length >= 3 && parts[2] === 'investments') {
+      return { 
+        table: 'investments', 
+        id: parts[3], 
+        parentId: parts[1], 
+        parentField: 'user_id' 
+      };
+    }
     return { table: 'profiles', id: parts[1] };
   }
   if (parts[0] === 'loans') {
@@ -92,6 +103,12 @@ function parsePath(path: string): ParsedPath {
   }
   if (parts[0] === 'donations') {
     return { table: 'donations', id: parts[1] };
+  }
+  if (parts[0] === 'settings') {
+    return { table: 'settings', id: parts[1] };
+  }
+  if (parts[0] === 'investments') {
+    return { table: 'investments', id: parts[1] };
   }
   if (parts[0] === 'chats') {
     if (parts.length >= 3 && parts[2] === 'messages') {
@@ -216,6 +233,12 @@ const VALID_COLUMNS: Record<string, string[]> = {
   ],
   notifications: [
     'id', 'user_id', 'type', 'title', 'message', 'loan_id', 'read', 'created_at'
+  ],
+  settings: [
+    'id', 'usdt_address', 'btc_address', 'updated_at', 'updated_by'
+  ],
+  investments: [
+    'id', 'user_id', 'title', 'amount', 'biweekly_return', 'status', 'timestamp', 'created_at', 'updated_at'
   ]
 };
 
@@ -289,6 +312,10 @@ export async function getDoc(docRef: DocumentReference) {
     .maybeSingle();
 
   if (error) {
+    if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty snapshot for ${docRef.path}.`);
+      return new DocumentSnapshotCompat(docRef, null, false);
+    }
     const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
     console.error(`[Supabase DB] Error in getDoc on ${table}/${id}:`, errMsg);
     throw enhanceSupabaseError(error);
@@ -339,6 +366,10 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
 
   const { data, error } = await builder;
   if (error) {
+    if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty list for ${ref.path}.`);
+      return new QuerySnapshotCompat([], true);
+    }
     const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
     console.error(`[Supabase DB] Error in getDocs on ${table}:`, errMsg);
     throw enhanceSupabaseError(error);

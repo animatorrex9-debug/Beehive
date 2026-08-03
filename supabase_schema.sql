@@ -475,13 +475,61 @@ CREATE TRIGGER on_profile_role_updated
   AFTER UPDATE OF role ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.sync_profile_role_to_auth();
 
--- 14. Retroactively add columns to public.profiles if they don't exist for existing users' database schemas
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_card_front_image TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_card_back_image TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS face_image TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_card_image TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_submitted_at TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_reviewed_at TEXT DEFAULT '';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT '';
+-- 15. Create Settings table for global app configs (wallets, etc.)
+CREATE TABLE IF NOT EXISTS public.settings (
+  id TEXT PRIMARY KEY,
+  usdt_address TEXT DEFAULT '',
+  btc_address TEXT DEFAULT '',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by TEXT DEFAULT ''
+);
+
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read settings" ON public.settings;
+CREATE POLICY "Anyone can read settings" ON public.settings
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can write settings" ON public.settings;
+CREATE POLICY "Authenticated users can write settings" ON public.settings
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- 16. Create Investments table
+CREATE TABLE IF NOT EXISTS public.investments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  title TEXT,
+  amount NUMERIC(15, 2) NOT NULL,
+  biweekly_return NUMERIC(15, 2) DEFAULT 0.00,
+  status TEXT DEFAULT 'active',
+  timestamp TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.investments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own investments" ON public.investments;
+CREATE POLICY "Users can view their own investments" ON public.investments
+  FOR SELECT USING (
+    auth.uid() = user_id OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() AND (profiles.role = 'admin' OR profiles.role = 'account_manager')
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can insert their own investments" ON public.investments;
+CREATE POLICY "Users can insert their own investments" ON public.investments
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own investments" ON public.investments;
+CREATE POLICY "Users can update their own investments" ON public.investments
+  FOR UPDATE USING (
+    auth.uid() = user_id OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() AND (profiles.role = 'admin' OR profiles.role = 'account_manager')
+    )
+  );
 
