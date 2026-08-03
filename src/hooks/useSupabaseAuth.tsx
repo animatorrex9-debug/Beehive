@@ -101,7 +101,17 @@ export const SupabaseAuthProvider = ({ children }: { children: React.ReactNode }
     }
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        console.warn('[Supabase Auth Hook] getSession error:', error.message);
+        if (
+          error.message?.includes('Refresh Token') ||
+          error.message?.includes('invalid') ||
+          error.message?.includes('not found')
+        ) {
+          await supabase.auth.signOut().catch(() => {});
+        }
+      }
       const initialUser = session?.user ?? null;
       setUser(initialUser);
       setEmailVerified(initialUser?.email_confirmed_at ? true : false);
@@ -109,6 +119,12 @@ export const SupabaseAuthProvider = ({ children }: { children: React.ReactNode }
         setLoading(false);
         setLoanLoading(false);
       }
+    }).catch(async (err) => {
+      console.warn('[Supabase Auth Hook] getSession exception:', err);
+      await supabase.auth.signOut().catch(() => {});
+      setUser(null);
+      setLoading(false);
+      setLoanLoading(false);
     });
 
     // Listen to changes
@@ -249,10 +265,22 @@ export const SupabaseAuthProvider = ({ children }: { children: React.ReactNode }
 
   const reloadUser = async () => {
     if (!isSupabaseConfigured) return;
-    const { data: { user: updatedUser } } = await supabase.auth.getUser();
-    if (updatedUser) {
-      setUser(updatedUser);
-      setEmailVerified(updatedUser.email_confirmed_at ? true : false);
+    try {
+      const { data: { user: updatedUser }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.warn('[Supabase Auth Hook] reloadUser error:', error.message);
+        if (error.message?.includes('Refresh Token') || error.message?.includes('invalid')) {
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          return;
+        }
+      }
+      if (updatedUser) {
+        setUser(updatedUser);
+        setEmailVerified(updatedUser.email_confirmed_at ? true : false);
+      }
+    } catch (err) {
+      console.warn('[Supabase Auth Hook] reloadUser exception:', err);
     }
   };
 

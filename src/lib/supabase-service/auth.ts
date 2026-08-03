@@ -24,23 +24,62 @@ export class SupabaseAuthService {
     this.init();
   }
 
+  private purgeStaleSession() {
+    if (typeof window !== 'undefined') {
+      try {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('sb-') || key.includes('auth-token') || key.includes('supabase.auth.token')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (e) {
+        console.warn('[Supabase Auth] Error clearing localStorage tokens:', e);
+      }
+    }
+  }
+
   private async init() {
     // Listen to Supabase auth state changes
     supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`[Supabase Auth Event] ${event}`, session?.user?.email);
-      if (session?.user) {
-        this.currentUser = await this.mapUser(session.user);
-      } else {
+      if (event === 'SIGNED_OUT' || !session) {
         this.currentUser = null;
+      } else if (session?.user) {
+        try {
+          this.currentUser = await this.mapUser(session.user);
+        } catch (e) {
+          console.warn('[Supabase Auth] Error mapping user session:', e);
+          this.currentUser = null;
+        }
       }
       this.notifyListeners();
     });
 
     // Fetch initial user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      this.currentUser = await this.mapUser(user);
-    } else {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        console.warn('[Supabase Auth] Initial getUser warning:', error.message);
+        if (
+          error.message?.includes('Refresh Token') || 
+          error.message?.includes('invalid') || 
+          error.message?.includes('not found') ||
+          (error as any).status === 400 ||
+          (error as any).status === 401
+        ) {
+          console.log('[Supabase Auth] Purging invalid/stale session refresh token...');
+          await this.signOut().catch(() => {});
+        } else {
+          this.currentUser = null;
+        }
+      } else if (data?.user) {
+        this.currentUser = await this.mapUser(data.user);
+      } else {
+        this.currentUser = null;
+      }
+    } catch (err: any) {
+      console.warn('[Supabase Auth] Init exception:', err?.message || err);
+      this.purgeStaleSession();
       this.currentUser = null;
     }
     this.notifyListeners();
@@ -48,10 +87,25 @@ export class SupabaseAuthService {
 
   private async mapUser(sbUser: any): Promise<SupabaseUser> {
     const reload = async () => {
-      const { data: { user: latestUser } } = await supabase.auth.getUser();
-      if (latestUser) {
-        this.currentUser = await this.mapUser(latestUser);
-        this.notifyListeners();
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.warn('[Supabase Auth] reload error:', error.message);
+          if (
+            error.message?.includes('Refresh Token') || 
+            error.message?.includes('invalid') || 
+            error.message?.includes('not found')
+          ) {
+            await this.signOut().catch(() => {});
+            return;
+          }
+        }
+        if (data?.user) {
+          this.currentUser = await this.mapUser(data.user);
+          this.notifyListeners();
+        }
+      } catch (e) {
+        console.warn('[Supabase Auth] reload catch error:', e);
       }
     };
 
@@ -97,10 +151,15 @@ export class SupabaseAuthService {
 
   // Support legacy auth.signOut()
   public async signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    this.currentUser = null;
-    this.notifyListeners();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[Supabase Auth] signOut error:', err);
+    } finally {
+      this.purgeStaleSession();
+      this.currentUser = null;
+      this.notifyListeners();
+    }
   }
 }
 
