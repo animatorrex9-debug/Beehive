@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDownCircle, Banknote, CreditCard, QrCode, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Bitcoin, DollarSign, Landmark, RefreshCw, Copy } from 'lucide-react';
+import { ArrowDownCircle, Banknote, CreditCard, QrCode, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Bitcoin, DollarSign, Landmark, RefreshCw, Copy, MessageSquare, ArrowRight } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency } from '../../../context/CurrencyContext';
@@ -330,10 +330,16 @@ export const DepositPage = () => {
                 onClick={() => handleMethodSelect('Credit Card')}
               />
               <DepositMethod 
-                icon={<Landmark className="w-8 h-8" />}
-                title="Bank Transfer"
-                description="Direct transfer from your connected bank"
-                onClick={() => handleMethodSelect('Bank Transfer')}
+                icon={
+                  <div className="relative">
+                    <Landmark className="w-8 h-8" />
+                    <MessageSquare className="w-4 h-4 absolute -bottom-1 -right-1 text-accent fill-accent/20" />
+                  </div>
+                }
+                title="Bank Transfer - Chat with Account Manager"
+                description="Chat directly with your account manager for wire & bank transfer instructions and deposit processing."
+                onClick={() => navigate('/dashboard/chat')}
+                buttonText="Chat with Account Manager"
               />
               <DepositMethod 
                 icon={<DollarSign className="w-8 h-8" />}
@@ -796,15 +802,35 @@ const StepCircle = ({ num, active, completed, label }: { num: number, active: bo
   </div>
 );
 
-const DepositMethod = ({ icon, title, description, onClick }: { icon: React.ReactNode, title: string, description: string, onClick: () => void }) => (
+const DepositMethod = ({ 
+  icon, 
+  title, 
+  description, 
+  onClick,
+  buttonText
+}: { 
+  icon: React.ReactNode, 
+  title: string, 
+  description: string, 
+  onClick: () => void,
+  buttonText?: string
+}) => (
   <button 
     onClick={onClick}
-    className="p-6 sm:p-8 rounded-3xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 hover:border-accent/50 transition-all text-left group w-full"
+    className="p-6 sm:p-8 rounded-3xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 hover:border-accent/50 transition-all text-left group w-full flex flex-col justify-between"
   >
-    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white dark:bg-zinc-900 text-accent shadow-sm flex items-center justify-center mb-4 sm:mb-6 transition-transform group-hover:scale-110">
-      {icon}
+    <div>
+      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white dark:bg-zinc-900 text-accent shadow-sm flex items-center justify-center mb-4 sm:mb-6 transition-transform group-hover:scale-110">
+        {icon}
+      </div>
+      <h3 className="text-lg sm:text-xl font-black mb-2 dark:text-white">{title}</h3>
+      <p className="text-xs sm:text-sm text-gray-500 leading-relaxed mb-4">{description}</p>
     </div>
-    <h3 className="text-lg sm:text-xl font-black mb-2 dark:text-white">{title}</h3>
-    <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">{description}</p>
+    {buttonText && (
+      <div className="mt-2 inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl bg-accent text-white group-hover:bg-accent/90 transition-all w-fit shadow-sm">
+        <span>{buttonText}</span>
+        <ArrowRight className="w-4 h-4" />
+      </div>
+    )}
   </button>
 );

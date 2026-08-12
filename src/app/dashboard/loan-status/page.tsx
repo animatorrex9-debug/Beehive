@@ -11,7 +11,9 @@ import {
   Lock, 
   ShieldCheck,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  MessageSquare,
+  Link as LinkIcon
 } from 'lucide-react';
 import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
 import { doc, updateDoc, serverTimestamp, addDoc, collection, increment } from 'supabase/db';
@@ -568,7 +570,19 @@ export const LoanStatusPage = () => {
                 )}
               </button>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enter the verification PIN and click Submit to continue</p>
-              <p className="text-xs text-gray-400 mt-4">If you don't see a code, please contact your account manager.</p>
+              
+              <div className="pt-6 border-t border-gray-100 dark:border-zinc-800/80 mt-6 space-y-3">
+                <p className="text-xs text-gray-500 font-medium">Need a verification link or PIN assistance?</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/chat')}
+                  className="w-full py-3.5 px-5 rounded-2xl bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent font-bold text-sm flex items-center justify-center gap-2.5 transition-all group"
+                >
+                  <MessageSquare className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" />
+                  <span>Request Verification Link from Account Manager</span>
+                  <ArrowRight className="w-4 h-4 text-accent" />
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -581,7 +595,7 @@ export const LoanStatusPage = () => {
             </div>
             <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-4">Final Processing</h3>
             <p className="text-gray-500 max-w-md mx-auto leading-relaxed">
-              Your PIN has been verified. We are now performing the final disbursement checks. Your funds will be released shortly.
+              We are now performing the final disbursement checks. Your funds will be released shortly, reapply if application fails
             </p>
           </div>
         );
