@@ -260,7 +260,10 @@ export const DepositPage = () => {
             <RefreshCw className="w-10 h-10" />
           </motion.div>
           <h2 className="text-3xl font-black mb-4 dark:text-white">Transaction Processing</h2>
-          <p className="text-white mb-8">Your deposit is currently being processed by our system. If you don't see it after 5 minutes, please contact our support team.</p>
+          <p className="text-gray-600 dark:text-gray-300 mb-8">
+            Make sure your details are correct, or else the deposit will fail.
+            <br className="hidden sm:inline" /> Your deposit is currently being processed by our system. If you don't see it after 5 minutes, please contact our support team.
+          </p>
           <button 
             onClick={() => setProcessing(false)}
             className="btn-primary w-full py-4"
