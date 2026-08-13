@@ -135,45 +135,61 @@ export const CharityTab = () => {
 
   return (
     <div className="space-y-24 py-12">
-      {/* HERO SECTION */}
-      <section className="text-center max-w-4xl mx-auto px-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-green-500/10 text-accent font-bold text-sm tracking-wider uppercase"
-        >
-          <Heart className="w-4 h-4" /> Banking with a Mission
-        </motion.div>
-        
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-4xl md:text-7xl font-black tracking-tighter mb-6 leading-tight dark:text-white"
-        >
-          FINANCE THAT <br />
-          <span className="text-accent">BUILDS THE FUTURE</span>
-        </motion.h1>
+      {/* HERO SECTION WITH BACKGROUND IMAGE */}
+      <section className="relative text-center max-w-5xl mx-auto px-6 sm:px-12 py-16 sm:py-24 rounded-[3rem] overflow-hidden border border-gray-200 dark:border-zinc-800 shadow-2xl my-4">
+        {/* Background image & gradient overlays */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <img 
+            src="https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80&w=1600" 
+            alt="Finance That Builds The Future - Community Empowerment"
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/90 to-white/95 dark:from-zinc-950/95 dark:via-zinc-950/90 dark:to-zinc-950/95 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-green-500/5 to-teal-500/10 mix-blend-overlay" />
+        </div>
 
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-lg md:text-xl text-gray-500 dark:text-gray-400 mb-10 max-w-2xl mx-auto"
-        >
-          We believe a bank should do more than safeguard capital—it should create equity. Through Beehive Charity, our profits and community micro-donations directly fuel social and ecological repair.
-        </motion.p>
+        <div className="relative z-10 max-w-3xl mx-auto space-y-6">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs sm:text-sm tracking-wider uppercase border border-emerald-500/20 shadow-sm"
+          >
+            <Heart className="w-4 h-4 text-emerald-500 fill-current animate-pulse" /> Banking with a Mission
+          </motion.div>
+          
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tighter leading-tight text-zinc-900 dark:text-white"
+          >
+            FINANCE THAT <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-green-500 to-teal-500 dark:from-emerald-400 dark:via-green-400 dark:to-teal-300">
+              BUILDS THE FUTURE
+            </span>
+          </motion.h1>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex justify-center"
-        >
-          <Link to="/auth/signup" className="btn-primary px-10 py-4 text-lg flex items-center gap-2">
-            Open a Purpose-Driven Account <ArrowRight className="w-5 h-5" />
-          </Link>
-        </motion.div>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-base sm:text-lg md:text-xl text-zinc-700 dark:text-gray-300 max-w-2xl mx-auto font-medium leading-relaxed"
+          >
+            We believe a bank should do more than safeguard capital—it should create equity. Through Beehive Charity, our profits and community micro-donations directly fuel social and ecological repair.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex justify-center pt-2"
+          >
+            <Link to="/auth/signup" className="btn-primary px-10 py-4 text-lg flex items-center gap-2 shadow-xl hover:shadow-2xl transition-all">
+              Open a Purpose-Driven Account <ArrowRight className="w-5 h-5" />
+            </Link>
+          </motion.div>
+        </div>
       </section>
 
       {/* STATS RHYTHM */}

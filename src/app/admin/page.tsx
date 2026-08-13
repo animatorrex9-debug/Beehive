@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { CurrencyInfo, getCurrencyByCountry, DEFAULT_CURRENCY } from '../../context/CurrencyContext';
 import { Logo } from '../../components/Logo';
 import { ThemeToggle } from '../../components/ThemeToggle';
+import { AdminCharityTab } from '../../components/admin/AdminCharityTab';
 import { 
   CheckCircle, 
   CheckCircle2,
@@ -33,6 +34,7 @@ import {
   MessageSquare,
   Send,
   Paperclip,
+  Heart,
   Smile,
   User as UserIcon,
   ArrowLeft,
@@ -60,7 +62,7 @@ export const AdminPage = () => {
   const [taxRefunds, setTaxRefunds] = useState<any[]>([]);
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'cards' | 'wallet' | 'managers' | 'grants' | 'chats' | 'tax-refunds'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'loans' | 'kyc' | 'deposits' | 'banks' | 'cards' | 'wallet' | 'managers' | 'grants' | 'chats' | 'tax-refunds' | 'charity'>('dashboard');
   const [selectedKYC, setSelectedKYC] = useState<any | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
@@ -900,6 +902,12 @@ export const AdminPage = () => {
             onClick={() => setActiveTab('chats')}
             icon={<MessageSquare className="w-4 h-4" />}
             label="Chats"
+          />
+          <TabButton 
+            active={activeTab === 'charity'} 
+            onClick={() => setActiveTab('charity')}
+            icon={<Heart className="w-4 h-4 text-red-500" />}
+            label="Charity Campaigns"
           />
         </div>
 
@@ -1983,6 +1991,8 @@ export const AdminPage = () => {
               </div>
             </div>
           </div>
+        ) : activeTab === 'charity' ? (
+          <AdminCharityTab />
         ) : activeTab === 'loans' ? (
           <div className="space-y-8">
             {/* Pending Review */}

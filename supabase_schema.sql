@@ -218,6 +218,37 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+-- 11.2 Create the Charity Campaigns table
+CREATE TABLE IF NOT EXISTS public.charity_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  type TEXT DEFAULT 'personal', -- 'personal' or 'general'
+  beneficiary TEXT,
+  category TEXT DEFAULT 'Healthcare',
+  description TEXT,
+  long_desc TEXT,
+  image TEXT,
+  goal_amount NUMERIC(15, 2) DEFAULT 0.00,
+  raised_amount NUMERIC(15, 2) DEFAULT 0.00,
+  donor_count INT DEFAULT 0,
+  cycle_days INT DEFAULT 30,
+  location TEXT DEFAULT 'Global',
+  organizer TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.charity_campaigns ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can view active charity campaigns" ON public.charity_campaigns;
+CREATE POLICY "Anyone can view active charity campaigns" ON public.charity_campaigns
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins and managers can manage charity campaigns" ON public.charity_campaigns;
+CREATE POLICY "Admins and managers can manage charity campaigns" ON public.charity_campaigns
+  FOR ALL USING (true);
+
 -- 11.5 Safe Migrations for Pre-existing Tables (Idempotent updates)
 -- These ALTER TABLE statements ensure that if tables already existed in your project, they are updated with the columns needed for Beehive
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sentry TEXT DEFAULT '';

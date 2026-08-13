@@ -233,6 +233,11 @@ const VALID_COLUMNS: Record<string, string[]> = {
   donations: [
     'id', 'user_id', 'charity_id', 'charity_name', 'amount', 'anonymous', 'timestamp', 'created_at'
   ],
+  charity_campaigns: [
+    'id', 'title', 'type', 'beneficiary', 'category', 'description', 'long_desc',
+    'image', 'goal_amount', 'raised_amount', 'donor_count', 'created_at',
+    'cycle_days', 'location', 'organizer', 'is_active', 'updated_at'
+  ],
   notifications: [
     'id', 'user_id', 'type', 'title', 'message', 'loan_id', 'read', 'created_at'
   ],
@@ -399,8 +404,16 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
     const { data, error } = res;
     if (error) {
       if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
-        console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty list for ${ref.path}.`);
-        return new QuerySnapshotCompat([], true);
+        console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning local fallback snapshot for ${ref.path}.`);
+        let localRows: any[] = [];
+        try {
+          localRows = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        } catch (e) {}
+        const docs = localRows.map(row => {
+          const docRef = new DocumentReference(`${ref.path}/${row.id}`);
+          return new QueryDocumentSnapshotCompat(docRef, row);
+        });
+        return new QuerySnapshotCompat(docs, docs.length === 0);
       }
       if (error.message?.includes('AbortError') || error.message?.includes('steal') || error.message?.includes('Lock broken') || error.message?.includes('Failed to fetch')) {
         console.warn(`[Supabase DB] Lock/Abort/Fetch issue on ${table}. Returning empty list.`);
@@ -419,6 +432,18 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
     return new QuerySnapshotCompat(docs, docs.length === 0);
   } catch (err: any) {
     const msg = err?.message || String(err);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' missing in getDocs catch block.`);
+      let localRows: any[] = [];
+      try {
+        localRows = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+      } catch (e) {}
+      const docs = localRows.map(row => {
+        const docRef = new DocumentReference(`${ref.path}/${row.id}`);
+        return new QueryDocumentSnapshotCompat(docRef, row);
+      });
+      return new QuerySnapshotCompat(docs, docs.length === 0);
+    }
     if (err?.name === 'TypeError' || msg.includes('Failed to fetch') || msg.includes('AbortError') || msg.includes('steal') || msg.includes('Lock broken')) {
       console.warn(`[Supabase DB] Network/Fetch exception on ${table}: ${msg}. Returning empty snapshot list.`);
       return new QuerySnapshotCompat([], true);
@@ -489,6 +514,16 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     const { data: inserted, error } = res;
 
     if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.warn(`[Supabase DB] Table '${table}' missing in addDoc. Storing in local fallback storage.`);
+        const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+        } catch (e) {}
+        return new DocumentReference(`${collectionRef.path}/${tempId}`);
+      }
       if (table === 'notifications' || error.code === '42501' || error.message?.includes('row-level security')) {
         console.warn(`[Supabase DB] RLS or notification policy warning adding doc to ${table}:`, error.message);
         return new DocumentReference(`${collectionRef.path}/notif-${Date.now()}`);
@@ -504,6 +539,16 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     return new DocumentReference(`${collectionRef.path}/${inserted.id}`);
   } catch (err: any) {
     const msg = err?.message || String(err);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' missing in addDoc catch block.`);
+      const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      try {
+        const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
+        localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+      } catch (e) {}
+      return new DocumentReference(`${collectionRef.path}/${tempId}`);
+    }
     if (table === 'notifications' || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception adding doc to ${table}: ${msg}. Returning fallback reference.`);
       return new DocumentReference(`${collectionRef.path}/temp-${Date.now()}`);
@@ -549,6 +594,20 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
     const { error } = res;
 
     if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.warn(`[Supabase DB] Table '${table}' missing in setDoc. Setting in local fallback storage.`);
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          const idx = stored.findIndex((item: any) => item.id === id);
+          if (idx >= 0) {
+            stored[idx] = { ...stored[idx], ...row };
+          } else {
+            stored.push({ id, ...row });
+          }
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+        } catch (e) {}
+        return;
+      }
       if (table === 'profiles' || table === 'notifications' || table === 'chats' || error.code === '42501' || error.message?.includes('row-level security')) {
         console.warn(`[Supabase DB] Warning/RLS setting doc in ${table} (${error.message}):`, error);
         return;
@@ -562,6 +621,20 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
     }
   } catch (err: any) {
     const msg = err?.message || String(err);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' missing in setDoc catch block.`);
+      try {
+        const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        const idx = stored.findIndex((item: any) => item.id === id);
+        if (idx >= 0) {
+          stored[idx] = { ...stored[idx], ...row };
+        } else {
+          stored.push({ id, ...row });
+        }
+        localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+      } catch (e) {}
+      return;
+    }
     if (table === 'profiles' || table === 'notifications' || table === 'chats' || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception setting doc in ${table}: ${msg}`);
       return;
@@ -621,6 +694,15 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     const { error } = res;
 
     if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.warn(`[Supabase DB] Table '${table}' missing in updateDoc. Updating in local fallback storage.`);
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          const updated = stored.map((item: any) => item.id === id ? { ...item, ...mergedData } : item);
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
+        } catch (e) {}
+        return;
+      }
       if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
         console.warn(`[Supabase DB] Warning updating ${table}/${id}: ${error.message}`);
         return;
@@ -630,10 +712,58 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     }
   } catch (err: any) {
     const msg = err?.message || String(err);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' missing in updateDoc catch block.`);
+      try {
+        const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        const updated = stored.map((item: any) => item.id === id ? { ...item, ...data } : item);
+        localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
+      } catch (e) {}
+      return;
+    }
     if (msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception updating ${table}/${id}: ${msg}`);
       return;
     }
+    throw enhanceSupabaseError(err);
+  }
+}
+
+export async function deleteDoc(docRef: DocumentReference) {
+  const { table, id } = parsePath(docRef.path);
+  if (!id) throw new Error('[Supabase DB] Cannot delete doc without ID.');
+
+  try {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.warn(`[Supabase DB] Table '${table}' missing in deleteDoc. Deleting from local fallback storage.`);
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          const filtered = stored.filter((item: any) => item.id !== id);
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
+        } catch (e) {}
+        return;
+      }
+      console.error(`[Supabase DB] Error deleting ${table}/${id}:`, error);
+      throw enhanceSupabaseError(error);
+    }
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+      console.warn(`[Supabase DB] Table '${table}' missing in deleteDoc catch block.`);
+      try {
+        const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        const filtered = stored.filter((item: any) => item.id !== id);
+        localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
+      } catch (e) {}
+      return;
+    }
+    console.error(`[Supabase DB] Exception deleting ${table}/${id}:`, err);
     throw enhanceSupabaseError(err);
   }
 }
