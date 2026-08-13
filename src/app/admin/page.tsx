@@ -98,6 +98,11 @@ export const AdminPage = () => {
   const [selectedManagerId, setSelectedManagerId] = useState('');
   const [selectedTargetUserId, setSelectedTargetUserId] = useState('');
   const [assigningManager, setAssigningManager] = useState(false);
+  const [selectedAdminAppointUserId, setSelectedAdminAppointUserId] = useState('');
+  const [selectedManagerAppointUserId, setSelectedManagerAppointUserId] = useState('');
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
+  const [promoteTargetRole, setPromoteTargetRole] = useState<'account_manager' | 'admin'>('account_manager');
+  const [promoteSearchQuery, setPromoteSearchQuery] = useState('');
 
   // Wallet Adjustment State
   const [walletTargetUserId, setWalletTargetUserId] = useState('');
@@ -106,6 +111,14 @@ export const AdminPage = () => {
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [walletSuccess, setWalletSuccess] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  // Helper to format user display labels robustly
+  const getUserLabel = (u: any) => {
+    if (!u) return 'Unknown User';
+    const name = u.fullName || u.full_name || u.displayName || u.name || (u.email ? u.email.split('@')[0] : null) || 'User';
+    const emailPart = u.email ? ` (${u.email})` : ` [ID: ${u.id ? u.id.slice(0, 8) : 'No ID'}]`;
+    return `${name}${emailPart}`;
+  };
 
   // Global Settings State
   const [usdtAddress, setUsdtAddress] = useState('');
@@ -419,6 +432,7 @@ export const AdminPage = () => {
         role: newRole,
         updatedAt: serverTimestamp()
       });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
       setMessage({ text: `User role updated to ${newRole} successfully!`, type: 'success' });
       if (selectedUser && selectedUser.id === userId) {
         setSelectedUser({ ...selectedUser, role: newRole });
@@ -718,6 +732,7 @@ export const AdminPage = () => {
         managerId: selectedManagerId,
         updatedAt: serverTimestamp()
       });
+      setUsers(prev => prev.map(u => u.id === selectedTargetUserId ? { ...u, managerId: selectedManagerId } : u));
 
       // Create or update chat
       const chatId = [selectedManagerId, selectedTargetUserId].sort().join('_');
@@ -1438,14 +1453,28 @@ export const AdminPage = () => {
           </div>
         ) : activeTab === 'managers' ? (
           <div className="card max-w-2xl mx-auto">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
-                <UserCheck className="w-6 h-6 text-accent" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
+                  <UserCheck className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Manager Assignment</h2>
+                  <p className="text-gray-500 text-sm">Assign an account manager to a customer</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Manager Assignment</h2>
-                <p className="text-gray-500 text-sm">Assign an account manager to a customer</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPromoteTargetRole('account_manager');
+                  setPromoteSearchQuery('');
+                  setIsPromoteModalOpen(true);
+                }}
+                className="px-5 py-3 bg-accent hover:bg-accent/90 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-accent/20 flex items-center gap-2"
+              >
+                <UserCheck className="w-4 h-4" />
+                Promote User (Pop-Up Modal)
+              </button>
             </div>
 
             <form onSubmit={handleAssignManager} className="space-y-6">
@@ -1458,10 +1487,13 @@ export const AdminPage = () => {
                     className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
                     required
                   >
-                    <option value="">Choose a manager...</option>
-                    {users.filter(u => u.role === 'manager' || u.role === 'admin' || u.role === 'account_manager').map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.email} ({u.role})
+                    <option value="" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Choose a manager...</option>
+                    {users.filter(u => {
+                      const r = (u.role || '').toLowerCase();
+                      return r === 'manager' || r === 'admin' || r === 'account_manager';
+                    }).map(u => (
+                      <option key={u.id} value={u.id} className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">
+                        {getUserLabel(u)} — Role: {u.role || 'manager'}
                       </option>
                     ))}
                   </select>
@@ -1478,12 +1510,19 @@ export const AdminPage = () => {
                     className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
                     required
                   >
-                    <option value="">Choose a customer...</option>
-                    {users.filter(u => u.role !== 'manager' && u.role !== 'admin' && u.role !== 'account_manager').map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.email} {u.managerId ? `(Current Manager: ${users.find(m => m.id === u.managerId)?.email || 'Unknown'})` : '(No Manager)'}
-                      </option>
-                    ))}
+                    <option value="" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Choose a customer...</option>
+                    {users.filter(u => {
+                      const r = (u.role || '').toLowerCase();
+                      return r !== 'manager' && r !== 'admin' && r !== 'account_manager';
+                    }).map(u => {
+                      const currentMgr = users.find(m => m.id === u.managerId);
+                      const mgrLabel = currentMgr ? ` (Assigned to: ${getUserLabel(currentMgr)})` : ' (No Manager)';
+                      return (
+                        <option key={u.id} value={u.id} className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">
+                          {getUserLabel(u)}{mgrLabel}
+                        </option>
+                      );
+                    })}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 </div>
@@ -1506,59 +1545,128 @@ export const AdminPage = () => {
             </form>
 
             <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
-              <h3 className="text-lg font-bold mb-6 dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Admin</h3>
-              <div className="space-y-4">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Admin</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPromoteTargetRole('admin');
+                    setPromoteSearchQuery('');
+                    setIsPromoteModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Pop-Up Modal
+                </button>
+              </div>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (selectedAdminAppointUserId) {
+                    handleUpdateRole(selectedAdminAppointUserId, 'admin');
+                    setSelectedAdminAppointUserId('');
+                  }
+                }}
+                className="space-y-4"
+              >
                 <div className="relative">
                   <select 
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleUpdateRole(e.target.value, 'admin');
-                        e.target.value = '';
-                      }
-                    }}
-                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
+                    value={selectedAdminAppointUserId}
+                    onChange={(e) => setSelectedAdminAppointUserId(e.target.value)}
+                    className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none transition-all appearance-none dark:text-white"
                   >
-                    <option value="">Select a user to appoint as admin...</option>
-                    {users.filter(u => u.role !== 'admin').map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.email} ({u.email})
+                    <option value="" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Select a user to appoint as admin...</option>
+                    {users.filter(u => (u.role || '').toLowerCase() !== 'admin').map(u => (
+                      <option key={u.id} value={u.id} className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">
+                        {getUserLabel(u)} — Current Role: {u.role || 'user'}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 </div>
+                <button
+                  type="submit"
+                  disabled={!selectedAdminAppointUserId || isUpdatingRole}
+                  className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+                >
+                  {isUpdatingRole ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-5 h-5" />
+                      Appoint Selected User as Admin
+                    </>
+                  )}
+                </button>
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest italic">
                   Appointed admins will have full access to this panel.
                 </p>
-              </div>
+              </form>
             </div>
 
             <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
-              <h3 className="text-lg font-bold mb-6 dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Account Manager</h3>
-              <div className="space-y-4">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold dark:text-white uppercase tracking-widest text-xs opacity-50">Promote User to Account Manager</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPromoteTargetRole('account_manager');
+                    setPromoteSearchQuery('');
+                    setIsPromoteModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Pop-Up Modal
+                </button>
+              </div>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (selectedManagerAppointUserId) {
+                    handleUpdateRole(selectedManagerAppointUserId, 'account_manager');
+                    setSelectedManagerAppointUserId('');
+                  }
+                }}
+                className="space-y-4"
+              >
                 <div className="relative">
                   <select 
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleUpdateRole(e.target.value, 'account_manager');
-                        e.target.value = '';
-                      }
-                    }}
+                    value={selectedManagerAppointUserId}
+                    onChange={(e) => setSelectedManagerAppointUserId(e.target.value)}
                     className="w-full p-4 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all appearance-none dark:text-white"
                   >
-                    <option value="">Select a user to promote...</option>
-                    {users.filter(u => u.role === 'user' || !u.role).map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.email} ({u.email})
+                    <option value="" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Select a user to promote to manager...</option>
+                    {users.filter(u => {
+                      const r = (u.role || '').toLowerCase();
+                      return r !== 'account_manager' && r !== 'manager' && r !== 'admin';
+                    }).map(u => (
+                      <option key={u.id} value={u.id} className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">
+                        {getUserLabel(u)} — Current Role: {u.role || 'user'}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 </div>
+                <button
+                  type="submit"
+                  disabled={!selectedManagerAppointUserId || isUpdatingRole}
+                  className="w-full py-4 bg-accent hover:bg-accent/90 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+                >
+                  {isUpdatingRole ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <UserCheck className="w-5 h-5" />
+                      Promote Selected User to Manager
+                    </>
+                  )}
+                </button>
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest italic">
                   Promoted users will appear in the manager selection list above.
                 </p>
-              </div>
+              </form>
             </div>
 
             <div className="mt-12 pt-12 border-t border-gray-100 dark:border-zinc-800">
@@ -1569,14 +1677,14 @@ export const AdminPage = () => {
                   return (
                     <div key={u.id} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                       <div>
-                        <p className="text-sm font-bold dark:text-white">{u.email}</p>
+                        <p className="text-sm font-bold dark:text-white">{getUserLabel(u)}</p>
                         <p className="text-[10px] text-gray-500 uppercase tracking-widest">Customer</p>
                       </div>
                       <div className="flex items-center gap-2 text-gray-400">
                         <div className="w-4 h-0.5 bg-gray-300 dark:bg-zinc-700" />
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-accent">{manager?.email || 'Unknown'}</p>
+                        <p className="text-sm font-bold text-accent">{manager ? getUserLabel(manager) : 'Unknown'}</p>
                         <p className="text-[10px] text-gray-500 uppercase tracking-widest">Manager</p>
                       </div>
                     </div>
@@ -3070,6 +3178,175 @@ export const AdminPage = () => {
                     Approve & Disburse
                   </button>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Promote User Pop-Up Modal */}
+      <AnimatePresence>
+        {isPromoteModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPromoteModalOpen(false)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative bg-white dark:bg-zinc-950 rounded-[2.5rem] p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                    promoteTargetRole === 'admin' ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
+                  }`}>
+                    {promoteTargetRole === 'admin' ? <ShieldCheck className="w-6 h-6" /> : <UserCheck className="w-6 h-6" />}
+                  </div>
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tighter dark:text-white uppercase">
+                      {promoteTargetRole === 'admin' ? 'Appoint System Admin' : 'Promote to Account Manager'}
+                    </h3>
+                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+                      Select a user from the list below to promote
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsPromoteModalOpen(false)} 
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Role Toggle inside Modal */}
+              <div className="flex bg-gray-100 dark:bg-zinc-900 p-1.5 rounded-2xl mb-6">
+                <button
+                  type="button"
+                  onClick={() => setPromoteTargetRole('account_manager')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                    promoteTargetRole === 'account_manager' 
+                      ? 'bg-accent text-white shadow-md' 
+                      : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <UserCheck className="w-4 h-4" />
+                  Account Manager
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPromoteTargetRole('admin')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                    promoteTargetRole === 'admin' 
+                      ? 'bg-red-600 text-white shadow-md' 
+                      : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  System Admin
+                </button>
+              </div>
+
+              {/* Search Bar inside Modal */}
+              <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="text"
+                  value={promoteSearchQuery}
+                  onChange={(e) => setPromoteSearchQuery(e.target.value)}
+                  placeholder="Search user by name or email..."
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl outline-none focus:ring-2 focus:ring-accent text-sm dark:text-white font-medium"
+                />
+              </div>
+
+              {/* Candidates List */}
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar min-h-[250px]">
+                {(() => {
+                  const candidates = users.filter(u => {
+                    const r = (u.role || '').toLowerCase();
+                    if (promoteTargetRole === 'admin') {
+                      if (r === 'admin') return false;
+                    } else {
+                      if (r === 'account_manager' || r === 'manager' || r === 'admin') return false;
+                    }
+                    if (promoteSearchQuery.trim()) {
+                      const q = promoteSearchQuery.toLowerCase();
+                      const label = getUserLabel(u).toLowerCase();
+                      const email = (u.email || '').toLowerCase();
+                      return label.includes(q) || email.includes(q);
+                    }
+                    return true;
+                  });
+
+                  if (candidates.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-gray-400">
+                        <p className="text-sm font-bold uppercase tracking-widest">No eligible users found</p>
+                        <p className="text-xs mt-1">All users may already hold this role or no search match was found.</p>
+                      </div>
+                    );
+                  }
+
+                  return candidates.map(u => (
+                    <div key={u.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-900/80 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-accent/10 text-accent font-black flex items-center justify-center text-sm uppercase">
+                          {(u.fullName || u.email || 'U').slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm dark:text-white">{getUserLabel(u)}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] uppercase font-black tracking-widest text-gray-400">
+                              Current: {u.role || 'User'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          await handleUpdateRole(u.id, promoteTargetRole);
+                        }}
+                        disabled={isUpdatingRole}
+                        className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5 ${
+                          promoteTargetRole === 'admin'
+                            ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/20'
+                            : 'bg-accent hover:bg-accent/90 text-white shadow-accent/20'
+                        } disabled:opacity-50`}
+                      >
+                        {isUpdatingRole ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : promoteTargetRole === 'admin' ? (
+                          <>
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Appoint Admin
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-3.5 h-3.5" />
+                            Promote to Manager
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsPromoteModalOpen(false)}
+                  className="px-6 py-3 bg-gray-100 dark:bg-zinc-900 text-gray-500 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-200 dark:hover:bg-zinc-800 transition-all"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </div>
