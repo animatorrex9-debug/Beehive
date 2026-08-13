@@ -320,9 +320,9 @@ DROP POLICY IF EXISTS "Users can insert their own transactions" ON public.transa
 CREATE POLICY "Users can insert their own transactions" ON public.transactions
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Admins and managers can view all transactions" ON public.transactions;
-CREATE POLICY "Admins and managers can view all transactions" ON public.transactions
-  FOR SELECT USING (public.is_admin_or_manager());
+DROP POLICY IF EXISTS "Admins and managers can manage all transactions" ON public.transactions;
+CREATE POLICY "Admins and managers can manage all transactions" ON public.transactions
+  FOR ALL USING (public.is_admin_or_manager());
 
 -- Chats Policies
 DROP POLICY IF EXISTS "Users can view their own chats" ON public.chats;

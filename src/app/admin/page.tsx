@@ -217,7 +217,9 @@ export const AdminPage = () => {
         where('status', '==', 'pending')
       );
       unsubscribeDeposits = onSnapshot(depositsQuery, (snapshot) => {
-        const depositData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const depositData = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() as any }))
+          .filter(doc => doc.status === 'pending');
         setPendingDeposits(depositData);
       }, (err) => {
         if (err.code !== 'permission-denied') {
@@ -620,6 +622,9 @@ export const AdminPage = () => {
       } catch (notifyErr) {
         console.error('Error sending notification:', notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
       }
+
+      // Optimistically remove from state so UI updates immediately
+      setPendingDeposits(prev => prev.filter(d => d.id !== depositId));
 
       setMessage({ text: `Deposit ${status === 'completed' ? 'approved' : 'rejected'} successfully!`, type: 'success' });
       setSelectedDeposit(null);
