@@ -19,7 +19,7 @@ interface RecentRecipient {
 
 export const SendPage = () => {
   const { user, userData } = useAuth();
-  const { currency, formatAmount } = useCurrency();
+  const { currency, formatAmount, convertAmount } = useCurrency();
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
@@ -94,46 +94,56 @@ export const SendPage = () => {
     e.preventDefault();
     if (!user || !amount || parseFloat(amount) <= 0) return;
 
-    const sendAmount = parseFloat(amount);
-    
-    if ((userData?.walletBalance || 0) < sendAmount) {
-      setError('Insufficient funds in your wallet.');
+    const sendAmountLocal = parseFloat(amount);
+    if (isNaN(sendAmountLocal) || sendAmountLocal <= 0) {
+      setError('Please enter a valid amount.');
       return;
     }
+
+    const rawBalanceUSD = userData?.walletBalance || 0;
+    const localBalance = convertAmount(rawBalanceUSD, 'USD', currency.code);
+    
+    if (sendAmountLocal > localBalance + 0.001) {
+      setError(`Insufficient funds in your wallet. Available: ${formatAmount(rawBalanceUSD)}`);
+      return;
+    }
+
+    const sendAmountUSD = convertAmount(sendAmountLocal, currency.code, 'USD');
 
     setLoading(true);
     setError('');
 
     try {
-      // Update sender balance
+      // Update sender balance with USD amount
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-sendAmount)
+        walletBalance: increment(-sendAmountUSD)
       });
 
       let description = '';
       let metadata: any = {};
 
       if (type === 'beehive') {
-        description = `Sent to Beehive user: ${recipient}`;
+        description = `Sent to Beehive user: ${recipient} (${currency.symbol}${sendAmountLocal.toLocaleString()})`;
         metadata = { recipient };
       } else if (type === 'local') {
-        description = `Local transfer to ${bankName}`;
+        description = `Local transfer to ${bankName} (${currency.symbol}${sendAmountLocal.toLocaleString()})`;
         metadata = { bankName, accountName, accountNumber: recipient };
       } else if (type === 'international') {
-        description = `International transfer to ${country}`;
+        description = `International transfer to ${country} (${currency.symbol}${sendAmountLocal.toLocaleString()})`;
         metadata = { iban, swift, country, bankName };
       } else if (type === 'thirdparty') {
-        description = `${thirdPartyApp.charAt(0).toUpperCase() + thirdPartyApp.slice(1)} transfer to ${recipient}`;
+        description = `${thirdPartyApp.charAt(0).toUpperCase() + thirdPartyApp.slice(1)} transfer to ${recipient} (${currency.symbol}${sendAmountLocal.toLocaleString()})`;
         metadata = { app: thirdPartyApp, recipient };
       }
 
-      // Record transaction
+      // Record transaction in USD for standard history formatting
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'send',
         transferType: type,
-        amount: sendAmount,
-        currency: userData?.currency?.code || currency.code || 'USD',
+        amount: sendAmountUSD,
+        localAmount: sendAmountLocal,
+        currency: currency.code,
         status: 'completed',
         description,
         metadata,

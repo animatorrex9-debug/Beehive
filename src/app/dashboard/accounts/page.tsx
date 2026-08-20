@@ -9,7 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 
 export const AccountsPage = () => {
-  const { formatAmount, rates } = useCurrency();
+  const { currency, formatAmount, rates, convertAmount } = useCurrency();
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -43,12 +43,17 @@ export const AccountsPage = () => {
 
   const handleMoveFunds = async () => {
     if (!user || !moveAmount || parseFloat(moveAmount) <= 0) return;
-    const amountNum = parseFloat(moveAmount);
+    const amountNumLocal = parseFloat(moveAmount);
     
-    if (amountNum > balance) {
-      setMoveError('Insufficient main balance');
+    const rawBalanceUSD = userData?.walletBalance || 0;
+    const localBalance = convertAmount(rawBalanceUSD, 'USD', currency.code);
+
+    if (amountNumLocal > localBalance + 0.001) {
+      setMoveError(`Insufficient main balance. Available: ${formatAmount(rawBalanceUSD)}`);
       return;
     }
+
+    const amountNumUSD = convertAmount(amountNumLocal, currency.code, 'USD');
 
     setMoveLoading(true);
     setMoveError('');
@@ -61,9 +66,9 @@ export const AccountsPage = () => {
 
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        walletBalance: increment(-amountNum),
-        savings: increment(amountNum),
-        savingsPrincipal: increment(amountNum),
+        walletBalance: increment(-amountNumUSD),
+        savings: increment(amountNumUSD),
+        savingsPrincipal: increment(amountNumUSD),
         savingsLockUntil: lockUntil.toISOString(),
         savingsInterestRate: selectedOption?.rate || 0.1,
         savingsLastInterestCalculationDate: new Date().toISOString()
@@ -73,10 +78,11 @@ export const AccountsPage = () => {
         userId: user.uid,
         userEmail: user.email,
         type: 'transfer',
-        amount: amountNum,
-        currency: userData?.currency?.code || 'USD',
+        amount: amountNumUSD,
+        localAmount: amountNumLocal,
+        currency: currency.code,
         status: 'completed',
-        description: `Locked Savings (${selectedOption?.label})`,
+        description: `Locked Savings (${selectedOption?.label}) - ${currency.symbol}${amountNumLocal.toLocaleString()}`,
         createdAt: serverTimestamp(),
         timestamp: new Date().toISOString()
       });
@@ -487,19 +493,20 @@ export const AccountsPage = () => {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Amount to Move</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Amount to Move ({currency.code})</label>
                     <p className="text-xs font-bold text-accent">Available: {formatAmount(balance)}</p>
                   </div>
                   <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">{currency.symbol}</span>
                     <input
                       type="number"
                       value={moveAmount}
                       onChange={(e) => setMoveAmount(e.target.value)}
-                      className="w-full px-4 py-4 rounded-2xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white text-xl font-bold"
+                      className="w-full pl-10 pr-16 py-4 rounded-2xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-accent outline-none transition-all dark:text-white text-xl font-bold"
                       placeholder="0.00"
                     />
                     <button 
-                      onClick={() => setMoveAmount(balance.toString())}
+                      onClick={() => setMoveAmount(convertAmount(balance, 'USD', currency.code).toString())}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-accent hover:underline"
                     >
                       MAX
@@ -532,13 +539,13 @@ export const AccountsPage = () => {
                     <div className="flex justify-between text-xs">
                       <span className="text-gray-500">Daily Interest</span>
                       <span className="font-bold text-accent">
-                        {formatAmount(parseFloat(moveAmount) * (lockOptions.find(o => o.value === lockPeriod)?.rate || 0) / 100)}
+                        {currency.symbol}{(parseFloat(moveAmount) * (lockOptions.find(o => o.value === lockPeriod)?.rate || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">Estimated Total</span>
+                      <span className="text-gray-500">Estimated Total Return</span>
                       <span className="font-bold text-accent">
-                        {formatAmount(parseFloat(moveAmount) + (parseFloat(moveAmount) * (lockOptions.find(o => o.value === lockPeriod)?.rate || 0) / 100 * parseInt(lockPeriod)))}
+                        {currency.symbol}{(parseFloat(moveAmount) + (parseFloat(moveAmount) * (lockOptions.find(o => o.value === lockPeriod)?.rate || 0) / 100 * parseInt(lockPeriod))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>

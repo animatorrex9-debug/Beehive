@@ -17,7 +17,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 export const LoanApplicationPage = () => {
   const { user, userData } = useAuth();
   const { activeLoan } = useOutletContext<{ activeLoan: any }>();
-  const { formatAmount } = useCurrency();
+  const { currency, formatAmount } = useCurrency();
   const navigate = useNavigate();
   const [amount, setAmount] = useState(50000);
   const [duration, setDuration] = useState(3);
@@ -83,6 +83,7 @@ export const LoanApplicationPage = () => {
         userEmail: user.email,
         userName: userData?.fullName || user.email?.split('@')[0],
         amount: Number(amount),
+        currency: userData?.currency?.code || currency.code || 'USD',
         duration: Number(duration),
         status: 'pending',
         createdAt: serverTimestamp(),

@@ -144,7 +144,7 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
 
 export const CharityPage = () => {
   const { user, userData } = useAuth();
-  const { currency, formatAmount } = useCurrency();
+  const { currency, formatAmount, convertAmount } = useCurrency();
   const { setTheme } = useTheme();
 
   // Set default mode of charity page to light mode
@@ -315,39 +315,58 @@ export const CharityPage = () => {
   const totalUserDonated = donations.reduce((sum, d) => sum + (d.amount || 0), 0);
   const uniqueCausesSupported = new Set(donations.map(d => d.charityId || d.campaignId)).size;
 
+  // Calculate dynamic presets scaled to the user's active currency
+  const presetAmounts = React.useMemo(() => {
+    const baseUsdPresets = [10, 25, 50, 100, 250, 500];
+    return baseUsdPresets.map(usd => {
+      const converted = convertAmount(usd, 'USD', currency.code);
+      if (converted >= 10000) return Math.round(converted / 1000) * 1000;
+      if (converted >= 1000) return Math.round(converted / 500) * 500;
+      if (converted >= 100) return Math.round(converted / 50) * 50;
+      if (converted >= 10) return Math.round(converted / 5) * 5;
+      return Math.round(converted);
+    });
+  }, [currency.code, convertAmount]);
+
   // Handle Donation Submission
   const handleDonateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !userData || !selectedCampaign) return;
 
-    const numAmount = Number(donationAmount);
-    if (isNaN(numAmount) || numAmount <= 0) {
+    const localAmount = Number(donationAmount);
+    if (isNaN(localAmount) || localAmount <= 0) {
       setError('Please enter a valid donation amount.');
       return;
     }
 
-    if (numAmount > (userData.walletBalance || 0)) {
-      setError(`Insufficient balance. Your wallet balance is ${formatAmount(userData.walletBalance || 0)}.`);
+    const rawBalanceUSD = userData.walletBalance || 0;
+    const localBalance = convertAmount(rawBalanceUSD, 'USD', currency.code);
+
+    if (localAmount > localBalance + 0.001) {
+      setError(`Insufficient balance. Your wallet balance is ${formatAmount(rawBalanceUSD)}.`);
       return;
     }
+
+    const amountInUSD = convertAmount(localAmount, currency.code, 'USD');
 
     setLoading(true);
     setError('');
 
     try {
-      // 1. Deduct balance from user
+      // 1. Deduct raw USD balance from user
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-numAmount)
+        walletBalance: increment(-amountInUSD)
       });
 
-      // 2. Record transaction
+      // 2. Record transaction in USD for standard history formatting
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'donation',
-        amount: numAmount,
-        currency: userData?.currency?.code || currency.code || 'USD',
+        amount: amountInUSD,
+        localAmount: localAmount,
+        currency: currency.code,
         status: 'completed',
-        description: `Charity Donation: ${selectedCampaign.title}`,
+        description: `Charity Donation: ${selectedCampaign.title} (${currency.symbol}${localAmount.toLocaleString()})`,
         timestamp: new Date().toISOString()
       });
 
@@ -359,16 +378,18 @@ export const CharityPage = () => {
         charityName: selectedCampaign.title,
         beneficiary: selectedCampaign.beneficiary,
         type: selectedCampaign.type,
-        amount: numAmount,
+        amount: amountInUSD,
+        localAmount: localAmount,
+        currency: currency.code,
         anonymous: isAnonymous,
         donorNote: donorNote,
         timestamp: new Date().toISOString()
       });
 
-      // 4. Increment campaign raised amount and donor count in DB
+      // 4. Increment campaign raised amount (in USD) and donor count in DB
       try {
         await updateDoc(doc(db, 'charity_campaigns', selectedCampaign.id), {
-          raisedAmount: increment(numAmount),
+          raisedAmount: increment(amountInUSD),
           donorCount: increment(1)
         });
       } catch (e) {
@@ -766,19 +787,19 @@ export const CharityPage = () => {
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
                     Select Donation Amount ({currency.code})
                   </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[10, 25, 50, 100, 250, 500].map((amt) => (
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {presetAmounts.map((amt) => (
                       <button
                         key={amt}
                         type="button"
                         onClick={() => setDonationAmount(amt.toString())}
-                        className={`py-2.5 rounded-xl font-black text-xs transition-all border ${
+                        className={`py-2.5 px-2 rounded-xl font-black text-xs transition-all border ${
                           donationAmount === amt.toString()
                             ? 'bg-accent text-white border-accent shadow-md'
                             : 'bg-gray-50 dark:bg-zinc-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-zinc-800 hover:border-accent'
                         }`}
                       >
-                        {currency.symbol}{amt}
+                        {currency.symbol}{amt.toLocaleString()}
                       </button>
                     ))}
                   </div>

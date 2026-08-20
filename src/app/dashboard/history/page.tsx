@@ -14,7 +14,10 @@ import {
   AlertCircle,
   MoreHorizontal,
   FileText,
-  History
+  History,
+  Heart,
+  TrendingUp,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -82,6 +85,9 @@ export const HistoryPage = () => {
       case 'deposit': return <ArrowDownLeft className="w-5 h-5 text-green-500" />;
       case 'swap': return <RefreshCw className="w-5 h-5 text-blue-500" />;
       case 'loan': return <FileText className="w-5 h-5 text-accent" />;
+      case 'donation': return <Heart className="w-5 h-5 text-rose-500" />;
+      case 'investment': return <TrendingUp className="w-5 h-5 text-emerald-500" />;
+      case 'transfer': return <Lock className="w-5 h-5 text-amber-500" />;
       default: return <Clock className="w-5 h-5 text-gray-400" />;
     }
   };
@@ -180,9 +186,9 @@ export const HistoryPage = () => {
                       <td className="px-6 py-4">
                         <p className={`text-sm font-black ${
                           tx.type === 'deposit' ? 'text-green-500' : 
-                          tx.type === 'send' ? 'text-red-500' : 'dark:text-white'
+                          ['send', 'donation', 'investment', 'fee'].includes(tx.type) ? 'text-red-500' : 'dark:text-white'
                         }`}>
-                          {tx.type === 'send' ? '-' : '+'}{formatAmount(tx.amount)}
+                          {['send', 'donation', 'investment', 'fee'].includes(tx.type) ? '-' : '+'}{formatAmount(tx.amount)}
                         </p>
                       </td>
                       <td className="px-6 py-4">

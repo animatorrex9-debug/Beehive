@@ -80,7 +80,7 @@ const investmentOptions = [
 
 export const InvestPage = () => {
   const { user, userData } = useAuth();
-  const { currency, formatAmount } = useCurrency();
+  const { currency, formatAmount, convertAmount } = useCurrency();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<any | null>(null);
   const [amount, setAmount] = useState('');
@@ -92,41 +92,53 @@ export const InvestPage = () => {
     e.preventDefault();
     if (!user || !amount || parseFloat(amount) <= 0 || !selectedOption) return;
 
-    const investAmount = parseFloat(amount);
-    
-    if (userData?.walletBalance < investAmount) {
-      setError('Insufficient funds in your wallet.');
+    const investAmountLocal = parseFloat(amount);
+    if (isNaN(investAmountLocal) || investAmountLocal <= 0) {
+      setError('Please enter a valid investment amount.');
       return;
     }
+
+    const rawWalletBalance = userData?.walletBalance || 0;
+    const localWalletBalance = convertAmount(rawWalletBalance, 'USD', currency.code);
+    
+    if (investAmountLocal > localWalletBalance + 0.001) {
+      setError(`Insufficient funds in your wallet. Available balance: ${formatAmount(rawWalletBalance)}`);
+      return;
+    }
+
+    const investAmountUSD = convertAmount(investAmountLocal, currency.code, 'USD');
 
     setLoading(true);
     setError('');
 
     try {
-      // Update user balance and investment balance
+      // Update user balance and investment balance in raw USD
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-investAmount),
-        investmentBalance: increment(investAmount),
+        walletBalance: increment(-investAmountUSD),
+        investmentBalance: increment(investAmountUSD),
         lastReturnCalculationDate: new Date().toISOString()
       });
 
       // Record investment in user's investments subcollection for daily return calculation
       await addDoc(collection(db, 'users', user.uid, 'investments'), {
         title: selectedOption.title,
-        amount: investAmount,
+        amount: investAmountUSD,
+        localAmount: investAmountLocal,
+        currency: currency.code,
         biweeklyReturn: parseFloat(selectedOption.returns),
         timestamp: new Date().toISOString(),
         status: 'active'
       });
 
-      // Record transaction
+      // Record transaction in USD for standard history formatting
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'investment',
-        amount: investAmount,
-        currency: userData?.currency?.code || currency.code || 'USD',
+        amount: investAmountUSD,
+        localAmount: investAmountLocal,
+        currency: currency.code,
         status: 'completed',
-        description: `Invested in ${selectedOption.title}`,
+        description: `Invested in ${selectedOption.title} (${currency.symbol}${investAmountLocal.toLocaleString()})`,
         timestamp: new Date().toISOString(),
         metadata: {
           category: selectedOption.title,
