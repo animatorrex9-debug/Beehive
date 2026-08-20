@@ -1,5 +1,6 @@
 {
   "name": "Beehive",
   "description": "A full-featured online banking platform where users can borrow loans, deposit, send, receive money, invest, swap currencies, and more.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
