@@ -1,0 +1,426 @@
+================================================================================
+BEEHIVE BANKING PLATFORM — COMPREHENSIVE END-TO-END TESTING GUIDE
+================================================================================
+
+This guide provides a detailed, step-by-step walk-through to test all features 
+and workflows of Beehive Banking using three distinct roles:
+  1. Standard User
+  2. Account Manager (Officer)
+  3. Administrator (Super Admin)
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. ACCOUNT SETUP & PREREQUISITES
+   - 1.1 Create Standard User Account
+   - 1.2 Setup Admin Account (animatorrex9@gmail.com)
+   - 1.3 Create and Assign an Account Manager
+2. TESTING STANDARD USER WORKFLOWS
+   - 2.1 Profile Completion & Currency System
+   - 2.2 KYC Verification Submission
+   - 2.3 Deposit Flow (Crypto & Bank Transfer with Proof Upload)
+   - 2.4 Money Transfer & Send (Beehive, Local Bank, International Swift/IBAN, 3rd Party)
+   - 2.5 Currency Swap & Multi-Currency Conversion
+   - 2.6 Investment Portfolios & Returns
+   - 2.7 High-Yield Locked Savings
+   - 2.8 Virtual Debit & Credit Cards Management
+   - 2.9 Charity & Social Causes Donation Flow
+   - 2.10 Loan Application & Status Tracking
+   - 2.11 Tax Returns & Business Grants Applications
+   - 2.12 Direct Messaging & Support Chat (User Side)
+   - 2.13 Account Settings & Security (Theme, Profile, Password)
+3. TESTING ACCOUNT MANAGER WORKFLOWS
+   - 3.1 Manager Dashboard & Client Portfolio Overview
+   - 3.2 Real-time Client Chat & Support
+   - 3.3 Managing Client KYC & Account Status
+4. TESTING ADMINISTRATOR WORKFLOWS
+   - 4.1 Admin Analytics & Global Command Center
+   - 4.2 User Management & Direct Role Assignment
+   - 4.3 Multi-Currency Profile Editing & Live Wallet Adjustments (Credit/Debit)
+   - 4.4 Deposit Approvals / Rejections (Instant Balance Credit)
+   - 4.5 KYC Verification Auditing & Document Reviews
+   - 4.6 Loan Applications Review, Approval, and Rejection
+   - 4.7 Account Manager Assignments to Users
+   - 4.8 Bank & Payment Method Settings
+   - 4.9 Virtual Cards Issuer & Activation Control
+   - 4.10 Grants & Tax Refund Applications Review
+   - 4.11 Charity Campaigns Creation & Editing
+   - 4.12 Live Multi-User Admin Support Chat
+5. INTEGRATION & VERIFICATION CHECKLIST
+
+
+================================================================================
+1. ACCOUNT SETUP & PREREQUISITES
+================================================================================
+
+1.1 CREATE STANDARD USER ACCOUNT
+--------------------------------
+1. Open the app in your browser at:
+   https://ais-dev-trdqmz3p3lraco5kdal7ex-561361788807.europe-west2.run.app/
+2. Click "Get Started" or "Sign Up" from the landing page.
+3. Enter:
+   - Full Name: John Doe (or any test name)
+   - Email: user.test@example.com (or your personal test email)
+   - Password: Password123!
+   - Confirm Password: Password123!
+4. Click "Create Account".
+5. Complete the Profile on the `/auth/complete-profile` screen:
+   - Select Country (e.g. Nigeria for NGN, United Kingdom for GBP, Germany for EUR, or United States for USD).
+   - Enter Phone Number, Address, and Date of Birth.
+   - Click "Save & Continue".
+6. You will now be redirected to the User Dashboard (`/dashboard`).
+
+1.2 SETUP ADMIN ACCOUNT
+-----------------------
+- The default Super Admin email with administrative privileges is:
+  `animatorrex9@gmail.com`
+- Steps to login as Admin:
+  1. Navigate to `/admin/login`
+  2. Enter email: `animatorrex9@gmail.com` and your password.
+  3. Click "Sign In". You will enter the Admin Panel (`/admin`).
+
+1.3 CREATE AND ASSIGN AN ACCOUNT MANAGER
+----------------------------------------
+1. Open an Incognito window or separate browser profile.
+2. Go to `/auth/signup` and create a second account:
+   - Full Name: Manager Sarah
+   - Email: manager.test@example.com
+   - Password: Password123!
+3. Complete profile setup for this account.
+4. Now, switch to your Admin window (`/admin`):
+   - Click the "Users" tab.
+   - Search for `manager.test@example.com`.
+   - Click "Change Role" -> Select "Account Manager" (`account_manager`) -> Save.
+5. In the Admin Panel under "Managers" tab:
+   - Assign `manager.test@example.com` as the manager for `user.test@example.com`.
+6. Log in as `manager.test@example.com` at `/auth/login` — notice you are automatically routed to `/manager` (the Account Manager Command Center).
+
+
+================================================================================
+2. TESTING STANDARD USER WORKFLOWS (Log in as user.test@example.com)
+================================================================================
+
+2.1 PROFILE COMPLETION & CURRENCY SYSTEM
+----------------------------------------
+- Goal: Verify that the dashboard displays balances and transactions in the user's localized currency with live conversion.
+- Steps:
+  1. Open Dashboard (`/dashboard`).
+  2. Check the Currency selector in the top-right navbar. Switch between currencies (e.g., USD $, EUR €, GBP £, NGN ₦, BTC ₿).
+  3. Verify that total balances, quick stats, and cards automatically recalculate in real-time.
+
+2.2 KYC VERIFICATION SUBMISSION
+-------------------------------
+- Goal: Submit identity proof for verification.
+- Steps:
+  1. In the sidebar, click "KYC Verification" (`/dashboard/kyc`).
+  2. Fill in:
+     - Document Type (Passport / Driver's License / National ID / SSN).
+     - Document ID Number.
+     - Upload front & back photo of ID / proof of address.
+  3. Click "Submit KYC for Review".
+  4. Notice the badge updates to "Pending Verification".
+
+2.3 DEPOSIT FLOW (CRYPTO & BANK PROOF)
+--------------------------------------
+- Goal: Submit a deposit request to add funds.
+- Steps:
+  1. Click "Deposit" (`/dashboard/deposit`).
+  2. Choose deposit method:
+     - Crypto (BTC / USDT / ETH): Scan QR code or copy designated wallet address.
+     - Bank Transfer: View platform bank deposit details.
+  3. Enter deposit amount (e.g., 500 USD or local equivalent).
+  4. Upload proof of payment (screenshot/receipt).
+  5. Click "Submit Deposit Request".
+  6. Verify the deposit request appears in "Deposit History" with status "Pending".
+
+2.4 MONEY TRANSFER & SEND
+-------------------------
+- Goal: Test peer-to-peer and external transfers.
+- Steps:
+  1. Click "Send Money" (`/dashboard/send`).
+  2. Test all 4 transfer types:
+     a. "Beehive User" -> Enter recipient email or account ID.
+     b. "Local Bank Transfer" -> Enter Bank Name, Account Number, Account Name.
+     c. "International Transfer" -> Enter Country, IBAN, Swift/BIC Code.
+     d. "Third-Party / FinTech" -> Select PayPal / CashApp / Zelle / Venmo and handle.
+  3. Enter amount (e.g., 50 local currency).
+  4. Review summary with conversion and click "Send Funds".
+  5. Check confirmation prompt and verify deduction in transaction history.
+
+2.5 CURRENCY SWAP & MULTI-CURRENCY CONVERSION
+---------------------------------------------
+- Goal: Swap funds between fiat currencies and crypto assets.
+- Steps:
+  1. Click "Currency Swap" (`/dashboard/swap`).
+  2. Select "From" currency (e.g., USD or NGN) and "To" currency (e.g., EUR, BTC, or USDT).
+  3. Enter amount to swap.
+  4. Verify live exchange rates and computed receive amount.
+  5. Click "Swap Now" and verify immediate balance reallocation.
+
+2.6 INVESTMENT PORTFOLIOS & RETURNS
+-----------------------------------
+- Goal: Allocate funds into automated investment tiers.
+- Steps:
+  1. Click "Invest" (`/dashboard/invest`).
+  2. Browse available investment packages:
+     - Real Estate Growth Fund
+     - Crypto Yield Aggregator
+     - Global Tech Index
+     - Green Energy Bonds
+  3. Click "Invest Now" on a selected tier.
+  4. Enter amount in your local currency.
+  5. Click "Confirm Investment".
+  6. Verify your investment appears under "Active Investments" with bi-weekly ROI schedule.
+
+2.7 HIGH-YIELD LOCKED SAVINGS
+-----------------------------
+- Goal: Move wallet balance into locked interest-bearing savings.
+- Steps:
+  1. Click "Accounts & Savings" (`/dashboard/accounts`).
+  2. In the "Locked Savings" section, click "Move Funds to Savings".
+  3. Select duration (30 Days @ 8% APY, 90 Days @ 12% APY, 1 Year @ 18% APY).
+  4. Enter local currency amount (or click "MAX").
+  5. Check estimated daily interest and maturity return preview.
+  6. Click "Lock Funds".
+  7. Verify wallet balance is deducted and savings balance increases.
+
+2.8 VIRTUAL DEBIT & CREDIT CARDS
+--------------------------------
+- Goal: Request and manage virtual cards.
+- Steps:
+  1. Click "Cards" (`/dashboard/cards`).
+  2. View your Virtual Visa / Mastercard.
+  3. Toggle "Show Card Details" (Card Number, CVV, Expiry Date).
+  4. Test "Freeze / Unfreeze Card" action.
+  5. Test "Set Spending Limit".
+  6. If card is inactive, test clicking "Activate Card" (or check status).
+
+2.9 CHARITY & SOCIAL CAUSES DONATION
+------------------------------------
+- Goal: Test charity donations in local currency with accurate USD back-end processing.
+- Steps:
+  1. Click "Charity & Causes" (`/dashboard/charity`).
+  2. Explore active campaigns (e.g., Clean Water Initiative, Disaster Relief, Youth Tech Education).
+  3. Click "Donate" on a campaign.
+  4. Choose a quick preset (e.g., ₦10,000 / $50) or type custom local amount.
+  5. Check "Donate Anonymously" or add a donor note.
+  6. Click "Confirm Donation".
+  7. Verify your wallet reflects deduction, donation counter updates, and receipt is logged in `/dashboard/history`.
+
+2.10 LOAN APPLICATION & STATUS
+------------------------------
+- Goal: Apply for short-term or personal loans.
+- Steps:
+  1. Click "Loan Application" (`/dashboard/loan-application`).
+  2. Use the interactive sliders to configure:
+     - Loan Amount (e.g., $5,000 / ₦500,000).
+     - Repayment Duration (3 months, 6 months, 12 months).
+  3. Enter Purpose of Loan and Employment details.
+  4. Click "Submit Loan Application".
+  5. Navigate to `/dashboard/loan-status` to track application status ("Under Review").
+
+2.11 TAX REFUNDS & BUSINESS GRANTS
+----------------------------------
+- Goal: Submit tax refund claim and business grant proposals.
+- Steps:
+  1. Click "Tax Returns" (`/dashboard/tax-refunds`) -> Fill tax year, expected refund amount, attach W2/tax form -> Submit.
+  2. Click "Grants" (`/dashboard/grants`) -> Select Grant Program (SME Booster, Tech Innovation, Green Initiative) -> Fill proposal & requested amount -> Submit.
+
+2.12 DIRECT MESSAGING & SUPPORT CHAT
+------------------------------------
+- Goal: Chat in real-time with your assigned account manager.
+- Steps:
+  1. Click "Support & Manager Chat" (`/dashboard/chat`).
+  2. View assigned manager badge (e.g., "Manager Sarah").
+  3. Type and send a message (e.g., "Hello, I just submitted my KYC and deposit!").
+  4. Test sending emoji or attaching document/image.
+  5. Keep this tab open to test receiving replies from the manager.
+
+2.13 ACCOUNT SETTINGS & SECURITY
+--------------------------------
+- Goal: Customize account preferences.
+- Steps:
+  1. Click "Settings" (`/dashboard/settings`).
+  2. Toggle Dark Mode / Light Mode theme.
+  3. Update profile bio, phone number, and notification preferences.
+  4. Test Password Change form.
+
+
+================================================================================
+3. TESTING ACCOUNT MANAGER WORKFLOWS (Log in as manager.test@example.com)
+================================================================================
+
+3.1 MANAGER DASHBOARD & CLIENT PORTFOLIO
+----------------------------------------
+- Steps:
+  1. Log into `/auth/login` with `manager.test@example.com`.
+  2. Automatically redirected to `/manager`.
+  3. Check key KPI cards:
+     - Assigned Clients count.
+     - Pending KYC verifications.
+     - Verified Clients count.
+     - Total Managed Assets under management.
+  4. Scroll down to "Assigned Clients" table:
+     - Locate `user.test@example.com`.
+     - Check client's wallet balance, KYC status, and country.
+
+3.2 REAL-TIME CLIENT CHAT
+-------------------------
+- Steps:
+  1. In the Manager navigation bar, click "Client Messages" (`/manager/chat`).
+  2. Select `user.test@example.com` from the client list on the left.
+  3. View the incoming message sent by John Doe in Step 2.12.
+  4. Reply: "Hello John! I've received your documents and will review them immediately."
+  5. Check the User window to confirm instant real-time synchronization.
+
+3.3 CLIENT KYC & PROGRESS AUDIT
+-------------------------------
+- Steps:
+  1. Click on a client to view their detailed KYC submission files and profile information.
+  2. Add manager internal notes or follow up directly via chat.
+
+
+================================================================================
+4. TESTING ADMINISTRATOR WORKFLOWS (Log in as animatorrex9@gmail.com)
+================================================================================
+
+4.1 ADMIN ANALYTICS & GLOBAL COMMAND CENTER
+-------------------------------------------
+- Steps:
+  1. Log in at `/admin/login` with `animatorrex9@gmail.com`.
+  2. Arrive at Admin Command Center (`/admin`).
+  3. Check high-level metrics:
+     - Total Platform Users.
+     - Total Deposits & Loans Volume.
+     - Pending KYC submissions counter.
+     - Pending Deposits counter.
+
+4.2 USER MANAGEMENT & DIRECT ROLE ASSIGNMENT
+--------------------------------------------
+- Steps:
+  1. Click the "Users" tab.
+  2. Search user by email or name.
+  3. View user cards showing Balance, KYC status, and active Role.
+  4. Click "Change Role" dropdown to test promoting/demoting accounts between `user`, `account_manager`, and `admin`.
+
+4.3 MULTI-CURRENCY PROFILE EDITING & LIVE WALLET ADJUSTMENTS
+------------------------------------------------------------
+- Steps:
+  1. Under "Users" tab, click "View Profile / Edit" on `user.test@example.com`.
+  2. Observe the user's localized currency symbol (e.g. ₦ / € / £ / $) and current balance.
+  3. Test **Wallet Adjustment**:
+     - Click "Adjust Balance" or switch to "Wallet" tab.
+     - Select `user.test@example.com`.
+     - Enter adjustment amount in the user's local currency (e.g. `+50,000 NGN` or `+500 USD`).
+     - Check the live conversion preview showing the exact USD amount stored in the database.
+     - Click "Credit Wallet" (or "Debit Wallet").
+     - Switch to the user's browser tab: verify user balance immediately updates to reflect the credit!
+
+4.4 DEPOSIT APPROVALS / REJECTIONS
+----------------------------------
+- Steps:
+  1. Click the "Deposits" tab.
+  2. Locate the pending deposit submitted in Step 2.3.
+  3. Click "View Proof" to inspect the uploaded payment receipt.
+  4. Click "Approve Deposit":
+     - Confirm the prompt.
+     - Verify status switches to "Approved".
+     - Verify the user's wallet balance is automatically credited with the deposit amount.
+  5. Test submitting another deposit and clicking "Reject Deposit" with a reason note.
+
+4.5 KYC VERIFICATION AUDITING
+-----------------------------
+- Steps:
+  1. Click the "KYC" tab.
+  2. Find John Doe's pending KYC submission from Step 2.2.
+  3. Click "Review Documents":
+     - View uploaded Front ID, Back ID, and personal information.
+  4. Click "Approve Verification".
+  5. Switch to user dashboard: notice the badge updates to "Verified Account" with green checkmark.
+
+4.6 LOAN APPLICATIONS REVIEW
+----------------------------
+- Steps:
+  1. Click the "Loans" tab.
+  2. Locate John Doe's loan request from Step 2.10.
+  3. Review requested amount, duration, interest rate, and purpose.
+  4. Click "Approve Loan":
+     - Status updates to "Approved / Active".
+     - User's wallet is credited with the approved loan funds.
+     - Repayment schedule is initialized.
+  5. In user dashboard, verify loan appears as active under `/dashboard/loan-status`.
+
+4.7 ACCOUNT MANAGER ASSIGNMENTS
+-------------------------------
+- Steps:
+  1. Click the "Managers" tab.
+  2. View all registered Account Managers.
+  3. Use the assignment dropdown to assign or reassign users to specific managers.
+  4. Verify the relationship updates in both the Manager and User dashboards.
+
+4.8 BANK & PAYMENT METHOD SETTINGS
+----------------------------------
+- Steps:
+  1. Click the "Banks" tab.
+  2. View platform deposit accounts (Wire Transfer details, Bitcoin address, USDT ERC20/TRC20 address).
+  3. Edit bank details / wallet addresses and save.
+  4. In the user deposit page, confirm the newly updated deposit addresses are displayed.
+
+4.9 VIRTUAL CARDS ISSUER & ACTIVATION CONTROL
+---------------------------------------------
+- Steps:
+  1. Click the "Cards" tab.
+  2. Find `user.test@example.com`'s card.
+  3. Toggle "Activate Card" / "Freeze Card" / "Set Limit".
+  4. In user dashboard, confirm the card status changes in real-time.
+
+4.10 GRANTS & TAX REFUND APPLICATIONS REVIEW
+--------------------------------------------
+- Steps:
+  1. Click the "Grants" tab -> Review pending business grant application -> Approve or Reject with custom grant payout.
+  2. Click the "Tax Refunds" tab -> Review tax return claim -> Approve payout to user's wallet.
+
+4.11 CHARITY CAMPAIGNS CREATION & EDITING
+-----------------------------------------
+- Steps:
+  1. Click the "Charity" tab.
+  2. Click "Create New Campaign":
+     - Campaign Title: "Clean Water Africa Initiative"
+     - Target Amount ($USD): 50,000
+     - Beneficiary: "Water For Life NGO"
+     - Category: Emergency Relief / Health
+     - Image URL & Description.
+  3. Click "Publish Campaign".
+  4. Open `/dashboard/charity` on the user side: verify the newly published campaign is live and accepting donations.
+
+4.12 LIVE MULTI-USER ADMIN SUPPORT CHAT
+---------------------------------------
+- Steps:
+  1. Click the "Chats" tab in Admin Panel.
+  2. View all active user conversations across the platform.
+  3. Click any conversation thread to send official Admin broadcasts or direct assistance.
+
+
+================================================================================
+5. INTEGRATION & VERIFICATION CHECKLIST
+================================================================================
+[ ] User Registration & Complete Profile (Country + Currency mapping)
+[ ] Real-time Fiat & Crypto Currency Conversion across all views
+[ ] KYC submission, document upload, and Admin Approval
+[ ] Deposit submission with receipt upload, and Admin Approval (Instant Credit)
+[ ] Wallet Adjustment by Admin in local currency with accurate USD database syncing
+[ ] Peer-to-peer sending and external transfers (Local, Swift, 3rd party)
+[ ] Currency Swap engine (USD <-> EUR <-> NGN <-> BTC <-> USDT)
+[ ] Investment Portfolio subscription and bi-weekly ROI calculation
+[ ] High-Yield Locked Savings account creation and interest calculation
+[ ] Virtual Card creation, freezing, unfreezing, and detail viewing
+[ ] Charity Campaign donation with local currency conversion
+[ ] Loan Application, Admin Approval, and Repayment tracking
+[ ] Business Grant and Tax Refund submission and Admin Approval
+[ ] Real-time Manager-Client direct messaging
+[ ] Admin Live Chat & Global Monitoring
+[ ] Theme switching (Dark/Light) and Responsive Mobile Viewport testing
+
+================================================================================
+End of Test Guide. All features are fully implemented and ready for testing.
+================================================================================
