@@ -471,8 +471,8 @@ export const SendPage = () => {
                     <input 
                       type="number" 
                       required
-                      min="1"
-                      step="0.01"
+                      min="0.01"
+                      step="any"
                       placeholder="0.00" 
                       className="input-field pl-16 py-6 text-3xl font-black"
                       value={amount}
@@ -482,7 +482,7 @@ export const SendPage = () => {
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-gray-400">Available Balance: {formatAmount(userData?.walletBalance || 0)}</p>
                     {amount && parseFloat(amount) > 0 && (
-                      <p className="text-xs text-accent font-bold">Fee: {formatAmount(0)} (Free)</p>
+                      <p className="text-xs text-accent font-bold">Fee: {formatAmount(0, true)} (Free)</p>
                     )}
                   </div>
                 </div>
@@ -507,7 +507,7 @@ export const SendPage = () => {
                   ) : (
                     <>
                       <ArrowUpCircle className="w-6 h-6" />
-                      Send {formatAmount(parseFloat(amount || '0'))}
+                      Send {formatAmount(parseFloat(amount || '0'), true)}
                     </>
                   )}
                 </button>

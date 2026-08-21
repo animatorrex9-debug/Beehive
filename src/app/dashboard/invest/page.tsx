@@ -519,7 +519,7 @@ export const InvestPage = () => {
                   disabled={loading}
                   className="btn-primary w-full py-5 text-lg font-black uppercase tracking-widest"
                 >
-                  {loading ? 'Processing...' : `Invest ${formatAmount(parseFloat(amount || '0'))}`}
+                  {loading ? 'Processing...' : `Invest ${formatAmount(parseFloat(amount || '0'), true)}`}
                 </button>
               </form>
             </motion.div>
