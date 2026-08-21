@@ -545,20 +545,135 @@ export const AdminPage = () => {
   };
 
   const getDepositUserEmail = (deposit: any, targetUser?: any) => {
-    return deposit?.userEmail || deposit?.email || targetUser?.email || (deposit?.userId ? `User ID: ${deposit.userId.slice(0, 8)}...` : 'Unknown User');
+    if (deposit?.userEmail) return deposit.userEmail;
+    if (deposit?.user_email) return deposit.user_email;
+    if (deposit?.email) return deposit.email;
+    if (targetUser?.email) return targetUser.email;
+    
+    if (deposit?.description && typeof deposit.description === 'string' && deposit.description.includes('__META__:')) {
+      try {
+        const metaStr = deposit.description.split('__META__:')[1]?.trim();
+        if (metaStr) {
+          const parsed = JSON.parse(metaStr);
+          if (parsed.userEmail) return parsed.userEmail;
+          if (parsed.email) return parsed.email;
+        }
+      } catch (e) {}
+    }
+    
+    return deposit?.userId ? `User ID: ${deposit.userId.slice(0, 8)}...` : 'Unknown User';
   };
 
   const getDepositMethod = (deposit: any) => {
     if (deposit?.method) return deposit.method;
     if (deposit?.paymentMethod) return deposit.paymentMethod;
+    if (deposit?.payment_method) return deposit.payment_method;
     if (deposit?.depositMethod) return deposit.depositMethod;
-    if (deposit?.description) {
-      const desc = deposit.description.replace(/^Deposit via\s*/i, '').trim();
-      if (desc) return desc;
+    if (deposit?.deposit_method) return deposit.deposit_method;
+    
+    if (deposit?.description && typeof deposit.description === 'string') {
+      if (deposit.description.includes('__META__:')) {
+        try {
+          const metaStr = deposit.description.split('__META__:')[1]?.trim();
+          if (metaStr) {
+            const parsed = JSON.parse(metaStr);
+            if (parsed.method) return parsed.method;
+          }
+        } catch (e) {}
+      }
+      const cleanDesc = deposit.description.split('| __META__:')[0].replace(/^Deposit via\s*/i, '').trim();
+      if (cleanDesc && cleanDesc.length < 50) return cleanDesc;
     }
     if (deposit?.accountDetails?.bankName) return `Bank Transfer (${deposit.accountDetails.bankName})`;
     if (deposit?.accountDetails?.cardNumber) return `Credit Card (****${deposit.accountDetails.cardNumber.slice(-4)})`;
     return 'Crypto / Transfer';
+  };
+
+  const getDepositProof = (deposit: any, targetUser?: any): string | null => {
+    if (!deposit) return null;
+    
+    // 1. Check direct properties on deposit
+    const directFields = [
+      deposit.proofOfPayment,
+      deposit.proof_of_payment,
+      deposit.proofImage,
+      deposit.proof_image,
+      deposit.proofUrl,
+      deposit.proof_url,
+      deposit.imageUrl,
+      deposit.image_url
+    ];
+    for (const field of directFields) {
+      if (typeof field === 'string' && field.trim() && field !== 'null' && field !== 'undefined') {
+        return field.trim();
+      }
+    }
+
+    // 2. Check embedded __META__ in description
+    if (deposit.description && typeof deposit.description === 'string') {
+      if (deposit.description.includes('__META__:')) {
+        try {
+          const metaStr = deposit.description.split('__META__:')[1]?.trim();
+          if (metaStr) {
+            const parsed = JSON.parse(metaStr);
+            if (parsed.proofOfPayment && typeof parsed.proofOfPayment === 'string' && parsed.proofOfPayment.trim()) {
+              return parsed.proofOfPayment.trim();
+            }
+            if (parsed.proof_of_payment && typeof parsed.proof_of_payment === 'string' && parsed.proof_of_payment.trim()) {
+              return parsed.proof_of_payment.trim();
+            }
+            if (parsed.proofImage && typeof parsed.proofImage === 'string' && parsed.proofImage.trim()) {
+              return parsed.proofImage.trim();
+            }
+          }
+        } catch (e) {}
+      }
+      if (deposit.description.startsWith('data:image/')) {
+        return deposit.description;
+      }
+    }
+
+    // 3. Check accountDetails object
+    if (deposit.accountDetails) {
+      if (typeof deposit.accountDetails === 'object') {
+        if (deposit.accountDetails.proofOfPayment) return deposit.accountDetails.proofOfPayment;
+        if (deposit.accountDetails.proofImage) return deposit.accountDetails.proofImage;
+      } else if (typeof deposit.accountDetails === 'string') {
+        try {
+          const parsed = JSON.parse(deposit.accountDetails);
+          if (parsed?.proofOfPayment) return parsed.proofOfPayment;
+          if (parsed?.proofImage) return parsed.proofImage;
+        } catch (e) {}
+      }
+    }
+
+    // 4. Check target user backup proof
+    if (targetUser?.lastDepositProof && typeof targetUser.lastDepositProof === 'string' && targetUser.lastDepositProof.trim()) {
+      return targetUser.lastDepositProof;
+    }
+    if (targetUser?.last_deposit_proof && typeof targetUser.last_deposit_proof === 'string' && targetUser.last_deposit_proof.trim()) {
+      return targetUser.last_deposit_proof;
+    }
+
+    // 5. Local storage fallback
+    if (typeof window !== 'undefined') {
+      try {
+        if (deposit.storagePath) {
+          const local = window.localStorage.getItem(`sb_fallback_${deposit.storagePath}`);
+          if (local) return local;
+        }
+        if (deposit.storage_path) {
+          const local = window.localStorage.getItem(`sb_fallback_${deposit.storage_path}`);
+          if (local) return local;
+        }
+        if (deposit.userId) {
+          const local = window.localStorage.getItem(`deposit_proof_${deposit.userId}`);
+          if (local) return local;
+        }
+      } catch (e) {}
+    }
+
+    return null;
   };
 
   const formatUserBalance = (user: any) => {
@@ -2444,7 +2559,8 @@ export const AdminPage = () => {
                         const userEmailStr = getDepositUserEmail(deposit, targetUser);
                         const methodStr = getDepositMethod(deposit);
                         const dateStr = formatDate(deposit.createdAt || deposit.timestamp || deposit.date || deposit.updatedAt);
-                        const hasProof = !!deposit.proofOfPayment;
+                        const proofUrl = getDepositProof(deposit, targetUser);
+                        const hasProof = !!proofUrl;
                         
                         return (
                           <tr key={deposit.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
@@ -2509,6 +2625,7 @@ export const AdminPage = () => {
                 const userEmailStr = getDepositUserEmail(selectedDeposit, targetUser);
                 const methodStr = getDepositMethod(selectedDeposit);
                 const dateStr = formatDate(selectedDeposit.createdAt || selectedDeposit.timestamp || selectedDeposit.date || selectedDeposit.updatedAt);
+                const proofUrl = getDepositProof(selectedDeposit, targetUser);
                 
                 return (
                   <motion.div 
@@ -2583,26 +2700,39 @@ export const AdminPage = () => {
                           Proof of Payment
                         </h4>
                         <div className="bg-gray-50 dark:bg-zinc-900 p-4 rounded-2xl border border-gray-100 dark:border-zinc-800">
-                          {selectedDeposit.proofOfPayment ? (
+                          {proofUrl ? (
                             <div className="space-y-3">
                               <div className="relative group max-h-96 min-h-[220px] overflow-hidden rounded-xl bg-black/10 flex items-center justify-center p-2">
                                 <img 
-                                  src={selectedDeposit.proofOfPayment} 
+                                  src={proofUrl} 
                                   alt="Proof of Payment" 
                                   className="w-full h-auto max-h-96 object-contain rounded-lg shadow-md cursor-zoom-in"
-                                  onClick={() => window.open(selectedDeposit.proofOfPayment, '_blank')}
+                                  onClick={() => {
+                                    if (proofUrl.startsWith('data:')) {
+                                      const win = window.open();
+                                      win?.document.write(`<img src="${proofUrl}" style="max-width:100%; height:auto;" />`);
+                                    } else {
+                                      window.open(proofUrl, '_blank');
+                                    }
+                                  }}
                                 />
                               </div>
                               <div className="flex justify-between items-center px-1">
                                 <span className="text-[11px] text-gray-500">Click image to enlarge</span>
-                                <a 
-                                  href={selectedDeposit.proofOfPayment} 
-                                  target="_blank" 
-                                  rel="noreferrer"
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (proofUrl.startsWith('data:')) {
+                                      const win = window.open();
+                                      win?.document.write(`<img src="${proofUrl}" style="max-width:100%; height:auto;" />`);
+                                    } else {
+                                      window.open(proofUrl, '_blank');
+                                    }
+                                  }}
                                   className="text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
                                 >
                                   Open In New Tab ↗
-                                </a>
+                                </button>
                               </div>
                             </div>
                           ) : (

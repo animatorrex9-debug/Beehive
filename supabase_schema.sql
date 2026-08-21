@@ -107,7 +107,21 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   currency TEXT DEFAULT 'USD',
   status TEXT DEFAULT 'completed',
   description TEXT,
-  timestamp TIMESTAMPTZ DEFAULT NOW()
+  method TEXT DEFAULT '',
+  payment_method TEXT DEFAULT '',
+  deposit_method TEXT DEFAULT '',
+  user_email TEXT DEFAULT '',
+  user_name TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  proof_of_payment TEXT DEFAULT '',
+  proof_image TEXT DEFAULT '',
+  proof_url TEXT DEFAULT '',
+  storage_path TEXT DEFAULT '',
+  account_details JSONB,
+  timestamp TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT
 );
 
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
@@ -278,6 +292,22 @@ ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS last_message TEXT DEFAULT 'Cha
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS last_message_timestamp TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS unread_count JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS method TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS deposit_method TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS user_email TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS user_name TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS proof_of_payment TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS proof_image TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS proof_url TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS storage_path TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS account_details JSONB;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_deposit_proof TEXT DEFAULT '';
 
 -- 12. Row Level Security (RLS) Policies
 

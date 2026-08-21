@@ -199,7 +199,8 @@ const VALID_COLUMNS: Record<string, string[]> = {
     'last_return_calculation_date', 'credit_cards', 'bank_accounts', 'card_details', 
     'bank_details', 'created_at', 'updated_at', 'email_verified',
     'id_card_front_image', 'id_card_back_image', 'face_image', 'id_card_image',
-    'kyc_submitted_at', 'rejection_reason', 'kyc_reviewed_at', 'kyc_reviewed_by'
+    'kyc_submitted_at', 'rejection_reason', 'kyc_reviewed_at', 'kyc_reviewed_by',
+    'last_deposit_proof'
   ],
   loans: [
     'id', 'user_id', 'amount', 'purpose', 'status', 'bank_details', 'additional_details', 
@@ -208,8 +209,9 @@ const VALID_COLUMNS: Record<string, string[]> = {
   ],
   transactions: [
     'id', 'user_id', 'type', 'amount', 'currency', 'status', 'description', 'timestamp',
-    'proof_of_payment', 'storage_path', 'account_details', 'user_email', 'method', 
-    'created_at', 'reviewed_at', 'reviewed_by'
+    'proof_of_payment', 'proof_image', 'proof_url', 'image_url', 'storage_path', 
+    'account_details', 'user_email', 'user_name', 'email', 'method', 'payment_method', 
+    'deposit_method', 'created_at', 'reviewed_at', 'reviewed_by'
   ],
   chats: [
     'id', 'user_id', 'manager_id', 'participants', 'last_message', 'last_message_at', 

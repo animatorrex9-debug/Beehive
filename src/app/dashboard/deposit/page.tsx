@@ -255,8 +255,41 @@ export const DepositPage = () => {
       }
 
       const userEmailResolved = user.email || userData?.email || '';
+      const resolvedProof = finalProofUrl || proofImage || '';
+
+      const metaPayload = {
+        method: selectedMethodName,
+        userEmail: userEmailResolved,
+        userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
+        proofOfPayment: resolvedProof,
+        createdAt: new Date().toISOString()
+      };
       
-      // Record transaction in Firestore with all complete metadata
+      const descriptionPayload = `Deposit via ${selectedMethodName} | __META__:${JSON.stringify(metaPayload)}`;
+
+      // Save local backup in localStorage for quick client access
+      if (typeof window !== 'undefined' && resolvedProof) {
+        try {
+          window.localStorage.setItem(`deposit_proof_${user.uid}`, resolvedProof);
+          if (filePath) {
+            window.localStorage.setItem(`sb_fallback_${filePath}`, resolvedProof);
+          }
+        } catch (e) {}
+      }
+
+      // Also update user profile with latest proof as backup
+      if (resolvedProof) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            lastDepositProof: resolvedProof,
+            last_deposit_proof: resolvedProof
+          });
+        } catch (profileErr) {
+          console.warn('Notice updating user profile backup proof:', profileErr);
+        }
+      }
+      
+      // Record transaction in Firestore / Supabase with all complete metadata
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         userEmail: userEmailResolved,
@@ -269,8 +302,12 @@ export const DepositPage = () => {
         method: selectedMethodName,
         paymentMethod: selectedMethodName,
         depositMethod: selectedMethodName,
-        description: `Deposit via ${selectedMethodName}`,
-        proofOfPayment: finalProofUrl || proofImage || null,
+        description: descriptionPayload,
+        proofOfPayment: resolvedProof || null,
+        proof_of_payment: resolvedProof || null,
+        proofImage: resolvedProof || null,
+        proof_image: resolvedProof || null,
+        proofUrl: finalProofUrl || null,
         storagePath: filePath || null,
         accountDetails: selectedAccount || null,
         createdAt: serverTimestamp(),
