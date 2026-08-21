@@ -505,6 +505,62 @@ export const AdminPage = () => {
     }
   };
 
+  const formatDate = (dateVal: any) => {
+    if (!dateVal) return 'Just now';
+    try {
+      if (dateVal?.toDate && typeof dateVal.toDate === 'function') {
+        return dateVal.toDate().toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      if (dateVal instanceof Date) {
+        return dateVal.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      if (typeof dateVal === 'string' || typeof dateVal === 'number') {
+        const d = new Date(dateVal);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Error formatting date:', e);
+    }
+    return String(dateVal || 'Just now');
+  };
+
+  const getDepositUserEmail = (deposit: any, targetUser?: any) => {
+    return deposit?.userEmail || deposit?.email || targetUser?.email || (deposit?.userId ? `User ID: ${deposit.userId.slice(0, 8)}...` : 'Unknown User');
+  };
+
+  const getDepositMethod = (deposit: any) => {
+    if (deposit?.method) return deposit.method;
+    if (deposit?.paymentMethod) return deposit.paymentMethod;
+    if (deposit?.depositMethod) return deposit.depositMethod;
+    if (deposit?.description) {
+      const desc = deposit.description.replace(/^Deposit via\s*/i, '').trim();
+      if (desc) return desc;
+    }
+    if (deposit?.accountDetails?.bankName) return `Bank Transfer (${deposit.accountDetails.bankName})`;
+    if (deposit?.accountDetails?.cardNumber) return `Credit Card (****${deposit.accountDetails.cardNumber.slice(-4)})`;
+    return 'Crypto / Transfer';
+  };
+
   const formatUserBalance = (user: any) => {
     if (!user) return '$0.00';
     const rawBalance = user.wallet?.balance ?? user.walletBalance ?? 0;
@@ -831,16 +887,6 @@ export const AdminPage = () => {
   const totalVolume = loans.reduce((acc, l) => acc + (l.status === 'approved' || l.status === 'disbursed' ? l.amount : 0), 0);
   const totalUsers = users.length;
   const verifiedUsers = users.filter(u => u.kycStatus === 'verified').length;
-
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'N/A';
-    try {
-      if (timestamp.toDate) return timestamp.toDate().toLocaleString();
-      return new Date(timestamp).toLocaleString();
-    } catch (e) {
-      return 'N/A';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary">
@@ -2395,12 +2441,18 @@ export const AdminPage = () => {
                         const userCurr = getUserCurrency(targetUser);
                         const isNonUSD = deposit.currency && deposit.currency !== 'USD';
                         const depositUSD = convertAmount(Number(deposit.amount) || 0, deposit.currency || userCurr.code, 'USD');
+                        const userEmailStr = getDepositUserEmail(deposit, targetUser);
+                        const methodStr = getDepositMethod(deposit);
+                        const dateStr = formatDate(deposit.createdAt || deposit.timestamp || deposit.date || deposit.updatedAt);
+                        const hasProof = !!deposit.proofOfPayment;
                         
                         return (
                           <tr key={deposit.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
                             <td className="py-4">
-                              <div className="font-bold dark:text-white">{deposit.userEmail}</div>
-                              <div className="text-xs text-gray-400 font-mono">{deposit.userId}</div>
+                              <div className="font-bold dark:text-white">{userEmailStr}</div>
+                              <div className="text-xs text-gray-400 font-mono">
+                                {targetUser?.fullName ? `${targetUser.fullName} • ` : ''}ID: {deposit.userId ? deposit.userId.slice(0, 8) : 'N/A'}
+                              </div>
                             </td>
                             <td className="py-4">
                               <div className="font-bold text-accent text-base">
@@ -2415,15 +2467,26 @@ export const AdminPage = () => {
                                 Current Balance: <span className="font-medium text-gray-700 dark:text-gray-300">{formatUserBalance(targetUser)}</span>
                               </div>
                             </td>
-                            <td className="py-4 text-gray-500">{deposit.method}</td>
-                            <td className="py-4 text-gray-500">{formatDate(deposit.createdAt)}</td>
+                            <td className="py-4">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-gray-200">
+                                {methodStr}
+                              </span>
+                              {hasProof && (
+                                <span className="block text-[10px] text-green-600 dark:text-green-400 font-bold mt-1">
+                                  ✓ Proof Attached
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-4 text-gray-500 text-xs font-medium">
+                              {dateStr}
+                            </td>
                             <td className="py-4 text-right">
                               <button 
                                 onClick={() => setSelectedDeposit(deposit)}
-                                className="btn-secondary px-4 py-2 text-xs flex items-center gap-2 ml-auto"
+                                className="btn-secondary px-4 py-2 text-xs flex items-center gap-2 ml-auto hover:border-accent"
                               >
-                                <Eye className="w-4 h-4" />
-                                Review Proof
+                                <Eye className="w-4 h-4 text-accent" />
+                                Review Details
                               </button>
                             </td>
                           </tr>
@@ -2443,31 +2506,50 @@ export const AdminPage = () => {
                 const rawCurrentBalance = targetUser?.wallet?.balance ?? targetUser?.walletBalance ?? 0;
                 const depositUSD = convertAmount(Number(selectedDeposit.amount) || 0, selectedDeposit.currency || userCurr.code, 'USD');
                 const projectedBalanceUSD = rawCurrentBalance + depositUSD;
+                const userEmailStr = getDepositUserEmail(selectedDeposit, targetUser);
+                const methodStr = getDepositMethod(selectedDeposit);
+                const dateStr = formatDate(selectedDeposit.createdAt || selectedDeposit.timestamp || selectedDeposit.date || selectedDeposit.updatedAt);
                 
                 return (
                   <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="card border-2 border-accent/20"
+                    className="card border-2 border-accent/20 shadow-2xl"
                   >
-                    <div className="flex justify-between items-start mb-8">
+                    <div className="flex justify-between items-start mb-8 pb-4 border-b border-gray-100 dark:border-zinc-800">
                       <div>
-                        <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">
-                          Reviewing Deposit Request: {formatDepositAmount(selectedDeposit)}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                            Pending Review
+                          </span>
+                          <span className="text-xs text-gray-400 font-mono">
+                            ID: {selectedDeposit.id}
+                          </span>
+                        </div>
+                        <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase">
+                          Deposit Request: {formatDepositAmount(selectedDeposit)}
                         </h3>
-                        <p className="text-gray-500">User: {selectedDeposit.userEmail} | Method: {selectedDeposit.method}</p>
+                        <p className="text-gray-500 text-sm mt-1">
+                          Applicant: <span className="font-bold text-gray-900 dark:text-white">{userEmailStr}</span> | Method: <span className="font-bold text-accent">{methodStr}</span>
+                        </p>
                       </div>
-                      <button onClick={() => setSelectedDeposit(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
-                        <XCircle className="w-6 h-6 text-gray-400" />
+                      <button 
+                        onClick={() => setSelectedDeposit(null)} 
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                      >
+                        <XCircle className="w-6 h-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" />
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
                       <div className="space-y-4">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-accent">Transaction Details</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-accent flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Transaction Breakdown
+                        </h4>
                         <div className="bg-gray-50 dark:bg-zinc-900 p-6 rounded-2xl space-y-4 border border-gray-100 dark:border-zinc-800">
-                          <DetailItem label="Deposit Amount" value={formatDepositAmount(selectedDeposit)} />
+                          <DetailItem label="Deposit Amount Requested" value={formatDepositAmount(selectedDeposit)} />
                           <DetailItem 
                             label="USD Value to Credit" 
                             value={`$${depositUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`} 
@@ -2477,41 +2559,76 @@ export const AdminPage = () => {
                             label="New Balance After Approval" 
                             value={formatAmountWithUserCurrency(projectedBalanceUSD, targetUser, true)} 
                           />
-                          <DetailItem label="Method" value={selectedDeposit.method} />
-                          <DetailItem label="User Email" value={selectedDeposit.userEmail} />
-                          <DetailItem label="Date Submitted" value={formatDate(selectedDeposit.createdAt)} />
+                          <DetailItem label="Deposit Method" value={methodStr} />
+                          <DetailItem label="User Email" value={userEmailStr} />
+                          <DetailItem label="Date Submitted" value={dateStr} />
+                          {selectedDeposit.accountDetails && (
+                            <DetailItem 
+                              label="Connected Account Info" 
+                              value={
+                                selectedDeposit.accountDetails.bankName 
+                                  ? `${selectedDeposit.accountDetails.bankName} • Acc: ${selectedDeposit.accountDetails.accountNumber} (${selectedDeposit.accountDetails.accountName})`
+                                  : selectedDeposit.accountDetails.cardNumber 
+                                    ? `Card ending in ${selectedDeposit.accountDetails.cardNumber.slice(-4)} (Exp: ${selectedDeposit.accountDetails.expiryDate})`
+                                    : 'Account Details Attached'
+                              } 
+                            />
+                          )}
                         </div>
                       </div>
 
                       <div className="space-y-4">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-accent">Proof of Payment</h4>
-                        <div className="bg-gray-50 dark:bg-zinc-900 p-2 rounded-2xl border border-gray-100 dark:border-zinc-800 overflow-hidden">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-accent flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4" />
+                          Proof of Payment
+                        </h4>
+                        <div className="bg-gray-50 dark:bg-zinc-900 p-4 rounded-2xl border border-gray-100 dark:border-zinc-800">
                           {selectedDeposit.proofOfPayment ? (
-                            <img 
-                              src={selectedDeposit.proofOfPayment} 
-                              alt="Proof of Payment" 
-                              className="w-full h-auto rounded-xl shadow-lg cursor-zoom-in"
-                              onClick={() => window.open(selectedDeposit.proofOfPayment, '_blank')}
-                            />
+                            <div className="space-y-3">
+                              <div className="relative group max-h-96 min-h-[220px] overflow-hidden rounded-xl bg-black/10 flex items-center justify-center p-2">
+                                <img 
+                                  src={selectedDeposit.proofOfPayment} 
+                                  alt="Proof of Payment" 
+                                  className="w-full h-auto max-h-96 object-contain rounded-lg shadow-md cursor-zoom-in"
+                                  onClick={() => window.open(selectedDeposit.proofOfPayment, '_blank')}
+                                />
+                              </div>
+                              <div className="flex justify-between items-center px-1">
+                                <span className="text-[11px] text-gray-500">Click image to enlarge</span>
+                                <a 
+                                  href={selectedDeposit.proofOfPayment} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
+                                >
+                                  Open In New Tab ↗
+                                </a>
+                              </div>
+                            </div>
                           ) : (
-                            <div className="py-20 text-center text-gray-400 italic">No proof image provided</div>
+                            <div className="py-24 text-center text-gray-400">
+                              <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                              <p className="text-xs font-bold uppercase tracking-wider">No Proof of Payment Attached</p>
+                              <p className="text-[11px] text-gray-500 mt-1">This deposit method may not have required a screenshot</p>
+                            </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex justify-end gap-4 pt-8 border-t border-gray-100 dark:border-zinc-800">
+                    <div className="flex flex-col sm:flex-row justify-end gap-4 pt-6 border-t border-gray-100 dark:border-zinc-800">
                       <button 
                         onClick={() => handleDepositUpdate(selectedDeposit.id, 'rejected')}
-                        className="btn-secondary px-8 py-3 text-red-500 border-red-100 hover:bg-red-50"
+                        className="btn-secondary px-8 py-3.5 text-red-500 border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold"
                       >
                         Reject Deposit
                       </button>
                       <button 
                         onClick={() => handleDepositUpdate(selectedDeposit.id, 'completed')}
-                        className="btn-primary px-8 py-3 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20"
+                        className="btn-primary px-8 py-3.5 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 font-bold flex items-center justify-center gap-2"
                       >
-                        Approve & Add Funds (+{formatDepositAmount(selectedDeposit)})
+                        <CheckCircle className="w-5 h-5" />
+                        Approve & Credit Balance (+{formatDepositAmount(selectedDeposit)})
                       </button>
                     </div>
                   </motion.div>

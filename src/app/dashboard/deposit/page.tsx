@@ -160,14 +160,50 @@ export const DepositPage = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        setError('Image size must be less than 2MB');
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size must be less than 10MB');
         return;
       }
       setProofFile(file);
+      setError('');
+      
       const reader = new FileReader();
       reader.onloadend = () => {
-        setProofImage(reader.result as string);
+        const rawBase64 = reader.result as string;
+        // Optimize/compress image for instant display & reliability
+        try {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxDim = 1280;
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const compressedData = canvas.toDataURL('image/jpeg', 0.85);
+              setProofImage(compressedData);
+            } else {
+              setProofImage(rawBase64);
+            }
+          };
+          img.onerror = () => {
+            setProofImage(rawBase64);
+          };
+          img.src = rawBase64;
+        } catch {
+          setProofImage(rawBase64);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -182,50 +218,66 @@ export const DepositPage = () => {
 
     try {
       const depositAmount = parseFloat(amount);
-      let publicUrl = '';
+      const selectedMethodName = method || (selectedAccount ? 'Bank Transfer' : 'USDT');
+      let finalProofUrl = proofImage || '';
       let filePath = '';
 
-      if (method !== 'Bank Transfer' && method !== 'Credit Card') {
-        if (!proofFile) {
+      if (selectedMethodName !== 'Bank Transfer' && selectedMethodName !== 'Credit Card') {
+        if (!proofFile && !proofImage) {
           setError('Please upload proof of payment');
           setLoading(false);
           return;
         }
-        // Upload to Supabase Storage
-        const fileExt = proofFile.name.split('.').pop();
-        const fileName = `${user.uid}-${Date.now()}.${fileExt}`;
-        filePath = `proofs/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from(SUPABASE_BUCKET)
-          .upload(filePath, proofFile);
+        // Attempt Supabase Storage upload if file is present
+        if (proofFile) {
+          try {
+            const fileExt = proofFile.name.split('.').pop() || 'png';
+            const fileName = `${user.uid}-${Date.now()}.${fileExt}`;
+            filePath = `proofs/${fileName}`;
 
-        if (uploadError) throw uploadError;
+            const { error: uploadError } = await supabase.storage
+              .from(SUPABASE_BUCKET)
+              .upload(filePath, proofFile);
 
-        const { data: { publicUrl: url } } = supabase.storage
-          .from(SUPABASE_BUCKET)
-          .getPublicUrl(filePath);
-        publicUrl = url;
+            if (!uploadError) {
+              const { data: { publicUrl: url } } = supabase.storage
+                .from(SUPABASE_BUCKET)
+                .getPublicUrl(filePath);
+              if (url && url.startsWith('http') && !url.includes('localhost') && !url.includes('sb_fallback')) {
+                finalProofUrl = url;
+              }
+            }
+          } catch (storageErr) {
+            console.warn('Supabase storage upload notice (using direct proof image):', storageErr);
+          }
+        }
       }
+
+      const userEmailResolved = user.email || userData?.email || '';
       
-      // Record transaction in Firestore
+      // Record transaction in Firestore with all complete metadata
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
-        userEmail: user.email,
+        userEmail: userEmailResolved,
+        email: userEmailResolved,
+        userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
         type: 'deposit',
         amount: depositAmount,
         currency: userData?.currency?.code || currency.code || 'USD',
-        status: method === 'Bank Transfer' || method === 'Credit Card' ? 'pending' : 'pending',
-        method: method,
-        description: `Deposit via ${method}`,
-        proofOfPayment: publicUrl || null,
+        status: 'pending',
+        method: selectedMethodName,
+        paymentMethod: selectedMethodName,
+        depositMethod: selectedMethodName,
+        description: `Deposit via ${selectedMethodName}`,
+        proofOfPayment: finalProofUrl || proofImage || null,
         storagePath: filePath || null,
         accountDetails: selectedAccount || null,
         createdAt: serverTimestamp(),
         timestamp: new Date().toISOString()
       });
 
-      if (method === 'Bank Transfer' || method === 'Credit Card') {
+      if (selectedMethodName === 'Bank Transfer' || selectedMethodName === 'Credit Card') {
         setProcessing(true);
       } else {
         setSuccess(true);
