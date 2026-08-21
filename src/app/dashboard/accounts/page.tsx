@@ -10,7 +10,7 @@ import { AnimatePresence } from 'motion/react';
 
 export const AccountsPage = () => {
   const { currency, formatAmount, rates, convertAmount } = useCurrency();
-  const { user, userData } = useAuth();
+  const { user, userData, refreshUserData } = useAuth();
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +73,7 @@ export const AccountsPage = () => {
         savingsInterestRate: selectedOption?.rate || 0.1,
         savingsLastInterestCalculationDate: new Date().toISOString()
       });
+      await refreshUserData();
 
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
@@ -119,6 +120,7 @@ export const AccountsPage = () => {
         savingsInterestRate: 0,
         savingsLastInterestCalculationDate: null
       });
+      await refreshUserData();
 
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,

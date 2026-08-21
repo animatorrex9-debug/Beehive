@@ -143,7 +143,7 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
 ];
 
 export const CharityPage = () => {
-  const { user, userData } = useAuth();
+  const { user, userData, refreshUserData } = useAuth();
   const { currency, formatAmount, convertAmount } = useCurrency();
   const { setTheme } = useTheme();
 
@@ -357,6 +357,7 @@ export const CharityPage = () => {
       await updateDoc(doc(db, 'users', user.uid), {
         walletBalance: increment(-amountInUSD)
       });
+      await refreshUserData();
 
       // 2. Record transaction in USD for standard history formatting
       await addDoc(collection(db, 'transactions'), {

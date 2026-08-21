@@ -18,6 +18,33 @@ export function enhanceSupabaseError(error: any): Error {
   return new Error(message);
 }
 
+// Local listener registry for immediate client-side reactivity across components
+type SnapshotCallback = () => void;
+const activeListeners = new Map<string, Set<SnapshotCallback>>();
+
+function registerListener(key: string, callback: SnapshotCallback) {
+  if (!activeListeners.has(key)) {
+    activeListeners.set(key, new Set());
+  }
+  activeListeners.get(key)!.add(callback);
+  return () => {
+    activeListeners.get(key)?.delete(callback);
+  };
+}
+
+export function notifyListeners(table: string, path?: string) {
+  if (path && activeListeners.has(path)) {
+    activeListeners.get(path)!.forEach(cb => {
+      try { cb(); } catch (e) {}
+    });
+  }
+  if (activeListeners.has(table)) {
+    activeListeners.get(table)!.forEach(cb => {
+      try { cb(); } catch (e) {}
+    });
+  }
+}
+
 // 1. References
 export class SupabaseRef {
   constructor(public path: string) {}
@@ -524,6 +551,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
           stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
           localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
         } catch (e) {}
+        notifyListeners(table, collectionRef.path);
         return new DocumentReference(`${collectionRef.path}/${tempId}`);
       }
       if (table === 'notifications' || error.code === '42501' || error.message?.includes('row-level security')) {
@@ -538,6 +566,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
       throw enhanceSupabaseError(error);
     }
 
+    notifyListeners(table, collectionRef.path);
     return new DocumentReference(`${collectionRef.path}/${inserted.id}`);
   } catch (err: any) {
     const msg = err?.message || String(err);
@@ -549,6 +578,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
         stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
         localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
       } catch (e) {}
+      notifyListeners(table, collectionRef.path);
       return new DocumentReference(`${collectionRef.path}/${tempId}`);
     }
     if (table === 'notifications' || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
@@ -608,10 +638,12 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
           }
           localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
         } catch (e) {}
+        notifyListeners(table, docRef.path);
         return;
       }
       if (table === 'profiles' || table === 'notifications' || table === 'chats' || error.code === '42501' || error.message?.includes('row-level security')) {
         console.warn(`[Supabase DB] Warning/RLS setting doc in ${table} (${error.message}):`, error);
+        notifyListeners(table, docRef.path);
         return;
       }
       if (error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
@@ -621,6 +653,8 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
       console.error(`[Supabase DB] Error setting doc in ${table}:`, error);
       throw enhanceSupabaseError(error);
     }
+
+    notifyListeners(table, docRef.path);
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
@@ -635,10 +669,12 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
         }
         localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
       } catch (e) {}
+      notifyListeners(table, docRef.path);
       return;
     }
     if (table === 'profiles' || table === 'notifications' || table === 'chats' || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception setting doc in ${table}: ${msg}`);
+      notifyListeners(table, docRef.path);
       return;
     }
     throw enhanceSupabaseError(err);
@@ -703,15 +739,19 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
           const updated = stored.map((item: any) => item.id === id ? { ...item, ...mergedData } : item);
           localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
         } catch (e) {}
+        notifyListeners(table, docRef.path);
         return;
       }
       if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
         console.warn(`[Supabase DB] Warning updating ${table}/${id}: ${error.message}`);
+        notifyListeners(table, docRef.path);
         return;
       }
       console.error(`[Supabase DB] Error updating ${table}/${id}:`, error);
       throw enhanceSupabaseError(error);
     }
+
+    notifyListeners(table, docRef.path);
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
@@ -721,10 +761,12 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
         const updated = stored.map((item: any) => item.id === id ? { ...item, ...data } : item);
         localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
       } catch (e) {}
+      notifyListeners(table, docRef.path);
       return;
     }
     if (msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception updating ${table}/${id}: ${msg}`);
+      notifyListeners(table, docRef.path);
       return;
     }
     throw enhanceSupabaseError(err);
@@ -749,11 +791,14 @@ export async function deleteDoc(docRef: DocumentReference) {
           const filtered = stored.filter((item: any) => item.id !== id);
           localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
         } catch (e) {}
+        notifyListeners(table, docRef.path);
         return;
       }
       console.error(`[Supabase DB] Error deleting ${table}/${id}:`, error);
       throw enhanceSupabaseError(error);
     }
+
+    notifyListeners(table, docRef.path);
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
@@ -763,6 +808,7 @@ export async function deleteDoc(docRef: DocumentReference) {
         const filtered = stored.filter((item: any) => item.id !== id);
         localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
       } catch (e) {}
+      notifyListeners(table, docRef.path);
       return;
     }
     console.error(`[Supabase DB] Exception deleting ${table}/${id}:`, err);
@@ -798,6 +844,9 @@ export function onSnapshot(
 
   run();
 
+  const unregisterPath = registerListener(targetRef.path, run);
+  const unregisterTable = registerListener(table, run);
+
   const channel = supabase
     .channel(`supabase-onSnapshot-${targetRef.path}-${Math.random()}`)
     .on(
@@ -817,6 +866,8 @@ export function onSnapshot(
 
   return () => {
     active = false;
+    unregisterPath();
+    unregisterTable();
     supabase.removeChannel(channel);
   };
 }

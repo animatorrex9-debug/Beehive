@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 
 export const SwapPage = () => {
-  const { user, userData } = useAuth();
+  const { user, userData, refreshUserData } = useAuth();
   const { currency, rates, convertAmount, formatAmount } = useCurrency();
   const [fromAmount, setFromAmount] = useState('100');
   const [fromCurrency, setFromCurrency] = useState(userData?.currency?.code || currency.code || 'USD');
@@ -122,6 +122,7 @@ export const SwapPage = () => {
       else if (toCurrency === 'USDT') updates.usdtBalance = increment(receivedAmount);
 
       await updateDoc(userRef, updates);
+      await refreshUserData();
 
       // Record transaction
       await addDoc(collection(db, 'transactions'), {

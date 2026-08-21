@@ -79,7 +79,7 @@ const investmentOptions = [
 ];
 
 export const InvestPage = () => {
-  const { user, userData } = useAuth();
+  const { user, userData, refreshUserData } = useAuth();
   const { currency, formatAmount, convertAmount } = useCurrency();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<any | null>(null);
@@ -118,6 +118,7 @@ export const InvestPage = () => {
         investmentBalance: increment(investAmountUSD),
         lastReturnCalculationDate: new Date().toISOString()
       });
+      await refreshUserData();
 
       // Record investment in user's investments subcollection for daily return calculation
       await addDoc(collection(db, 'users', user.uid, 'investments'), {

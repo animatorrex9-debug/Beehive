@@ -18,7 +18,7 @@ interface RecentRecipient {
 }
 
 export const SendPage = () => {
-  const { user, userData } = useAuth();
+  const { user, userData, refreshUserData } = useAuth();
   const { currency, formatAmount, convertAmount } = useCurrency();
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -118,6 +118,7 @@ export const SendPage = () => {
       await updateDoc(doc(db, 'users', user.uid), {
         walletBalance: increment(-sendAmountUSD)
       });
+      await refreshUserData();
 
       let description = '';
       let metadata: any = {};
