@@ -227,7 +227,10 @@ const VALID_COLUMNS: Record<string, string[]> = {
     'bank_details', 'created_at', 'updated_at', 'email_verified',
     'id_card_front_image', 'id_card_back_image', 'face_image', 'id_card_image',
     'kyc_submitted_at', 'rejection_reason', 'kyc_reviewed_at', 'kyc_reviewed_by',
-    'last_deposit_proof'
+    'last_deposit_proof',
+    'btc_balance', 'usdt_balance', 'card_activated', 'savings_lock_until', 
+    'savings_interest_rate', 'savings_principal', 'savings_last_interest_calculation_date',
+    'manager_id', 'assigned_manager_id', 'currency', 'status', 'wallet'
   ],
   loans: [
     'id', 'user_id', 'amount', 'purpose', 'status', 'bank_details', 'additional_details', 
@@ -238,7 +241,9 @@ const VALID_COLUMNS: Record<string, string[]> = {
     'id', 'user_id', 'type', 'amount', 'currency', 'status', 'description', 'timestamp',
     'proof_of_payment', 'proof_image', 'proof_url', 'image_url', 'storage_path', 
     'account_details', 'user_email', 'user_name', 'email', 'method', 'payment_method', 
-    'deposit_method', 'created_at', 'reviewed_at', 'reviewed_by'
+    'deposit_method', 'created_at', 'reviewed_at', 'reviewed_by', 'note', 'network',
+    'local_amount', 'tx_hash', 'to_address', 'from_address', 'recipient_name',
+    'recipient_bank', 'recipient_account', 'metadata'
   ],
   chats: [
     'id', 'user_id', 'manager_id', 'participants', 'last_message', 'last_message_at', 
@@ -373,12 +378,37 @@ export async function getDoc(docRef: DocumentReference) {
       throw enhanceSupabaseError(error);
     }
 
-    return new DocumentSnapshotCompat(docRef, data, !!data);
+    let finalData = data ? { ...data } : null;
+    if (table === 'profiles' && id) {
+      try {
+        const localExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+        const snakeExtras = mapSupabaseToRow(localExtras);
+        if (finalData) {
+          finalData = { ...snakeExtras, ...finalData };
+          for (const k of Object.keys(snakeExtras)) {
+            if (snakeExtras[k] !== undefined && (finalData[k] === undefined || finalData[k] === null)) {
+              finalData[k] = snakeExtras[k];
+            }
+          }
+        } else if (Object.keys(snakeExtras).length > 0) {
+          finalData = { id, ...snakeExtras };
+        }
+      } catch (e) {}
+    }
+
+    return new DocumentSnapshotCompat(docRef, finalData, !!finalData);
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (err?.name === 'TypeError' || msg.includes('Failed to fetch') || msg.includes('AbortError') || msg.includes('steal') || msg.includes('Lock broken')) {
-      console.warn(`[Supabase DB] Network/Fetch exception on ${table}/${id}: ${msg}. Returning fallback empty snapshot.`);
-      return new DocumentSnapshotCompat(docRef, null, false);
+      console.warn(`[Supabase DB] Network/Fetch exception on ${table}/${id}: ${msg}. Checking local fallback.`);
+      let localDoc = null;
+      try {
+        const localExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+        if (Object.keys(localExtras).length > 0) {
+          localDoc = { id, ...mapSupabaseToRow(localExtras) };
+        }
+      } catch (e) {}
+      return new DocumentSnapshotCompat(docRef, localDoc, !!localDoc);
     }
     throw enhanceSupabaseError(err);
   }
@@ -454,8 +484,21 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
     }
 
     const docs = (data || []).map(row => {
+      let finalRow = { ...row };
+      if (table === 'profiles' && row?.id) {
+        try {
+          const localExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${row.id}`) || '{}');
+          const snakeExtras = mapSupabaseToRow(localExtras);
+          finalRow = { ...snakeExtras, ...finalRow };
+          for (const k of Object.keys(snakeExtras)) {
+            if (snakeExtras[k] !== undefined && (finalRow[k] === undefined || finalRow[k] === null)) {
+              finalRow[k] = snakeExtras[k];
+            }
+          }
+        } catch (e) {}
+      }
       const docRef = new DocumentReference(`${ref.path}/${row.id}`);
-      return new QueryDocumentSnapshotCompat(docRef, row);
+      return new QueryDocumentSnapshotCompat(docRef, finalRow);
     });
 
     return new QuerySnapshotCompat(docs, docs.length === 0);
@@ -609,6 +652,14 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
   const row = mapSupabaseToRow(mergedData);
   const filteredRow = filterColumns(row, table);
 
+  if (table === 'profiles' && id) {
+    try {
+      const existingExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+      const newExtras = { ...existingExtras, ...mergedData };
+      localStorage.setItem(`local_profile_extras_${id}`, JSON.stringify(newExtras));
+    } catch (e) {}
+  }
+
   try {
     const res = await executeWithoutMissingColumns(filteredRow, async (r) => {
       let rRes = await supabase
@@ -713,6 +764,14 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
 
     const row = mapSupabaseToRow(mergedData);
     const filteredRow = filterColumns(row, table);
+
+    if (table === 'profiles' && id) {
+      try {
+        const existingExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+        const newExtras = { ...existingExtras, ...mergedData };
+        localStorage.setItem(`local_profile_extras_${id}`, JSON.stringify(newExtras));
+      } catch (e) {}
+    }
 
     const res = await executeWithoutMissingColumns(filteredRow, async (r) => {
       let rRes = await supabase

@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   role user_role DEFAULT 'user',
   kyc_status kyc_status DEFAULT 'unverified',
   wallet_balance NUMERIC(15, 2) DEFAULT 0.00,
+  btc_balance NUMERIC(20, 8) DEFAULT 0.00000000,
+  usdt_balance NUMERIC(15, 2) DEFAULT 0.00,
   investment_balance NUMERIC(15, 2) DEFAULT 0.00,
   grant_balance NUMERIC(15, 2) DEFAULT 0.00,
   savings NUMERIC(15, 2) DEFAULT 0.00,
@@ -593,4 +595,17 @@ CREATE POLICY "Users can update their own investments" ON public.investments
       WHERE profiles.id = auth.uid() AND (profiles.role = 'admin' OR profiles.role = 'account_manager')
     )
   );
+
+-- Idempotent migrations for existing deployments
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS btc_balance NUMERIC(20, 8) DEFAULT 0.00000000;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS usdt_balance NUMERIC(15, 2) DEFAULT 0.00;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS card_activated BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS savings_lock_until TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS savings_interest_rate NUMERIC(5, 4) DEFAULT 0.1;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS savings_principal NUMERIC(15, 2) DEFAULT 0.00;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS savings_last_interest_calculation_date TIMESTAMPTZ;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS network TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS tx_hash TEXT DEFAULT '';
+
 
