@@ -25,7 +25,7 @@ import { db, auth, handleSupabaseError as handleFirestoreError, OperationType } 
 
 export const DashboardPage = () => {
   const { user, userData } = useAuth();
-  const { formatAmount, rates } = useCurrency();
+  const { formatAmount, convertAmount, currency } = useCurrency();
   const { activeLoan } = useOutletContext<{ activeLoan: any }>();
   const navigate = useNavigate();
 
@@ -281,7 +281,7 @@ export const DashboardPage = () => {
     {
       label: 'Bitcoin',
       value: `${userData?.btcBalance?.toFixed(4) || '0.0000'} BTC`,
-      subValue: `≈ ${formatAmount((userData?.btcBalance || 0) * (1 / (rates['BTC'] || 1)))}`,
+      subValue: `≈ ${formatAmount(convertAmount(userData?.btcBalance || 0, 'BTC', currency.code))}`,
       icon: TrendingUp,
       color: 'text-orange-500',
       bg: 'bg-orange-500/10'
@@ -289,7 +289,7 @@ export const DashboardPage = () => {
     {
       label: 'USDT',
       value: `${userData?.usdtBalance?.toFixed(2) || '0.00'} USDT`,
-      subValue: `≈ ${formatAmount((userData?.usdtBalance || 0) * (1 / (rates['USDT'] || 1)))}`,
+      subValue: `≈ ${formatAmount(convertAmount(userData?.usdtBalance || 0, 'USDT', currency.code))}`,
       icon: TrendingUp,
       color: 'text-emerald-500',
       bg: 'bg-emerald-500/10'
