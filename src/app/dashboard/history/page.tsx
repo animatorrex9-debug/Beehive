@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface Transaction {
   id: string;
-  type: 'send' | 'deposit' | 'swap' | 'loan' | 'repayment';
+  type: 'send' | 'receive' | 'deposit' | 'swap' | 'loan' | 'repayment' | 'donation' | 'investment' | 'fee' | 'transfer';
   amount: number;
   currency: string;
   status: 'completed' | 'pending' | 'failed';
@@ -82,6 +82,7 @@ export const HistoryPage = () => {
   const getIcon = (type: string) => {
     switch (type) {
       case 'send': return <ArrowUpRight className="w-5 h-5 text-red-500" />;
+      case 'receive': return <ArrowDownLeft className="w-5 h-5 text-emerald-500" />;
       case 'deposit': return <ArrowDownLeft className="w-5 h-5 text-green-500" />;
       case 'swap': return <RefreshCw className="w-5 h-5 text-blue-500" />;
       case 'loan': return <FileText className="w-5 h-5 text-accent" />;
@@ -185,7 +186,7 @@ export const HistoryPage = () => {
                       </td>
                       <td className="px-6 py-4">
                         <p className={`text-sm font-black ${
-                          tx.type === 'deposit' ? 'text-green-500' : 
+                          tx.type === 'deposit' || tx.type === 'receive' ? 'text-green-500' : 
                           ['send', 'donation', 'investment', 'fee'].includes(tx.type) ? 'text-red-500' : 'dark:text-white'
                         }`}>
                           {['send', 'donation', 'investment', 'fee'].includes(tx.type) ? '-' : '+'}{formatAmount(tx.amount)}
