@@ -16,7 +16,10 @@ import {
   RefreshCw,
   Award,
   Heart,
-  FileText
+  FileText,
+  PiggyBank,
+  Bitcoin,
+  Coins
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -282,24 +285,24 @@ export const DashboardPage = () => {
       label: 'Bitcoin',
       value: `${userData?.btcBalance?.toFixed(4) || '0.0000'} BTC`,
       subValue: `≈ ${formatAmount(convertAmount(userData?.btcBalance || 0, 'BTC', currency.code))}`,
-      icon: TrendingUp,
-      color: 'text-orange-500',
-      bg: 'bg-orange-500/10'
+      icon: Bitcoin,
+      color: 'text-amber-500',
+      bg: 'bg-amber-500/10'
     },
     {
       label: 'USDT',
       value: `${userData?.usdtBalance?.toFixed(2) || '0.00'} USDT`,
       subValue: `≈ ${formatAmount(convertAmount(userData?.usdtBalance || 0, 'USDT', currency.code))}`,
-      icon: TrendingUp,
+      icon: Coins,
       color: 'text-emerald-500',
       bg: 'bg-emerald-500/10'
     },
     {
       label: 'Savings',
       value: userData?.savings !== undefined ? formatAmount(userData.savings) : formatAmount(0),
-      icon: TrendingUp,
-      color: 'text-green-500',
-      bg: 'bg-green-500/10'
+      icon: PiggyBank,
+      color: 'text-teal-500',
+      bg: 'bg-teal-500/10'
     },
     {
       label: 'Investment',
