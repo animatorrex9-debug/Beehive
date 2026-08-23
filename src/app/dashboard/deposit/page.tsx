@@ -289,6 +289,10 @@ export const DepositPage = () => {
         }
       }
       
+      const depositCurrency = selectedMethodName === 'Bitcoin' 
+        ? 'BTC' 
+        : (selectedMethodName === 'USDT' ? 'USDT' : (userData?.currency?.code || currency.code || 'USD'));
+
       // Record transaction in Firestore / Supabase with all complete metadata
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
@@ -297,7 +301,7 @@ export const DepositPage = () => {
         userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
         type: 'deposit',
         amount: depositAmount,
-        currency: userData?.currency?.code || currency.code || 'USD',
+        currency: depositCurrency,
         status: 'pending',
         method: selectedMethodName,
         paymentMethod: selectedMethodName,

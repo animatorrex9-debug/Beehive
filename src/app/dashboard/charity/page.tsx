@@ -339,32 +339,28 @@ export const CharityPage = () => {
       return;
     }
 
-    const rawBalanceUSD = userData.walletBalance || 0;
-    const localBalance = convertAmount(rawBalanceUSD, 'USD', currency.code);
+    const availableBalance = userData.walletBalance || 0;
 
-    if (localAmount > localBalance + 0.001) {
-      setError(`Insufficient balance. Your wallet balance is ${formatAmount(rawBalanceUSD)}.`);
+    if (localAmount > availableBalance) {
+      setError(`Insufficient balance. Your wallet balance is ${formatAmount(availableBalance)}.`);
       return;
     }
-
-    const amountInUSD = convertAmount(localAmount, currency.code, 'USD');
 
     setLoading(true);
     setError('');
 
     try {
-      // 1. Deduct raw USD balance from user
+      // 1. Deduct balance from user directly in native currency
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-amountInUSD)
+        walletBalance: increment(-localAmount)
       });
       await refreshUserData();
 
-      // 2. Record transaction in USD for standard history formatting
+      // 2. Record transaction in native currency
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'donation',
-        amount: amountInUSD,
-        localAmount: localAmount,
+        amount: localAmount,
         currency: currency.code,
         status: 'completed',
         description: `Charity Donation: ${selectedCampaign.title} (${currency.symbol}${localAmount.toLocaleString()})`,
@@ -379,7 +375,7 @@ export const CharityPage = () => {
         charityName: selectedCampaign.title,
         beneficiary: selectedCampaign.beneficiary,
         type: selectedCampaign.type,
-        amount: amountInUSD,
+        amount: localAmount,
         localAmount: localAmount,
         currency: currency.code,
         anonymous: isAnonymous,
@@ -387,10 +383,10 @@ export const CharityPage = () => {
         timestamp: new Date().toISOString()
       });
 
-      // 4. Increment campaign raised amount (in USD) and donor count in DB
+      // 4. Increment campaign raised amount and donor count in DB
       try {
         await updateDoc(doc(db, 'charity_campaigns', selectedCampaign.id), {
-          raisedAmount: increment(amountInUSD),
+          raisedAmount: increment(localAmount),
           donorCount: increment(1)
         });
       } catch (e) {

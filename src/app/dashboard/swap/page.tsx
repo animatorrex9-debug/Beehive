@@ -47,8 +47,7 @@ export const SwapPage = () => {
 
   const getBalance = (code: string) => {
     if (code === walletCurrency) {
-      const balanceUSD = userData?.walletBalance || 0;
-      return convertAmount(balanceUSD, 'USD', walletCurrency);
+      return userData?.walletBalance || 0;
     }
     if (code === 'BTC') return userData?.btcBalance || 0;
     if (code === 'USDT') return userData?.usdtBalance || 0;
@@ -102,8 +101,7 @@ export const SwapPage = () => {
 
       // Deduct from source
       if (fromCurrency === walletCurrency) {
-        const amountInUSD = convertAmount(swapAmount, fromCurrency, 'USD');
-        updates.walletBalance = increment(-amountInUSD);
+        updates.walletBalance = increment(-swapAmount);
       }
       else if (fromCurrency === 'BTC') updates.btcBalance = increment(-swapAmount);
       else if (fromCurrency === 'USDT') updates.usdtBalance = increment(-swapAmount);
@@ -115,8 +113,7 @@ export const SwapPage = () => {
       }
       
       if (toCurrency === walletCurrency) {
-        const amountInUSD = convertAmount(receivedAmount, toCurrency, 'USD');
-        updates.walletBalance = increment(amountInUSD);
+        updates.walletBalance = increment(receivedAmount);
       }
       else if (toCurrency === 'BTC') updates.btcBalance = increment(receivedAmount);
       else if (toCurrency === 'USDT') updates.usdtBalance = increment(receivedAmount);

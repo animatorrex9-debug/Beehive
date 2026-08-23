@@ -98,24 +98,21 @@ export const InvestPage = () => {
       return;
     }
 
-    const rawWalletBalance = userData?.walletBalance || 0;
-    const localWalletBalance = convertAmount(rawWalletBalance, 'USD', currency.code);
+    const availableBalance = userData?.walletBalance || 0;
     
-    if (investAmountLocal > localWalletBalance + 0.001) {
-      setError(`Insufficient funds in your wallet. Available balance: ${formatAmount(rawWalletBalance)}`);
+    if (investAmountLocal > availableBalance) {
+      setError(`Insufficient funds in your wallet. Available balance: ${formatAmount(availableBalance)}`);
       return;
     }
-
-    const investAmountUSD = convertAmount(investAmountLocal, currency.code, 'USD');
 
     setLoading(true);
     setError('');
 
     try {
-      // Update user balance and investment balance in raw USD
+      // Update user balance and investment balance in native currency
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-investAmountUSD),
-        investmentBalance: increment(investAmountUSD),
+        walletBalance: increment(-investAmountLocal),
+        investmentBalance: increment(investAmountLocal),
         lastReturnCalculationDate: new Date().toISOString()
       });
       await refreshUserData();
@@ -123,20 +120,18 @@ export const InvestPage = () => {
       // Record investment in user's investments subcollection for daily return calculation
       await addDoc(collection(db, 'users', user.uid, 'investments'), {
         title: selectedOption.title,
-        amount: investAmountUSD,
-        localAmount: investAmountLocal,
+        amount: investAmountLocal,
         currency: currency.code,
         biweeklyReturn: parseFloat(selectedOption.returns),
         timestamp: new Date().toISOString(),
         status: 'active'
       });
 
-      // Record transaction in USD for standard history formatting
+      // Record transaction
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'investment',
-        amount: investAmountUSD,
-        localAmount: investAmountLocal,
+        amount: investAmountLocal,
         currency: currency.code,
         status: 'completed',
         description: `Invested in ${selectedOption.title} (${currency.symbol}${investAmountLocal.toLocaleString()})`,

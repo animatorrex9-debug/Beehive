@@ -91,6 +91,11 @@ export const AdminPage = () => {
     stateOfOrigin: '',
     sentry: '',
     walletBalance: 0,
+    btcBalance: 0,
+    usdtBalance: 0,
+    savings: 0,
+    investmentBalance: 0,
+    grantBalance: 0,
     cardActivated: false
   });
   const [isEditingAdminProfile, setIsEditingAdminProfile] = useState(false);
@@ -107,8 +112,9 @@ export const AdminPage = () => {
   const [promoteTargetRole, setPromoteTargetRole] = useState<'account_manager' | 'admin'>('account_manager');
   const [promoteSearchQuery, setPromoteSearchQuery] = useState('');
 
-  // Wallet Adjustment State
+  // Wallet & Crypto Balance Adjustment State
   const [walletTargetUserId, setWalletTargetUserId] = useState('');
+  const [walletAsset, setWalletAsset] = useState<'fiat' | 'usdt' | 'btc'>('fiat');
   const [walletAmount, setWalletAmount] = useState('');
   const [walletNote, setWalletNote] = useState('Admin adjustment');
   const [isAdjusting, setIsAdjusting] = useState(false);
@@ -419,25 +425,32 @@ export const AdminPage = () => {
     try {
       const userRef = doc(db, 'users', selectedUser.id);
       const userCurrency = getUserCurrency(selectedUser);
-      const inputBalance = Number(adminProfileForm.walletBalance) || 0;
-      // Convert from user's local currency to raw USD for database storage
-      const rawUsdBalance = convertAmount(inputBalance, userCurrency.code, 'USD');
-      const roundedUsdBalance = Number(rawUsdBalance.toFixed(2));
+      const inputWalletBalance = Number(adminProfileForm.walletBalance) || 0;
+      const inputBtcBalance = Number(adminProfileForm.btcBalance) || 0;
+      const inputUsdtBalance = Number(adminProfileForm.usdtBalance) || 0;
+      const inputSavings = Number(adminProfileForm.savings) || 0;
+      const inputInvestment = Number(adminProfileForm.investmentBalance) || 0;
+      const inputGrant = Number(adminProfileForm.grantBalance) || 0;
 
       const updatedPayload = {
         ...adminProfileForm,
-        walletBalance: roundedUsdBalance,
+        walletBalance: inputWalletBalance,
+        btcBalance: inputBtcBalance,
+        usdtBalance: inputUsdtBalance,
+        savings: inputSavings,
+        investmentBalance: inputInvestment,
+        grantBalance: inputGrant,
         updatedAt: serverTimestamp()
       };
 
       await updateDoc(userRef, updatedPayload);
       
       // Update local state
-      setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, ...updatedPayload, walletBalance: roundedUsdBalance } : u));
-      setSelectedUser(prev => prev ? { ...prev, ...updatedPayload, walletBalance: roundedUsdBalance } : null);
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, ...updatedPayload } : u));
+      setSelectedUser(prev => prev ? { ...prev, ...updatedPayload } : null);
       setIsEditingAdminProfile(false);
       setMessage({ 
-        text: `User profile updated! Balance converted from ${userCurrency.symbol}${inputBalance.toLocaleString()} ${userCurrency.code} to raw $${roundedUsdBalance.toFixed(2)} USD.`, 
+        text: `User profile updated! Wallet: ${userCurrency.symbol}${inputWalletBalance.toLocaleString()} ${userCurrency.code}, BTC: ${inputBtcBalance} BTC, USDT: ${inputUsdtBalance} USDT.`, 
         type: 'success' 
       });
     } catch (error) {
@@ -678,16 +691,15 @@ export const AdminPage = () => {
 
   const formatUserBalance = (user: any) => {
     if (!user) return '$0.00';
-    const rawBalance = user.wallet?.balance ?? user.walletBalance ?? 0;
+    const balance = user.wallet?.balance ?? user.walletBalance ?? 0;
     const userCurrency = getUserCurrency(user);
-    const converted = convertAmount(rawBalance, 'USD', userCurrency.code);
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: userCurrency.code,
-      }).format(converted);
+      }).format(balance);
     } catch (e) {
-      return `${userCurrency.symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `${userCurrency.symbol}${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   };
 
@@ -697,6 +709,12 @@ export const AdminPage = () => {
     const userCurrency = getUserCurrency(targetUser);
     const currCode = deposit.currency || userCurrency.code;
     const amountNum = Number(deposit.amount) || 0;
+    if (currCode === 'BTC') {
+      return `${amountNum.toFixed(6)} BTC`;
+    }
+    if (currCode === 'USDT') {
+      return `${amountNum.toFixed(2)} USDT`;
+    }
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -826,20 +844,45 @@ export const AdminPage = () => {
       });
 
       if (status === 'completed') {
-        // Convert deposit amount from deposit currency to raw USD and add money to user account
         const targetUser = users.find(u => u.id === deposit.userId);
-        const depositCurrency = deposit.currency || getUserCurrency(targetUser).code;
-        const depositAmountUSD = convertAmount(Number(deposit.amount) || 0, depositCurrency, 'USD');
-        await updateDoc(doc(db, 'users', deposit.userId), {
-          walletBalance: increment(depositAmountUSD),
-          updatedAt: serverTimestamp()
-        });
+        const userCurr = getUserCurrency(targetUser);
+        const depCurr = deposit.currency || userCurr.code;
+        const depAmount = Number(deposit.amount) || 0;
 
-        // Also update local users state so UI updates immediately
-        setUsers(prev => prev.map(u => u.id === deposit.userId ? {
-          ...u,
-          walletBalance: (u.walletBalance || 0) + depositAmountUSD
-        } : u));
+        if (depCurr === 'BTC') {
+          await updateDoc(doc(db, 'users', deposit.userId), {
+            btcBalance: increment(depAmount),
+            updatedAt: serverTimestamp()
+          });
+          setUsers(prev => prev.map(u => u.id === deposit.userId ? {
+            ...u,
+            btcBalance: (u.btcBalance || 0) + depAmount
+          } : u));
+        } else if (depCurr === 'USDT') {
+          await updateDoc(doc(db, 'users', deposit.userId), {
+            usdtBalance: increment(depAmount),
+            updatedAt: serverTimestamp()
+          });
+          setUsers(prev => prev.map(u => u.id === deposit.userId ? {
+            ...u,
+            usdtBalance: (u.usdtBalance || 0) + depAmount
+          } : u));
+        } else {
+          // Fiat deposit - direct credit in user's native currency
+          const amountInUserCurrency = depCurr === userCurr.code 
+            ? depAmount 
+            : convertAmount(depAmount, depCurr, userCurr.code);
+
+          await updateDoc(doc(db, 'users', deposit.userId), {
+            walletBalance: increment(amountInUserCurrency),
+            updatedAt: serverTimestamp()
+          });
+
+          setUsers(prev => prev.map(u => u.id === deposit.userId ? {
+            ...u,
+            walletBalance: (u.walletBalance || 0) + amountInUserCurrency
+          } : u));
+        }
       }
 
       // Notify user
@@ -875,61 +918,130 @@ export const AdminPage = () => {
 
     setIsAdjusting(true);
     try {
-      const amountInUserCurrency = parseFloat(walletAmount);
-      if (isNaN(amountInUserCurrency)) throw new Error('Invalid amount');
+      const parsedAmount = parseFloat(walletAmount);
+      if (isNaN(parsedAmount)) throw new Error('Invalid amount');
 
       const targetUser = users.find(u => u.id === walletTargetUserId);
       const targetUserCurrency = getUserCurrency(targetUser);
 
-      // Convert user currency amount into raw USD for database storage
-      const amountInUSD = convertAmount(amountInUserCurrency, targetUserCurrency.code, 'USD');
+      if (walletAsset === 'btc') {
+        // Adjust BTC
+        await updateDoc(doc(db, 'users', walletTargetUserId), {
+          btcBalance: increment(parsedAmount),
+          updatedAt: serverTimestamp()
+        });
 
-      await updateDoc(doc(db, 'users', walletTargetUserId), {
-        walletBalance: increment(amountInUSD),
-        updatedAt: serverTimestamp()
-      });
+        await addDoc(collection(db, 'transactions'), {
+          userId: walletTargetUserId,
+          amount: parsedAmount,
+          currency: 'BTC',
+          type: 'admin_adjustment',
+          status: 'completed',
+          note: walletNote,
+          description: `Admin Bitcoin Adjustment (${parsedAmount >= 0 ? '+' : ''}${parsedAmount} BTC)`,
+          createdAt: serverTimestamp(),
+          reviewedBy: user?.email
+        });
 
-      // Create a transaction record
-      await addDoc(collection(db, 'transactions'), {
-        userId: walletTargetUserId,
-        amount: amountInUSD,
-        localAmount: amountInUserCurrency,
-        currency: targetUserCurrency.code,
-        type: 'admin_adjustment',
-        status: 'completed',
-        note: walletNote,
-        description: `Admin Wallet Adjustment (${amountInUserCurrency >= 0 ? '+' : ''}${targetUserCurrency.symbol}${Math.abs(amountInUserCurrency).toLocaleString()} ${targetUserCurrency.code})`,
-        createdAt: serverTimestamp(),
-        reviewedBy: user?.email
-      });
+        await addDoc(collection(db, 'notifications', walletTargetUserId, 'items'), {
+          type: 'wallet_adjustment',
+          title: 'Bitcoin Balance Updated',
+          message: `An admin has adjusted your Bitcoin balance by ${parsedAmount >= 0 ? '+' : ''}${parsedAmount} BTC. Note: ${walletNote}`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
 
-      // Notify user
-      const formattedNotice = `${amountInUserCurrency >= 0 ? '+' : '-'}${targetUserCurrency.symbol}${Math.abs(amountInUserCurrency).toLocaleString()} ${targetUserCurrency.code}`;
-      await addDoc(collection(db, 'notifications', walletTargetUserId, 'items'), {
-        type: 'wallet_adjustment',
-        title: 'Wallet Balance Updated',
-        message: `An admin has adjusted your wallet balance by ${formattedNotice}. Note: ${walletNote}`,
-        createdAt: serverTimestamp(),
-        read: false,
-      });
+        setUsers(prev => prev.map(u => u.id === walletTargetUserId ? {
+          ...u,
+          btcBalance: (u.btcBalance || 0) + parsedAmount
+        } : u));
 
-      // Update local users state so UI updates immediately
-      setUsers(prev => prev.map(u => u.id === walletTargetUserId ? {
-        ...u,
-        walletBalance: (u.walletBalance || 0) + amountInUSD
-      } : u));
+        setMessage({ 
+          text: `Bitcoin balance adjusted by ${parsedAmount >= 0 ? '+' : ''}${parsedAmount} BTC!`, 
+          type: 'success' 
+        });
+      } else if (walletAsset === 'usdt') {
+        // Adjust USDT
+        await updateDoc(doc(db, 'users', walletTargetUserId), {
+          usdtBalance: increment(parsedAmount),
+          updatedAt: serverTimestamp()
+        });
+
+        await addDoc(collection(db, 'transactions'), {
+          userId: walletTargetUserId,
+          amount: parsedAmount,
+          currency: 'USDT',
+          type: 'admin_adjustment',
+          status: 'completed',
+          note: walletNote,
+          description: `Admin USDT Adjustment (${parsedAmount >= 0 ? '+' : ''}${parsedAmount.toFixed(2)} USDT)`,
+          createdAt: serverTimestamp(),
+          reviewedBy: user?.email
+        });
+
+        await addDoc(collection(db, 'notifications', walletTargetUserId, 'items'), {
+          type: 'wallet_adjustment',
+          title: 'USDT Balance Updated',
+          message: `An admin has adjusted your USDT balance by ${parsedAmount >= 0 ? '+' : ''}${parsedAmount.toFixed(2)} USDT. Note: ${walletNote}`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+
+        setUsers(prev => prev.map(u => u.id === walletTargetUserId ? {
+          ...u,
+          usdtBalance: (u.usdtBalance || 0) + parsedAmount
+        } : u));
+
+        setMessage({ 
+          text: `USDT balance adjusted by ${parsedAmount >= 0 ? '+' : ''}${parsedAmount.toFixed(2)} USDT!`, 
+          type: 'success' 
+        });
+      } else {
+        // Adjust Fiat Wallet Balance directly in native currency
+        await updateDoc(doc(db, 'users', walletTargetUserId), {
+          walletBalance: increment(parsedAmount),
+          updatedAt: serverTimestamp()
+        });
+
+        await addDoc(collection(db, 'transactions'), {
+          userId: walletTargetUserId,
+          amount: parsedAmount,
+          currency: targetUserCurrency.code,
+          type: 'admin_adjustment',
+          status: 'completed',
+          note: walletNote,
+          description: `Admin Wallet Adjustment (${parsedAmount >= 0 ? '+' : ''}${targetUserCurrency.symbol}${Math.abs(parsedAmount).toLocaleString()} ${targetUserCurrency.code})`,
+          createdAt: serverTimestamp(),
+          reviewedBy: user?.email
+        });
+
+        const formattedNotice = `${parsedAmount >= 0 ? '+' : '-'}${targetUserCurrency.symbol}${Math.abs(parsedAmount).toLocaleString()} ${targetUserCurrency.code}`;
+        await addDoc(collection(db, 'notifications', walletTargetUserId, 'items'), {
+          type: 'wallet_adjustment',
+          title: 'Wallet Balance Updated',
+          message: `An admin has adjusted your wallet balance by ${formattedNotice}. Note: ${walletNote}`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+
+        setUsers(prev => prev.map(u => u.id === walletTargetUserId ? {
+          ...u,
+          walletBalance: (u.walletBalance || 0) + parsedAmount
+        } : u));
+
+        setMessage({ 
+          text: `Wallet adjusted! Applied ${formattedNotice} directly to native account balance.`, 
+          type: 'success' 
+        });
+      }
 
       setWalletSuccess(true);
       setWalletAmount('');
       setWalletNote('Admin adjustment');
-      setMessage({ 
-        text: `Wallet adjusted! Converted ${formattedNotice} to raw $${amountInUSD.toFixed(2)} USD for storage.`, 
-        type: 'success' 
-      });
       setTimeout(() => setWalletSuccess(false), 4000);
     } catch (err: any) {
-      console.error('Error adjusting wallet:', err instanceof Error ? err.message : String(err));
-      setMessage({ text: `Failed to adjust wallet: ${err.message}`, type: 'error' });
+      console.error('Error adjusting balance:', err instanceof Error ? err.message : String(err));
+      setMessage({ text: `Failed to adjust balance: ${err.message}`, type: 'error' });
     } finally {
       setIsAdjusting(false);
     }
@@ -1238,7 +1350,8 @@ export const AdminPage = () => {
                   <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                     <th className="pb-4">User</th>
                     <th className="pb-4">KYC Status</th>
-                    <th className="pb-4">Wallet Balance</th>
+                    <th className="pb-4">Fiat Balance</th>
+                    <th className="pb-4">Crypto Balances</th>
                     <th className="pb-4">Joined</th>
                     <th className="pb-4 text-right">Actions</th>
                   </tr>
@@ -1247,8 +1360,8 @@ export const AdminPage = () => {
                   {users.map((u) => (
                     <tr key={u.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="py-4">
-                        <div className="font-bold dark:text-white">{u.email}</div>
-                        <div className="text-[10px] text-gray-400 font-mono">{u.id}</div>
+                        <div className="font-bold dark:text-white">{u.fullName || u.email}</div>
+                        <div className="text-[10px] text-gray-400 font-mono">{u.email}</div>
                       </td>
                       <td className="py-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
@@ -1260,6 +1373,10 @@ export const AdminPage = () => {
                         </span>
                       </td>
                       <td className="py-4 font-bold text-accent">{formatUserBalance(u)}</td>
+                      <td className="py-4 text-xs font-mono">
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold">₮ {Number(u.usdtBalance || 0).toFixed(2)} USDT</div>
+                        <div className="text-amber-600 dark:text-amber-400 font-bold">₿ {Number(u.btcBalance || 0).toFixed(6)} BTC</div>
+                      </td>
                       <td className="py-4 text-gray-500 text-sm">{formatDate(u.createdAt)}</td>
                       <td className="py-4 text-right">
                         <button 
@@ -1549,8 +1666,8 @@ export const AdminPage = () => {
                 <Wallet className="w-6 h-6 text-accent" />
               </div>
               <div>
-                <h2 className="text-2xl font-black tracking-tighter dark:text-white uppercase">Wallet Adjustment</h2>
-                <p className="text-gray-500 text-sm">Add or deduct funds in the user's native currency (auto-converted to raw USD for database storage)</p>
+                <h2 className="text-2xl font-black tracking-tighter dark:text-white uppercase">User Balance & Asset Adjustment</h2>
+                <p className="text-gray-500 text-sm">Add or deduct fiat, USDT, or Bitcoin funds directly for any user</p>
               </div>
             </div>
 
@@ -1569,7 +1686,7 @@ export const AdminPage = () => {
                       const uCurr = getUserCurrency(u);
                       return (
                         <option key={u.id} value={u.id}>
-                          {u.fullName || u.email} ({u.email}) — [{uCurr.code} {uCurr.symbol}] Balance: {formatUserBalance(u)}
+                          {u.fullName || u.email} ({u.email}) — [Wallet: {formatUserBalance(u)} | USDT: {Number(u.usdtBalance || 0).toFixed(2)} | BTC: {Number(u.btcBalance || 0).toFixed(6)}]
                         </option>
                       );
                     })}
@@ -1578,47 +1695,93 @@ export const AdminPage = () => {
                 </div>
               </div>
 
+              {/* Asset Type Selector */}
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Asset To Adjust</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setWalletAsset('fiat')}
+                    className={`py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border transition-all ${
+                      walletAsset === 'fiat'
+                        ? 'bg-accent text-white border-accent shadow-md shadow-accent/20'
+                        : 'bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-zinc-800 hover:border-accent/40'
+                    }`}
+                  >
+                    <Wallet className="w-4 h-4" />
+                    Fiat Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWalletAsset('usdt')}
+                    className={`py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border transition-all ${
+                      walletAsset === 'usdt'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                        : 'bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-zinc-800 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <span className="font-mono font-bold">₮</span>
+                    Tether (USDT)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWalletAsset('btc')}
+                    className={`py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border transition-all ${
+                      walletAsset === 'btc'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20'
+                        : 'bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-zinc-800 hover:border-amber-500/40'
+                    }`}
+                  >
+                    <span className="font-mono font-bold">₿</span>
+                    Bitcoin (BTC)
+                  </button>
+                </div>
+              </div>
+
               {walletTargetUserId && (() => {
                 const targetU = users.find(u => u.id === walletTargetUserId);
                 const targetCurr = getUserCurrency(targetU);
-                const rawBalance = targetU?.wallet?.balance ?? targetU?.walletBalance ?? 0;
-                const rate = rates[targetCurr.code] || 1;
                 const parsedInput = parseFloat(walletAmount) || 0;
-                const inputUSD = convertAmount(parsedInput, targetCurr.code, 'USD');
-                const projectedRawUSD = rawBalance + inputUSD;
-                const projectedLocal = convertAmount(projectedRawUSD, 'USD', targetCurr.code);
+
+                const currentFiat = targetU?.wallet?.balance ?? targetU?.walletBalance ?? 0;
+                const currentBtc = targetU?.btcBalance ?? 0;
+                const currentUsdt = targetU?.usdtBalance ?? 0;
+
+                const projectedFiat = currentFiat + parsedInput;
+                const projectedBtc = currentBtc + parsedInput;
+                const projectedUsdt = currentUsdt + parsedInput;
 
                 return (
                   <div className="p-4 bg-accent/5 dark:bg-accent/10 border border-accent/20 rounded-2xl space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-lg bg-accent text-white font-mono font-bold text-xs">
-                          {targetCurr.code}
-                        </span>
-                        <div>
-                          <p className="text-xs font-bold dark:text-white">{targetCurr.name || targetCurr.code} ({targetCurr.symbol})</p>
-                          <p className="text-[10px] text-gray-500">Rate: 1 USD = {rate.toLocaleString()} {targetCurr.code}</p>
-                        </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className={`p-2.5 rounded-xl border ${walletAsset === 'fiat' ? 'bg-accent/15 border-accent text-accent' : 'bg-white/60 dark:bg-zinc-900/60 border-gray-200/50 dark:border-zinc-800'}`}>
+                        <p className="text-[9px] uppercase font-bold text-gray-400">Fiat ({targetCurr.code})</p>
+                        <p className="text-xs font-black truncate">{targetCurr.symbol}{currentFiat.toLocaleString()} {targetCurr.code}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase font-black tracking-widest text-gray-400">Current Balance</p>
-                        <p className="text-sm font-black text-accent">{formatUserBalance(targetU)}</p>
-                        <p className="text-[10px] text-gray-500">Raw in DB: ${rawBalance.toFixed(2)} USD</p>
+                      <div className={`p-2.5 rounded-xl border ${walletAsset === 'usdt' ? 'bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'bg-white/60 dark:bg-zinc-900/60 border-gray-200/50 dark:border-zinc-800'}`}>
+                        <p className="text-[9px] uppercase font-bold text-gray-400">USDT</p>
+                        <p className="text-xs font-black truncate">{currentUsdt.toFixed(2)} USDT</p>
+                      </div>
+                      <div className={`p-2.5 rounded-xl border ${walletAsset === 'btc' ? 'bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400' : 'bg-white/60 dark:bg-zinc-900/60 border-gray-200/50 dark:border-zinc-800'}`}>
+                        <p className="text-[9px] uppercase font-bold text-gray-400">Bitcoin</p>
+                        <p className="text-xs font-black truncate">{currentBtc.toFixed(6)} BTC</p>
                       </div>
                     </div>
 
                     {parsedInput !== 0 && (
                       <div className="pt-3 border-t border-accent/10 text-xs grid grid-cols-2 gap-2">
                         <div className="bg-white/80 dark:bg-zinc-900/80 p-2.5 rounded-xl border border-gray-200/60 dark:border-zinc-800">
-                          <span className="text-[10px] text-gray-400 block uppercase font-bold">Storing in Database (Raw USD)</span>
-                          <span className="font-mono font-black text-blue-600 dark:text-blue-400">
-                            {inputUSD >= 0 ? '+' : ''}${inputUSD.toFixed(2)} USD
+                          <span className="text-[10px] text-gray-400 block uppercase font-bold">Adjustment ({walletAsset.toUpperCase()})</span>
+                          <span className={`font-mono font-black ${parsedInput >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                            {parsedInput >= 0 ? '+' : ''}{parsedInput} {walletAsset === 'fiat' ? targetCurr.code : walletAsset.toUpperCase()}
                           </span>
                         </div>
                         <div className="bg-white/80 dark:bg-zinc-900/80 p-2.5 rounded-xl border border-gray-200/60 dark:border-zinc-800">
                           <span className="text-[10px] text-gray-400 block uppercase font-bold">Projected New Balance</span>
-                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">
-                            {targetCurr.symbol}{projectedLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {targetCurr.code}
+                          <span className="font-mono font-black text-blue-600 dark:text-blue-400">
+                            {walletAsset === 'fiat' && `${targetCurr.symbol}${projectedFiat.toLocaleString()} ${targetCurr.code}`}
+                            {walletAsset === 'usdt' && `${projectedUsdt.toFixed(2)} USDT`}
+                            {walletAsset === 'btc' && `${projectedBtc.toFixed(6)} BTC`}
                           </span>
                         </div>
                       </div>
@@ -1630,30 +1793,34 @@ export const AdminPage = () => {
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">
-                    Adjustment Amount {walletTargetUserId && `(in ${getUserCurrency(users.find(u => u.id === walletTargetUserId)).code})`}
+                    Adjustment Amount ({walletAsset === 'fiat' ? (walletTargetUserId ? getUserCurrency(users.find(u => u.id === walletTargetUserId)).code : 'Native Currency') : walletAsset.toUpperCase()})
                   </label>
                   {walletTargetUserId && (
                     <span className="text-xs font-bold text-accent">
-                      User Currency: {getUserCurrency(users.find(u => u.id === walletTargetUserId)).symbol} {getUserCurrency(users.find(u => u.id === walletTargetUserId)).code}
+                      {walletAsset === 'fiat' && `User Currency: ${getUserCurrency(users.find(u => u.id === walletTargetUserId)).symbol} ${getUserCurrency(users.find(u => u.id === walletTargetUserId)).code}`}
+                      {walletAsset === 'usdt' && 'Target: Tether (USDT)'}
+                      {walletAsset === 'btc' && 'Target: Bitcoin (BTC)'}
                     </span>
                   )}
                 </div>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
-                    {walletTargetUserId ? `${getUserCurrency(users.find(u => u.id === walletTargetUserId)).symbol}` : '$'}
+                    {walletAsset === 'fiat' ? (walletTargetUserId ? getUserCurrency(users.find(u => u.id === walletTargetUserId)).symbol : '$') : walletAsset === 'usdt' ? '₮' : '₿'}
                   </div>
                   <input 
                     type="number"
-                    step="0.01"
+                    step={walletAsset === 'btc' ? '0.000001' : '0.01'}
                     value={walletAmount}
                     onChange={(e) => setWalletAmount(e.target.value)}
-                    placeholder="0.00"
+                    placeholder={walletAsset === 'btc' ? '0.000000' : '0.00'}
                     className="w-full p-4 pl-12 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white font-mono"
                     required
                   />
                 </div>
                 <p className="mt-2 text-[10px] text-gray-500 uppercase tracking-widest">
-                  Enter amount in {walletTargetUserId ? getUserCurrency(users.find(u => u.id === walletTargetUserId)).code : 'user currency'}. Use negative numbers to deduct funds.
+                  {walletAsset === 'fiat' 
+                    ? `Enter amount in ${walletTargetUserId ? getUserCurrency(users.find(u => u.id === walletTargetUserId)).code : 'user currency'}. Use negative numbers to deduct funds.`
+                    : `Enter amount in ${walletAsset.toUpperCase()}. Use negative numbers to deduct.`}
                 </p>
               </div>
 
@@ -1679,7 +1846,7 @@ export const AdminPage = () => {
                 ) : (
                   <>
                     <Plus className="w-5 h-5" />
-                    Apply Adjustment
+                    Apply {walletAsset.toUpperCase()} Adjustment
                   </>
                 )}
               </button>
@@ -1691,7 +1858,7 @@ export const AdminPage = () => {
                   className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-2xl flex items-center gap-3 text-green-600 dark:text-green-400"
                 >
                   <CheckCircle className="w-5 h-5" />
-                  <p className="text-sm font-bold">Wallet adjusted successfully!</p>
+                  <p className="text-sm font-bold">Balance adjusted successfully!</p>
                 </motion.div>
               )}
             </form>
@@ -2961,9 +3128,7 @@ export const AdminPage = () => {
                   <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-1">User Profile</h3>
                   <button 
                     onClick={() => {
-                      const userCurr = getUserCurrency(selectedUser);
-                      const rawBal = selectedUser.wallet?.balance ?? selectedUser.walletBalance ?? 0;
-                      const localBal = convertAmount(rawBal, 'USD', userCurr.code);
+                      const currentBal = selectedUser.wallet?.balance ?? selectedUser.walletBalance ?? 0;
                       setAdminProfileForm({
                         fullName: selectedUser.fullName || '',
                         phone: selectedUser.phone || selectedUser.phoneNumber || '',
@@ -2979,7 +3144,12 @@ export const AdminPage = () => {
                         maritalStatus: selectedUser.maritalStatus || '',
                         stateOfOrigin: selectedUser.stateOfOrigin || '',
                         sentry: selectedUser.sentry || '',
-                        walletBalance: Number(localBal.toFixed(2)),
+                        walletBalance: currentBal,
+                        btcBalance: selectedUser.btcBalance || 0,
+                        usdtBalance: selectedUser.usdtBalance || 0,
+                        savings: selectedUser.savings || 0,
+                        investmentBalance: selectedUser.investmentBalance || 0,
+                        grantBalance: selectedUser.grantBalance || 0,
                         cardActivated: selectedUser.cardActivated || false
                       });
                       setIsEditingAdminProfile(!isEditingAdminProfile);
@@ -2996,6 +3166,59 @@ export const AdminPage = () => {
 
               {isEditingAdminProfile ? (
                 <form onSubmit={handleUpdateUserProfile} className="space-y-6 mb-10">
+                  <div className="p-4 bg-accent/5 dark:bg-accent/10 border border-accent/20 rounded-2xl">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-accent mb-3">Balances & Asset Balances</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                          Wallet ({getUserCurrency(selectedUser).code})
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">
+                            {getUserCurrency(selectedUser).symbol}
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={adminProfileForm.walletBalance}
+                            onChange={(e) => setAdminProfileForm({ ...adminProfileForm, walletBalance: Number(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 focus:border-accent outline-none font-mono font-bold text-xs dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">
+                          Tether (USDT)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-bold text-xs">₮</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={adminProfileForm.usdtBalance}
+                            onChange={(e) => setAdminProfileForm({ ...adminProfileForm, usdtBalance: Number(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-emerald-200 dark:border-emerald-900/50 focus:border-emerald-500 outline-none font-mono font-bold text-xs dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
+                          Bitcoin (BTC)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-bold text-xs">₿</span>
+                          <input
+                            type="number"
+                            step="0.000001"
+                            value={adminProfileForm.btcBalance}
+                            onChange={(e) => setAdminProfileForm({ ...adminProfileForm, btcBalance: Number(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/50 focus:border-amber-500 outline-none font-mono font-bold text-xs dark:text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Name</label>
@@ -3016,37 +3239,24 @@ export const AdminPage = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                          Wallet Balance ({getUserCurrency(selectedUser).code})
-                        </label>
-                        <span className="text-[10px] font-bold text-accent">
-                          {getUserCurrency(selectedUser).symbol} ({getUserCurrency(selectedUser).code})
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">
-                          {getUserCurrency(selectedUser).symbol}
-                        </div>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={adminProfileForm.walletBalance}
-                          onChange={(e) => setAdminProfileForm({ ...adminProfileForm, walletBalance: Number(e.target.value) })}
-                          className="w-full pl-8 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white font-bold font-mono"
-                        />
-                      </div>
-                      {(() => {
-                        const uCurr = getUserCurrency(selectedUser);
-                        const entered = Number(adminProfileForm.walletBalance) || 0;
-                        const inUSD = convertAmount(entered, uCurr.code, 'USD');
-                        return (
-                          <div className="text-[10px] text-gray-500 flex justify-between">
-                            <span>Saves to DB as: <strong className="text-blue-500 font-mono">${inUSD.toFixed(2)} USD</strong></span>
-                            <span>Rate: 1 USD = {(rates[uCurr.code] || 1).toLocaleString()} {uCurr.code}</span>
-                          </div>
-                        );
-                      })()}
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Savings Balance ({getUserCurrency(selectedUser).code})</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={adminProfileForm.savings}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, savings: Number(e.target.value) })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Investment Balance ({getUserCurrency(selectedUser).code})</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={adminProfileForm.investmentBalance}
+                        onChange={(e) => setAdminProfileForm({ ...adminProfileForm, investmentBalance: Number(e.target.value) })}
+                        className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 focus:border-accent outline-none transition-all dark:text-white font-mono"
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date of Birth</label>
@@ -3212,8 +3422,16 @@ export const AdminPage = () => {
                     <DetailItem label="Role" value={selectedUser.role || 'user'} />
                     <DetailItem label="Wallet Balance" value={formatUserBalance(selectedUser)} />
                     <DetailItem 
-                      label="Raw DB Balance" 
-                      value={`$${(selectedUser.wallet?.balance ?? selectedUser.walletBalance ?? 0).toFixed(2)} USD`} 
+                      label="Tether (USDT)" 
+                      value={`${(selectedUser.usdtBalance || 0).toFixed(2)} USDT`} 
+                    />
+                    <DetailItem 
+                      label="Bitcoin (BTC)" 
+                      value={`${(selectedUser.btcBalance || 0).toFixed(6)} BTC`} 
+                    />
+                    <DetailItem 
+                      label="Savings Balance" 
+                      value={`${getUserCurrency(selectedUser).symbol}${(selectedUser.savings || 0).toLocaleString()} ${getUserCurrency(selectedUser).code}`} 
                     />
                     <DetailItem label="KYC Status" value={selectedUser.kycStatus || 'Not Started'} />
                     <DetailItem 

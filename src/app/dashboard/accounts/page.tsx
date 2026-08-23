@@ -45,15 +45,12 @@ export const AccountsPage = () => {
     if (!user || !moveAmount || parseFloat(moveAmount) <= 0) return;
     const amountNumLocal = parseFloat(moveAmount);
     
-    const rawBalanceUSD = userData?.walletBalance || 0;
-    const localBalance = convertAmount(rawBalanceUSD, 'USD', currency.code);
+    const availableBalance = userData?.walletBalance || 0;
 
-    if (amountNumLocal > localBalance + 0.001) {
-      setMoveError(`Insufficient main balance. Available: ${formatAmount(rawBalanceUSD)}`);
+    if (amountNumLocal > availableBalance) {
+      setMoveError(`Insufficient main balance. Available: ${formatAmount(availableBalance)}`);
       return;
     }
-
-    const amountNumUSD = convertAmount(amountNumLocal, currency.code, 'USD');
 
     setMoveLoading(true);
     setMoveError('');
@@ -66,9 +63,9 @@ export const AccountsPage = () => {
 
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        walletBalance: increment(-amountNumUSD),
-        savings: increment(amountNumUSD),
-        savingsPrincipal: increment(amountNumUSD),
+        walletBalance: increment(-amountNumLocal),
+        savings: increment(amountNumLocal),
+        savingsPrincipal: increment(amountNumLocal),
         savingsLockUntil: lockUntil.toISOString(),
         savingsInterestRate: selectedOption?.rate || 0.1,
         savingsLastInterestCalculationDate: new Date().toISOString()
@@ -79,8 +76,7 @@ export const AccountsPage = () => {
         userId: user.uid,
         userEmail: user.email,
         type: 'transfer',
-        amount: amountNumUSD,
-        localAmount: amountNumLocal,
+        amount: amountNumLocal,
         currency: currency.code,
         status: 'completed',
         description: `Locked Savings (${selectedOption?.label}) - ${currency.symbol}${amountNumLocal.toLocaleString()}`,
@@ -359,7 +355,7 @@ export const AccountsPage = () => {
             </div>
           </div>
           <h2 className="text-4xl font-black mb-1 dark:text-white">{btcBalance.toFixed(8)} BTC</h2>
-          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(btcBalance * (1 / (rates['BTC'] || 1)))}</p>
+          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(convertAmount(btcBalance, 'BTC', currency.code))}</p>
           <Link to="/dashboard/swap" className="w-full py-3 rounded-xl bg-orange-500/10 text-orange-500 font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4" /> Swap BTC
           </Link>
@@ -379,7 +375,7 @@ export const AccountsPage = () => {
             </div>
           </div>
           <h2 className="text-4xl font-black mb-1 dark:text-white">{usdtBalance.toFixed(2)} USDT</h2>
-          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(usdtBalance * (1 / (rates['USDT'] || 1)))}</p>
+          <p className="text-gray-500 font-bold mb-8">≈ {formatAmount(convertAmount(usdtBalance, 'USDT', currency.code))}</p>
           <Link to="/dashboard/swap" className="w-full py-3 rounded-xl bg-emerald-500/10 text-emerald-500 font-bold hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4" /> Swap USDT
           </Link>

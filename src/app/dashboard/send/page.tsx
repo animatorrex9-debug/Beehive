@@ -100,23 +100,20 @@ export const SendPage = () => {
       return;
     }
 
-    const rawBalanceUSD = userData?.walletBalance || 0;
-    const localBalance = convertAmount(rawBalanceUSD, 'USD', currency.code);
+    const availableBalance = userData?.walletBalance || 0;
     
-    if (sendAmountLocal > localBalance + 0.001) {
-      setError(`Insufficient funds in your wallet. Available: ${formatAmount(rawBalanceUSD)}`);
+    if (sendAmountLocal > availableBalance) {
+      setError(`Insufficient funds in your wallet. Available: ${formatAmount(availableBalance)}`);
       return;
     }
-
-    const sendAmountUSD = convertAmount(sendAmountLocal, currency.code, 'USD');
 
     setLoading(true);
     setError('');
 
     try {
-      // Update sender balance with USD amount
+      // Update sender balance directly with native currency amount
       await updateDoc(doc(db, 'users', user.uid), {
-        walletBalance: increment(-sendAmountUSD)
+        walletBalance: increment(-sendAmountLocal)
       });
       await refreshUserData();
 
@@ -137,13 +134,12 @@ export const SendPage = () => {
         metadata = { app: thirdPartyApp, recipient };
       }
 
-      // Record transaction in USD for standard history formatting
+      // Record transaction
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         type: 'send',
         transferType: type,
-        amount: sendAmountUSD,
-        localAmount: sendAmountLocal,
+        amount: sendAmountLocal,
         currency: currency.code,
         status: 'completed',
         description,

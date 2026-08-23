@@ -14,7 +14,7 @@ interface CurrencyContextType {
   currency: CurrencyInfo;
   setCurrency: (currency: CurrencyInfo) => void;
   setCurrencyByCountry: (countryName: string) => void;
-  formatAmount: (amount: number, skipConversion?: boolean) => string;
+  formatAmount: (amount: number, currencyCodeOrSkip?: string | boolean) => string;
   convertAmount: (amount: number, from: string, to: string) => number;
   rates: Record<string, number>;
   loading: boolean;
@@ -247,16 +247,19 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   }, [user]);
 
-  const formatAmount = (amount: number, skipConversion: boolean = false) => {
+  const formatAmount = (amount: number = 0, currencyCodeOrSkip?: string | boolean) => {
+    const targetCode = typeof currencyCodeOrSkip === 'string' 
+      ? currencyCodeOrSkip 
+      : (currency.code || 'USD');
+
     try {
-      const displayAmount = skipConversion ? amount : convertAmount(amount, 'USD', currency.code);
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: currency.code,
-      }).format(displayAmount);
+        currency: targetCode,
+      }).format(amount || 0);
     } catch (e) {
-      const displayAmount = skipConversion ? amount : convertAmount(amount, 'USD', currency.code);
-      return `${currency.symbol}${displayAmount.toLocaleString()}`;
+      const sym = targetCode === currency.code ? currency.symbol : (targetCode === 'USD' ? '$' : targetCode);
+      return `${sym}${(amount || 0).toLocaleString()}`;
     }
   };
 
