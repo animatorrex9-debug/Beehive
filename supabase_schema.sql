@@ -73,8 +73,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   kyc_submitted_at TEXT DEFAULT '',
   rejection_reason TEXT DEFAULT '',
   kyc_reviewed_at TEXT DEFAULT '',
-  kyc_reviewed_by TEXT DEFAULT ''
+  kyc_reviewed_by TEXT DEFAULT '',
+  manager_id UUID,
+  assigned_manager_id UUID
 );
+
+-- Ensure manager_id and assigned_manager_id exist on profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS manager_id UUID;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS assigned_manager_id UUID;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

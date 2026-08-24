@@ -464,30 +464,77 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
       res = await builder;
     }
 
-    const { data, error } = res;
+    let { data, error } = res;
     if (error) {
-      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
-        console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning local fallback snapshot for ${ref.path}.`);
-        let localRows: any[] = [];
+      if (error.code === 'PGRST204' || error.message?.includes('Could not find the') || error.message?.includes('schema cache')) {
+        console.warn(`[Supabase DB] Query constraint on '${table}' referenced missing column: ${error.message}. Retrying unconstrained query with client-side filtering.`);
         try {
-          localRows = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-        } catch (e) {}
-        const docs = localRows.map(row => {
-          const docRef = new DocumentReference(`${ref.path}/${row.id}`);
-          return new QueryDocumentSnapshotCompat(docRef, row);
-        });
-        return new QuerySnapshotCompat(docs, docs.length === 0);
+          let fallbackBuilder = supabase.from(table).select('*');
+          if (parentId && parentField) {
+            fallbackBuilder = fallbackBuilder.eq(parentField, parentId);
+          }
+          const fallbackRes = await fallbackBuilder;
+          if (!fallbackRes.error && Array.isArray(fallbackRes.data)) {
+            data = fallbackRes.data;
+            error = null;
+          }
+        } catch (fErr) {
+          console.warn(`[Supabase DB] Fallback query error on ${table}:`, fErr);
+        }
       }
-      if (error.message?.includes('AbortError') || error.message?.includes('steal') || error.message?.includes('Lock broken') || error.message?.includes('Failed to fetch')) {
-        console.warn(`[Supabase DB] Lock/Abort/Fetch issue on ${table}. Returning empty list.`);
-        return new QuerySnapshotCompat([], true);
+
+      if (error) {
+        if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+          console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning local fallback snapshot for ${ref.path}.`);
+          let localRows: any[] = [];
+          try {
+            localRows = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          } catch (e) {}
+          const docs = localRows.map(row => {
+            const docRef = new DocumentReference(`${ref.path}/${row.id}`);
+            return new QueryDocumentSnapshotCompat(docRef, row);
+          });
+          return new QuerySnapshotCompat(docs, docs.length === 0);
+        }
+        if (error.message?.includes('AbortError') || error.message?.includes('steal') || error.message?.includes('Lock broken') || error.message?.includes('Failed to fetch')) {
+          console.warn(`[Supabase DB] Lock/Abort/Fetch issue on ${table}. Returning empty list.`);
+          return new QuerySnapshotCompat([], true);
+        }
+        const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
+        console.error(`[Supabase DB] Error in getDocs on ${table}:`, errMsg);
+        throw enhanceSupabaseError(error);
       }
-      const errMsg = typeof error === 'object' ? JSON.stringify(error) : String(error);
-      console.error(`[Supabase DB] Error in getDocs on ${table}:`, errMsg);
-      throw enhanceSupabaseError(error);
     }
 
-    const docs = (data || []).map(row => {
+    let rawRows = data || [];
+
+    // If query constraints were applied and we had to fallback, filter rows in memory
+    if (constraints.length > 0) {
+      for (const c of constraints) {
+        if (c.type === 'where') {
+          const snakeField = toSnakeCase(c.field);
+          const camelField = toCamelCase(c.field);
+          rawRows = rawRows.filter(row => {
+            const val = row[snakeField] !== undefined ? row[snakeField] : row[camelField];
+            if (c.op === '==' || c.op === '===') {
+              if (typeof val === 'string' && typeof c.value === 'string') {
+                return val.toLowerCase().trim() === c.value.toLowerCase().trim();
+              }
+              return val == c.value;
+            } else if (c.op === '!=') {
+              return val != c.value;
+            } else if (c.op === 'in' && Array.isArray(c.value)) {
+              return c.value.includes(val);
+            } else if (c.op === 'array-contains') {
+              return Array.isArray(val) && val.includes(c.value);
+            }
+            return true;
+          });
+        }
+      }
+    }
+
+    const docs = rawRows.map(row => {
       let finalRow = { ...row };
       if (table === 'profiles' && row?.id) {
         try {
@@ -941,7 +988,19 @@ export function onSnapshot(
         if (active) next(snap);
       }
     } catch (err) {
-      if (active && error) error(err);
+      if (active) {
+        if (error) {
+          error(err);
+        } else {
+          try {
+            if (isDoc) {
+              next(new DocumentSnapshotCompat(ref as DocumentReference, null, false));
+            } else {
+              next(new QuerySnapshotCompat([], true));
+            }
+          } catch (e) {}
+        }
+      }
     }
   };
 

@@ -24,6 +24,7 @@ import {
   serverTimestamp, 
   orderBy, 
   doc, 
+  getDoc,
   updateDoc,
   getDocs,
   limit
@@ -70,21 +71,80 @@ export const ManagerChatPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-
-    // Fetch users assigned to this manager
-    const usersQuery = query(
-      collection(db, 'users'),
-      where('managerId', '==', user.uid)
-    );
-
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAssignedUsers(usersList);
+    if (!user) {
       setLoading(false);
-    });
+      return;
+    }
 
-    return () => unsubscribeUsers();
+    let isMounted = true;
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 2000);
+
+    const loadClients = async () => {
+      try {
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('managerId', '==', user.uid)
+        );
+
+        const unsubscribeUsers = onSnapshot(
+          usersQuery, 
+          async (snapshot) => {
+            if (!isMounted) return;
+            let usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Also check chats
+            try {
+              const chatsQuery = query(
+                collection(db, 'chats'),
+                where('managerId', '==', user.uid)
+              );
+              const chatSnap = await getDocs(chatsQuery);
+              const chatUserIds = chatSnap.docs
+                .map(d => d.data()?.userId)
+                .filter((id): id is string => Boolean(id && id !== user.uid));
+
+              for (const cUserId of chatUserIds) {
+                if (!usersList.some(u => u.id === cUserId)) {
+                  try {
+                    const uSnap = await getDoc(doc(db, 'users', cUserId));
+                    if (uSnap.exists()) {
+                      usersList.push({ id: uSnap.id, ...uSnap.data() });
+                    }
+                  } catch (e) {}
+                }
+              }
+            } catch (e) {}
+
+            if (isMounted) {
+              setAssignedUsers(usersList);
+              setLoading(false);
+            }
+          },
+          (err) => {
+            console.error('Error fetching manager clients:', err);
+            if (isMounted) setLoading(false);
+          }
+        );
+
+        return unsubscribeUsers;
+      } catch (err) {
+        console.error('Exception loading manager clients:', err);
+        if (isMounted) setLoading(false);
+        return () => {};
+      }
+    };
+
+    let unsubPromise = loadClients();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+      unsubPromise.then(unsub => {
+        if (unsub) unsub();
+      });
+    };
   }, [user]);
 
   useEffect(() => {

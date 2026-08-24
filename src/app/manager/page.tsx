@@ -17,36 +17,105 @@ import {
   query, 
   where, 
   onSnapshot, 
+  getDocs,
+  doc,
+  getDoc
 } from 'supabase/db';
 import { db } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrency, getCurrencyByCountry, CurrencyInfo } from '../../context/CurrencyContext';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LoadingLogo } from '../../components/LoadingLogo';
 
 export const ManagerPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { formatAmount } = useCurrency();
 
   useEffect(() => {
-    if (!user) return;
-
-    // Fetch users assigned to this manager
-    const usersQuery = query(
-      collection(db, 'users'),
-      where('managerId', '==', user.uid)
-    );
-
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAssignedUsers(usersList);
+    if (!user) {
       setLoading(false);
-    });
+      return;
+    }
 
-    return () => unsubscribeUsers();
+    let isMounted = true;
+
+    // Safety timeout: never let the dashboard hang in loading state for more than 2 seconds
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 2000);
+
+    const loadClients = async () => {
+      try {
+        // 1. Fetch users assigned directly via managerId
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('managerId', '==', user.uid)
+        );
+
+        const unsubscribeUsers = onSnapshot(
+          usersQuery, 
+          async (snapshot) => {
+            if (!isMounted) return;
+            let usersList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // 2. Also check if there are chats assigned to this manager with users not yet captured
+            try {
+              const chatsQuery = query(
+                collection(db, 'chats'),
+                where('managerId', '==', user.uid)
+              );
+              const chatSnap = await getDocs(chatsQuery);
+              const chatUserIds = chatSnap.docs
+                .map(d => d.data()?.userId)
+                .filter((id): id is string => Boolean(id && id !== user.uid));
+
+              for (const cUserId of chatUserIds) {
+                if (!usersList.some(u => u.id === cUserId)) {
+                  try {
+                    const uSnap = await getDoc(doc(db, 'users', cUserId));
+                    if (uSnap.exists()) {
+                      usersList.push({ id: uSnap.id, ...uSnap.data() });
+                    }
+                  } catch (e) {}
+                }
+              }
+            } catch (chatErr) {
+              console.warn('[ManagerPage] Could not query chats for clients:', chatErr);
+            }
+
+            if (isMounted) {
+              setAssignedUsers(usersList);
+              setLoading(false);
+            }
+          },
+          (err) => {
+            console.error('[ManagerPage] Error listening to assigned users:', err);
+            if (isMounted) setLoading(false);
+          }
+        );
+
+        return unsubscribeUsers;
+      } catch (err) {
+        console.error('[ManagerPage] Exception initializing users listener:', err);
+        if (isMounted) setLoading(false);
+        return () => {};
+      }
+    };
+
+    let unsubPromise = loadClients();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+      unsubPromise.then(unsub => {
+        if (unsub) unsub();
+      });
+    };
   }, [user]);
 
   if (loading) {
@@ -225,7 +294,7 @@ export const ManagerPage = () => {
                     </td>
                     <td className="px-6 py-4">
                       <button 
-                        onClick={() => window.location.href = '/manager/chat'}
+                        onClick={() => navigate('/manager/chat')}
                         className="p-2 rounded-xl bg-accent/10 text-accent hover:bg-accent hover:text-white transition-all"
                       >
                         <MessageSquare className="w-4 h-4" />
