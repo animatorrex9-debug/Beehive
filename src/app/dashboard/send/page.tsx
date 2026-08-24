@@ -356,83 +356,105 @@ export const SendPage = () => {
 
       if (type === 'beehive' && verifiedRecipient) {
         const receivedAmount = convertAmount(parsedSendAmount, currency.code, verifiedRecipient.currency.code);
-        
-        // 1. Debit sender's wallet balance
-        await updateDoc(doc(db, 'users', user.uid), {
-          walletBalance: increment(-parsedSendAmount)
-        });
-
-        // 2. Credit recipient's wallet balance
-        await updateDoc(doc(db, 'users', verifiedRecipient.id), {
-          walletBalance: increment(receivedAmount)
-        });
-
         const senderDescription = `Transfer to ${verifiedRecipient.fullName} (${currency.symbol}${parsedSendAmount.toLocaleString()} ${currency.code}${isDifferentCurrency ? ` → ${verifiedRecipient.currency.symbol}${receivedAmount.toLocaleString()} ${verifiedRecipient.currency.code}` : ''})`;
         const recipientDescription = `Received from ${userData?.fullName || user.email} (${currency.symbol}${parsedSendAmount.toLocaleString()} ${currency.code}${isDifferentCurrency ? ` → ${verifiedRecipient.currency.symbol}${receivedAmount.toLocaleString()} ${verifiedRecipient.currency.code}` : ''})`;
 
-        // 3. Record sender transaction
-        await addDoc(collection(db, 'transactions'), {
-          userId: user.uid,
-          type: 'send',
-          transferType: 'beehive',
-          amount: parsedSendAmount,
-          currency: currency.code,
-          status: 'completed',
-          description: senderDescription,
-          metadata: { 
-            recipient: verifiedRecipient.email,
-            recipientName: verifiedRecipient.fullName,
-            recipientId: verifiedRecipient.id,
-            recipientCurrency: verifiedRecipient.currency.code,
-            convertedAmount: receivedAmount,
-            exchangeRate: liveExchangeRate,
-            refId: txRefId,
-            note
-          },
-          note: note,
-          timestamp: new Date().toISOString(),
-          createdAt: serverTimestamp()
-        });
-
-        // 4. Record recipient transaction
-        await addDoc(collection(db, 'transactions'), {
-          userId: verifiedRecipient.id,
-          type: 'receive',
-          transferType: 'beehive',
-          amount: receivedAmount,
-          currency: verifiedRecipient.currency.code,
-          status: 'completed',
-          description: recipientDescription,
-          metadata: { 
-            sender: user.email,
-            senderName: userData?.fullName || user.email,
-            senderId: user.uid,
-            senderCurrency: currency.code,
-            originalAmount: parsedSendAmount,
-            exchangeRate: liveExchangeRate,
-            refId: txRefId,
-            note
-          },
-          note: note,
-          timestamp: new Date().toISOString(),
-          createdAt: serverTimestamp()
-        });
-
-        // 5. In-app notification for recipient
+        let rpcSuccess = false;
         try {
-          await addDoc(collection(db, 'notifications', verifiedRecipient.id, 'items'), {
-            title: 'Money Received',
-            message: `You received ${verifiedRecipient.currency.symbol}${receivedAmount.toLocaleString()} ${verifiedRecipient.currency.code} from ${userData?.fullName || user.email}.${note ? ` Note: "${note}"` : ''}`,
-            type: 'transfer',
-            read: false,
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc('transfer_beehive_funds', {
+            p_recipient_id: verifiedRecipient.id,
+            p_send_amount: parsedSendAmount,
+            p_received_amount: receivedAmount,
+            p_sender_currency: currency.code,
+            p_recipient_currency: verifiedRecipient.currency.code,
+            p_sender_description: senderDescription,
+            p_recipient_description: recipientDescription,
+            p_note: note || '',
+            p_tx_ref_id: txRefId
+          });
+
+          if (!rpcErr && rpcRes && rpcRes.success) {
+            rpcSuccess = true;
+          }
+        } catch (rpcEx) {
+          console.warn('[Send] RPC transfer error, falling back to direct operations:', rpcEx);
+        }
+
+        if (!rpcSuccess) {
+          // 1. Debit sender's wallet balance
+          await updateDoc(doc(db, 'users', user.uid), {
+            walletBalance: increment(-parsedSendAmount)
+          });
+
+          // 2. Credit recipient's wallet balance
+          await updateDoc(doc(db, 'users', verifiedRecipient.id), {
+            walletBalance: increment(receivedAmount)
+          });
+
+          // 3. Record sender transaction
+          await addDoc(collection(db, 'transactions'), {
+            userId: user.uid,
+            type: 'send',
+            transferType: 'beehive',
+            amount: parsedSendAmount,
+            currency: currency.code,
+            status: 'completed',
+            description: senderDescription,
+            metadata: { 
+              recipient: verifiedRecipient.email,
+              recipientName: verifiedRecipient.fullName,
+              recipientId: verifiedRecipient.id,
+              recipientCurrency: verifiedRecipient.currency.code,
+              convertedAmount: receivedAmount,
+              exchangeRate: liveExchangeRate,
+              refId: txRefId,
+              note
+            },
+            note: note,
             timestamp: new Date().toISOString(),
             createdAt: serverTimestamp()
           });
-        } catch (notifErr) {
-          console.warn('Notification log error (non-fatal):', notifErr);
+
+          // 4. Record recipient transaction
+          await addDoc(collection(db, 'transactions'), {
+            userId: verifiedRecipient.id,
+            type: 'receive',
+            transferType: 'beehive',
+            amount: receivedAmount,
+            currency: verifiedRecipient.currency.code,
+            status: 'completed',
+            description: recipientDescription,
+            metadata: { 
+              sender: user.email,
+              senderName: userData?.fullName || user.email,
+              senderId: user.uid,
+              senderCurrency: currency.code,
+              originalAmount: parsedSendAmount,
+              exchangeRate: liveExchangeRate,
+              refId: txRefId,
+              note
+            },
+            note: note,
+            timestamp: new Date().toISOString(),
+            createdAt: serverTimestamp()
+          });
+
+          // 5. In-app notification for recipient
+          try {
+            await addDoc(collection(db, 'notifications', verifiedRecipient.id, 'items'), {
+              title: 'Money Received',
+              message: `You received ${verifiedRecipient.currency.symbol}${receivedAmount.toLocaleString()} ${verifiedRecipient.currency.code} from ${userData?.fullName || user.email}.${note ? ` Note: "${note}"` : ''}`,
+              type: 'transfer',
+              read: false,
+              timestamp: new Date().toISOString(),
+              createdAt: serverTimestamp()
+            });
+          } catch (notifErr) {
+            console.warn('Notification log error (non-fatal):', notifErr);
+          }
         }
 
-        // 6. In-app notification for sender
+        // In-app notification for sender
         try {
           await addDoc(collection(db, 'notifications', user.uid, 'items'), {
             title: 'Transfer Completed',

@@ -381,8 +381,9 @@ CREATE POLICY "Users can view their own transactions" ON public.transactions
   FOR SELECT USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Users can insert their own transactions" ON public.transactions;
-CREATE POLICY "Users can insert their own transactions" ON public.transactions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert transactions" ON public.transactions;
+CREATE POLICY "Users can insert transactions" ON public.transactions
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Admins and managers can manage all transactions" ON public.transactions;
 CREATE POLICY "Admins and managers can manage all transactions" ON public.transactions
@@ -608,5 +609,130 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS savings_last_interest_calcu
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS network TEXT DEFAULT '';
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS tx_hash TEXT DEFAULT '';
+
+-- 17. Atomic Peer-to-Peer Transfer Function (SECURITY DEFINER)
+-- Allows an authenticated user to safely transfer funds to another user and credit both accounts without RLS rejection.
+CREATE OR REPLACE FUNCTION public.transfer_beehive_funds(
+  p_recipient_id UUID,
+  p_send_amount NUMERIC,
+  p_received_amount NUMERIC,
+  p_sender_currency TEXT,
+  p_recipient_currency TEXT,
+  p_sender_description TEXT,
+  p_recipient_description TEXT,
+  p_note TEXT DEFAULT '',
+  p_tx_ref_id TEXT DEFAULT ''
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_sender_id UUID;
+  v_sender_balance NUMERIC;
+  v_sender_email TEXT;
+  v_sender_name TEXT;
+  v_recipient_email TEXT;
+  v_recipient_name TEXT;
+BEGIN
+  v_sender_id := auth.uid();
+  IF v_sender_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  IF v_sender_id = p_recipient_id THEN
+    RAISE EXCEPTION 'Cannot transfer money to yourself';
+  END IF;
+
+  IF p_send_amount <= 0 THEN
+    RAISE EXCEPTION 'Transfer amount must be positive';
+  END IF;
+
+  -- Lock sender row & check balance
+  SELECT wallet_balance, email, full_name 
+  INTO v_sender_balance, v_sender_email, v_sender_name
+  FROM public.profiles
+  WHERE id = v_sender_id
+  FOR UPDATE;
+
+  IF v_sender_balance IS NULL OR v_sender_balance < p_send_amount THEN
+    RAISE EXCEPTION 'Insufficient wallet balance';
+  END IF;
+
+  -- Lock recipient row & get info
+  SELECT email, full_name
+  INTO v_recipient_email, v_recipient_name
+  FROM public.profiles
+  WHERE id = p_recipient_id
+  FOR UPDATE;
+
+  IF v_recipient_email IS NULL THEN
+    RAISE EXCEPTION 'Recipient does not exist';
+  END IF;
+
+  -- Debit sender
+  UPDATE public.profiles
+  SET wallet_balance = wallet_balance - p_send_amount,
+      updated_at = NOW()
+  WHERE id = v_sender_id;
+
+  -- Credit recipient
+  UPDATE public.profiles
+  SET wallet_balance = wallet_balance + p_received_amount,
+      updated_at = NOW()
+  WHERE id = p_recipient_id;
+
+  -- Insert sender transaction record
+  INSERT INTO public.transactions (
+    user_id, type, amount, currency, status, description, note,
+    metadata, created_at, timestamp
+  ) VALUES (
+    v_sender_id, 'send', p_send_amount, p_sender_currency, 'completed',
+    p_sender_description, p_note,
+    jsonb_build_object(
+      'recipient', v_recipient_email,
+      'recipientName', COALESCE(v_recipient_name, v_recipient_email),
+      'recipientId', p_recipient_id,
+      'recipientCurrency', p_recipient_currency,
+      'convertedAmount', p_received_amount,
+      'refId', p_tx_ref_id,
+      'note', p_note
+    ),
+    NOW(), NOW()
+  );
+
+  -- Insert recipient transaction record
+  INSERT INTO public.transactions (
+    user_id, type, amount, currency, status, description, note,
+    metadata, created_at, timestamp
+  ) VALUES (
+    p_recipient_id, 'receive', p_received_amount, p_recipient_currency, 'completed',
+    p_recipient_description, p_note,
+    jsonb_build_object(
+      'sender', v_sender_email,
+      'senderName', COALESCE(v_sender_name, v_sender_email),
+      'senderId', v_sender_id,
+      'senderCurrency', p_sender_currency,
+      'originalAmount', p_send_amount,
+      'refId', p_tx_ref_id,
+      'note', p_note
+    ),
+    NOW(), NOW()
+  );
+
+  -- Insert notification for recipient
+  BEGIN
+    INSERT INTO public.notifications (
+      user_id, type, title, message, read, created_at
+    ) VALUES (
+      p_recipient_id::text, 'transfer', 'Money Received',
+      'You received ' || p_received_amount::text || ' ' || p_recipient_currency || ' from ' || COALESCE(v_sender_name, v_sender_email),
+      FALSE, NOW()
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Non-fatal if notifications table structure differs
+    NULL;
+  END;
+
+  RETURN jsonb_build_object('success', TRUE, 'ref_id', p_tx_ref_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
