@@ -29,6 +29,7 @@ import { BankingFeaturePage } from '../../../components/dashboard/BankingFeature
 import { useAuth } from '../../../hooks/useAuth';
 import { useCurrency, getCurrencyByCountry, DEFAULT_CURRENCY, CurrencyInfo } from '../../../context/CurrencyContext';
 import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
+import { supabase } from '../../../lib/supabase';
 import { 
   doc, 
   updateDoc, 
@@ -198,10 +199,57 @@ export const SendPage = () => {
         const q = query(usersRef, where('email', '==', trimmedEmail), limit(1));
         const snapshot = await getDocs(q);
 
+        let foundUser: any = null;
+        let targetId = '';
+
         if (!snapshot.empty) {
-          const docData = snapshot.docs[0].data();
-          const targetId = snapshot.docs[0].id;
-          
+          foundUser = snapshot.docs[0].data();
+          targetId = snapshot.docs[0].id;
+        } else {
+          // Direct Supabase query fallback in case RLS or caching intervened
+          try {
+            const { data: remoteProfiles } = await supabase
+              .from('profiles')
+              .select('*')
+              .ilike('email', trimmedEmail)
+              .limit(1);
+            if (remoteProfiles && remoteProfiles.length > 0) {
+              foundUser = remoteProfiles[0];
+              targetId = remoteProfiles[0].id;
+            }
+          } catch (e) {}
+
+          // Fallback from localStorage registry
+          if (!foundUser) {
+            try {
+              const knownUsers: any[] = JSON.parse(localStorage.getItem('beehive_known_users') || '[]');
+              const matched = knownUsers.find(u => u && u.email && u.email.toLowerCase().trim() === trimmedEmail);
+              if (matched) {
+                foundUser = matched;
+                targetId = matched.id;
+              }
+            } catch (e) {}
+          }
+
+          // Fallback from profile extras in localStorage
+          if (!foundUser) {
+            try {
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('local_profile_extras_')) {
+                  const extraData = JSON.parse(localStorage.getItem(key) || '{}');
+                  if (extraData && extraData.email && extraData.email.toLowerCase().trim() === trimmedEmail) {
+                    foundUser = extraData;
+                    targetId = key.replace('local_profile_extras_', '');
+                    break;
+                  }
+                }
+              }
+            } catch (e) {}
+          }
+        }
+
+        if (foundUser && targetId) {
           if (targetId === user?.uid) {
             setVerifiedRecipient(null);
             setRecipientLookupError('You cannot transfer money to your own email address.');
@@ -209,19 +257,19 @@ export const SendPage = () => {
           }
 
           let targetCurrency: CurrencyInfo = DEFAULT_CURRENCY;
-          if (docData.currency && docData.currency.code) {
-            targetCurrency = docData.currency;
-          } else if (docData.country) {
-            targetCurrency = getCurrencyByCountry(docData.country);
+          if (foundUser.currency && foundUser.currency.code) {
+            targetCurrency = foundUser.currency;
+          } else if (foundUser.country) {
+            targetCurrency = getCurrencyByCountry(foundUser.country);
           }
 
           const recipientObj: VerifiedRecipientUser = {
             id: targetId,
-            email: docData.email,
-            fullName: docData.fullName || docData.full_name || docData.displayName || docData.name || docData.email.split('@')[0],
-            country: docData.country || 'Global',
+            email: foundUser.email || trimmedEmail,
+            fullName: foundUser.fullName || foundUser.full_name || foundUser.displayName || foundUser.name || (foundUser.email ? foundUser.email.split('@')[0] : trimmedEmail.split('@')[0]),
+            country: foundUser.country || 'Global',
             currency: targetCurrency,
-            photoURL: docData.photoURL
+            photoURL: foundUser.photoURL || foundUser.photo_url
           };
 
           setVerifiedRecipient(recipientObj);

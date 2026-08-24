@@ -17,9 +17,9 @@ import {
   Award,
   Heart,
   FileText,
-  PiggyBank,
+  Vault,
   Bitcoin,
-  Coins
+  CircleDollarSign
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -293,14 +293,14 @@ export const DashboardPage = () => {
       label: 'USDT',
       value: `${userData?.usdtBalance?.toFixed(2) || '0.00'} USDT`,
       subValue: `≈ ${formatAmount(convertAmount(userData?.usdtBalance || 0, 'USDT', currency.code))}`,
-      icon: Coins,
+      icon: CircleDollarSign,
       color: 'text-emerald-500',
       bg: 'bg-emerald-500/10'
     },
     {
       label: 'Savings',
       value: userData?.savings !== undefined ? formatAmount(userData.savings) : formatAmount(0),
-      icon: PiggyBank,
+      icon: Vault,
       color: 'text-teal-500',
       bg: 'bg-teal-500/10'
     },

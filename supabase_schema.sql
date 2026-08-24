@@ -338,8 +338,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Profiles Policies
 DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
-CREATE POLICY "Users can view their own profile" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can view all profiles" ON public.profiles;
+CREATE POLICY "Users can view all profiles" ON public.profiles
+  FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile" ON public.profiles

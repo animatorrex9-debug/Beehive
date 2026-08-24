@@ -431,7 +431,11 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
       if (c.type === 'where') {
         const snakeField = toSnakeCase(c.field);
         if (c.op === '==' || c.op === '===') {
-          builder = builder.eq(snakeField, c.value);
+          if (snakeField === 'email' && typeof c.value === 'string') {
+            builder = builder.ilike('email', c.value.trim());
+          } else {
+            builder = builder.eq(snakeField, c.value);
+          }
         } else if (c.op === '!=') {
           builder = builder.neq(snakeField, c.value);
         } else if (c.op === '>') {
@@ -500,6 +504,46 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
       const docRef = new DocumentReference(`${ref.path}/${row.id}`);
       return new QueryDocumentSnapshotCompat(docRef, finalRow);
     });
+
+    if (docs.length === 0 && table === 'profiles') {
+      const emailConstraint = constraints.find(c => c.type === 'where' && toSnakeCase(c.field) === 'email' && (c.op === '==' || c.op === '==='));
+      if (emailConstraint && typeof emailConstraint.value === 'string') {
+        const targetEmail = emailConstraint.value.toLowerCase().trim();
+        const fallbackCandidates: any[] = [];
+        
+        // 1. Check beehive_known_users
+        try {
+          const known = JSON.parse(localStorage.getItem('beehive_known_users') || '[]');
+          if (Array.isArray(known)) fallbackCandidates.push(...known);
+        } catch (e) {}
+
+        // 2. Check local_table_profiles
+        try {
+          const localTable = JSON.parse(localStorage.getItem('local_table_profiles') || '[]');
+          if (Array.isArray(localTable)) fallbackCandidates.push(...localTable);
+        } catch (e) {}
+
+        // 3. Check all local_profile_extras_*
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('local_profile_extras_')) {
+              const extraId = key.replace('local_profile_extras_', '');
+              const extraData = JSON.parse(localStorage.getItem(key) || '{}');
+              if (extraData && typeof extraData === 'object') {
+                fallbackCandidates.push({ id: extraId, ...extraData });
+              }
+            }
+          }
+        } catch (e) {}
+
+        const matched = fallbackCandidates.find(u => u && u.email && typeof u.email === 'string' && u.email.toLowerCase().trim() === targetEmail);
+        if (matched && matched.id) {
+          const docRef = new DocumentReference(`${ref.path}/${matched.id}`);
+          return new QuerySnapshotCompat([new QueryDocumentSnapshotCompat(docRef, matched)], false);
+        }
+      }
+    }
 
     return new QuerySnapshotCompat(docs, docs.length === 0);
   } catch (err: any) {

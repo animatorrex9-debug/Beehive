@@ -73,8 +73,8 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { user } = useAuth();
   const [currency, setCurrencyState] = useState<CurrencyInfo>(DEFAULT_CURRENCY);
   const [rates, setRates] = useState<Record<string, number>>({ 
-    USD: 1, EUR: 0.92, GBP: 0.79, NGN: 1600, CAD: 1.35, AUD: 1.52, JPY: 151, CNY: 7.23, INR: 83, ZAR: 19, AED: 3.67, SAR: 3.75, EGP: 47, KES: 132, GHS: 13,
-    BTC: 0.000015, // Default placeholder
+    USD: 1, EUR: 0.92, GBP: 0.79, NGN: 1600, CAD: 1.35, AUD: 1.52, JPY: 155, CNY: 7.23, INR: 86, ZAR: 18.5, AED: 3.67, SAR: 3.75, EGP: 48, KES: 130, GHS: 14.5,
+    BTC: 1 / 85000, // Default realistic BTC base price (~$85,000/BTC)
     USDT: 1
   });
   const [loading, setLoading] = useState(true);
@@ -82,66 +82,96 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
   useEffect(() => {
     const fetchRates = async () => {
       try {
-        // Fetch Fiat Rates
-        const fiatResponse = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
         let newRates: Record<string, number> = { ...rates };
-        
-        if (fiatResponse.ok) {
-          const data = await fiatResponse.json();
-          newRates = { ...newRates, ...data.rates };
-        }
 
-        // Fetch Crypto Rates (BTC) with robust fallbacks
-        let btcPriceInUSD = 64000; // default backup price
-        let btcFetched = false;
-
+        // 1. Fetch Fiat Rates
         try {
-          const cryptoResponse = await fetch('https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD');
-          if (cryptoResponse.ok) {
-            const cryptoData = await cryptoResponse.json();
-            if (cryptoData && cryptoData.USD) {
-              btcPriceInUSD = cryptoData.USD;
-              btcFetched = true;
+          const fiatResponse = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+          if (fiatResponse.ok) {
+            const data = await fiatResponse.json();
+            if (data && data.rates) {
+              newRates = { ...newRates, ...data.rates };
+            }
+          } else {
+            // Secondary fiat fallback
+            const openErResp = await fetch('https://open.er-api.com/v6/latest/USD');
+            if (openErResp.ok) {
+              const data = await openErResp.json();
+              if (data && data.rates) {
+                newRates = { ...newRates, ...data.rates };
+              }
             }
           }
-        } catch (cryptoError) {
-          console.warn('[CurrencyContext] Cryptocompare BTC fetch failed, trying fallbacks...');
+        } catch (fiatErr) {
+          console.warn('[CurrencyContext] Fiat rates fetch error, using built-in table:', fiatErr);
         }
 
+        // 2. Fetch Crypto Rates (BTC & USDT) with robust multi-provider fallbacks
+        let btcPriceInUSD = 85000;
+        let btcFetched = false;
+
+        // Try Coinbase Spot API
+        try {
+          const cbResponse = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
+          if (cbResponse.ok) {
+            const cbData = await cbResponse.json();
+            if (cbData && cbData.data && cbData.data.amount) {
+              const parsed = parseFloat(cbData.data.amount);
+              if (!isNaN(parsed) && parsed > 1000) {
+                btcPriceInUSD = parsed;
+                btcFetched = true;
+              }
+            }
+          }
+        } catch (e) {}
+
+        // Try Binance API
         if (!btcFetched) {
           try {
             const binanceResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
             if (binanceResponse.ok) {
               const binanceData = await binanceResponse.json();
               if (binanceData && binanceData.price) {
-                btcPriceInUSD = parseFloat(binanceData.price);
-                btcFetched = true;
+                const parsed = parseFloat(binanceData.price);
+                if (!isNaN(parsed) && parsed > 1000) {
+                  btcPriceInUSD = parsed;
+                  btcFetched = true;
+                }
               }
             }
-          } catch (binanceError) {
-            console.warn('[CurrencyContext] Binance BTC fetch failed...');
-          }
+          } catch (e) {}
         }
 
+        // Try CryptoCompare API
         if (!btcFetched) {
           try {
-            const coincapResponse = await fetch('https://api.coincap.io/v2/assets/bitcoin');
-            if (coincapResponse.ok) {
-              const coincapData = await coincapResponse.json();
-              if (coincapData && coincapData.data && coincapData.data.priceUsd) {
-                btcPriceInUSD = parseFloat(coincapData.data.priceUsd);
+            const cryptoResponse = await fetch('https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD');
+            if (cryptoResponse.ok) {
+              const cryptoData = await cryptoResponse.json();
+              if (cryptoData && cryptoData.USD && cryptoData.USD > 1000) {
+                btcPriceInUSD = cryptoData.USD;
                 btcFetched = true;
               }
             }
-          } catch (coincapError) {
-            console.warn('[CurrencyContext] CoinCap BTC fetch failed...');
-          }
+          } catch (e) {}
         }
 
-        // Rates are relative to USD, so 1 USD = 1/BTC_PRICE BTC
-        newRates['BTC'] = 1 / btcPriceInUSD;
+        // Try CoinGecko API
+        if (!btcFetched) {
+          try {
+            const cgResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+            if (cgResponse.ok) {
+              const cgData = await cgResponse.json();
+              if (cgData && cgData.bitcoin && cgData.bitcoin.usd && cgData.bitcoin.usd > 1000) {
+                btcPriceInUSD = cgData.bitcoin.usd;
+                btcFetched = true;
+              }
+            }
+          } catch (e) {}
+        }
 
-        // USDT is usually 1:1 with USD
+        // 1 USD = 1/BTC_PRICE BTC
+        newRates['BTC'] = 1 / btcPriceInUSD;
         newRates['USDT'] = 1;
 
         setRates(newRates);

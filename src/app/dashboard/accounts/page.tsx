@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, CreditCard, History, RefreshCw, ArrowRightLeft, TrendingUp, TrendingDown, AlertCircle, X, Clock, PiggyBank, Bitcoin, Coins } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, CreditCard, History, RefreshCw, ArrowRightLeft, TrendingUp, TrendingDown, AlertCircle, X, Clock, Vault, Bitcoin, CircleDollarSign } from 'lucide-react';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useAuth } from '../../../hooks/useAuth';
 import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../../lib/supabase-service';
@@ -285,7 +285,7 @@ export const AccountsPage = () => {
             <div className="flex justify-between items-start mb-2">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
-                  <PiggyBank className="w-4 h-4" />
+                  <Vault className="w-4 h-4" />
                 </div>
                 <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Savings Account</p>
               </div>
@@ -381,7 +381,7 @@ export const AccountsPage = () => {
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Coins className="w-4 h-4" />
+                <CircleDollarSign className="w-4 h-4" />
               </div>
               <p className="text-sm font-bold uppercase tracking-widest text-gray-500">USDT Balance</p>
             </div>

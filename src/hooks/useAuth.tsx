@@ -275,6 +275,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsAdmin(data?.role === 'admin');
         setIsManager(data?.role === 'manager' || data?.role === 'account_manager');
         
+        // Cache user in beehive_known_users for seamless member lookups across accounts
+        try {
+          const knownUsers: any[] = JSON.parse(localStorage.getItem('beehive_known_users') || '[]');
+          const userEmail = (user.email || data.email || '').toLowerCase().trim();
+          if (userEmail) {
+            const idx = knownUsers.findIndex((u: any) => u.id === user.uid || (u.email && u.email.toLowerCase().trim() === userEmail));
+            const entry = {
+              id: user.uid,
+              email: userEmail,
+              fullName: data.fullName || data.full_name || user.displayName || userEmail.split('@')[0],
+              country: data.country || 'Global',
+              currency: data.currency || null,
+              walletBalance: data.walletBalance || data.wallet_balance || 0,
+              role: data.role || 'user',
+              photoURL: data.photoURL || user.photoURL || null
+            };
+            if (idx >= 0) {
+              knownUsers[idx] = { ...knownUsers[idx], ...entry };
+            } else {
+              knownUsers.push(entry);
+            }
+            localStorage.setItem('beehive_known_users', JSON.stringify(knownUsers));
+          }
+        } catch (e) {}
+
         if (data.country) {
           setCurrencyByCountry(data.country);
         }
