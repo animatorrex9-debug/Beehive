@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   ArrowUpCircle, 
   User, 
@@ -13,17 +14,19 @@ import {
   Phone, 
   ExternalLink, 
   History, 
-  Search,
-  ArrowRightLeft,
-  ShieldCheck,
-  Check,
-  Sparkles,
-  ArrowRight,
-  Info,
-  Lock,
-  UserCheck,
-  X,
-  Receipt
+  Search, 
+  ArrowRightLeft, 
+  ShieldCheck, 
+  Check, 
+  Sparkles, 
+  ArrowRight, 
+  Info, 
+  Lock, 
+  UserCheck, 
+  X, 
+  Receipt,
+  HelpCircle,
+  MessageSquare
 } from 'lucide-react';
 import { BankingFeaturePage } from '../../../components/dashboard/BankingFeaturePage';
 import { useAuth } from '../../../hooks/useAuth';
@@ -589,7 +592,7 @@ export const SendPage = () => {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <span className="text-[11px] font-black uppercase tracking-widest text-accent bg-accent/10 px-3 py-1 rounded-full">
-                Instant Transfer Completed
+                {completedTransfer.type === 'beehive' ? 'Instant Beehive Transfer Completed' : 'External Transfer Submitted'}
               </span>
               <h2 className="text-2xl font-black mt-2 text-gray-900 dark:text-white tracking-tight">
                 {completedTransfer.senderCurrency.symbol}{completedTransfer.sentAmount.toLocaleString()} {completedTransfer.senderCurrency.code} Sent
@@ -598,7 +601,7 @@ export const SendPage = () => {
             </div>
 
             {/* Transfer Breakdown Card */}
-            <div className="p-5 rounded-2xl bg-gray-50 dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-800 space-y-4 mb-8">
+            <div className="p-5 rounded-2xl bg-gray-50 dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-800 space-y-4 mb-6">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-gray-400 font-bold uppercase tracking-wider">Recipient</span>
                 <span className="font-black text-gray-900 dark:text-white text-right">
@@ -646,6 +649,33 @@ export const SendPage = () => {
                 <span className="text-accent font-black">Free ($0.00)</span>
               </div>
             </div>
+
+            {/* External/Third-Party/Bank Transfer Support Notice */}
+            {completedTransfer.type !== 'beehive' && (
+              <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 space-y-2">
+                <div className="flex items-start gap-3">
+                  <HelpCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs">
+                    <p className="font-bold text-amber-800 dark:text-amber-300">
+                      External Transfer Processing Notice
+                    </p>
+                    <p className="text-gray-600 dark:text-zinc-300 leading-relaxed">
+                      External network settlements (Local bank, International SWIFT/IBAN, or Third-Party Wallets) can take anywhere from a few minutes to standard banking processing days. 
+                      <strong className="text-gray-900 dark:text-white font-semibold"> If the recipient does not see the money credited afterwards, please contact Customer Support or your Account Manager immediately with your Reference ID ({completedTransfer.refId}).</strong>
+                    </p>
+                    <div className="pt-2">
+                      <Link 
+                        to="/dashboard/chat" 
+                        className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-accent hover:underline"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Contact Customer Support
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               <button 
