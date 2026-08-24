@@ -160,8 +160,24 @@ CREATE TABLE IF NOT EXISTS public.messages (
   role TEXT DEFAULT 'user',
   text TEXT NOT NULL,
   timestamp TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  type TEXT DEFAULT 'text',
+  file_url TEXT,
+  file_name TEXT,
+  file_size BIGINT,
+  file_type TEXT,
+  read BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'sent'
 );
+
+-- Ensure all message columns exist
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text';
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS file_url TEXT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS file_name TEXT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS file_size BIGINT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS file_type TEXT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent';
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 

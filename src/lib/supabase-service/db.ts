@@ -172,6 +172,12 @@ function toCamelCase(str: string): string {
   if (str === 'charity_id') return 'charityId';
   if (str === 'charity_name') return 'charityName';
   if (str === 'loan_id') return 'loanId';
+  if (str === 'file_url') return 'fileUrl';
+  if (str === 'file_name') return 'fileName';
+  if (str === 'file_size') return 'fileSize';
+  if (str === 'file_type') return 'fileType';
+  if (str === 'last_message_timestamp') return 'lastMessageTimestamp';
+  if (str === 'last_message_at') return 'lastMessageAt';
   return str.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
 }
 
@@ -184,6 +190,12 @@ function toSnakeCase(str: string): string {
   if (str === 'charityId') return 'charity_id';
   if (str === 'charityName') return 'charity_name';
   if (str === 'loanId') return 'loan_id';
+  if (str === 'fileUrl') return 'file_url';
+  if (str === 'fileName') return 'file_name';
+  if (str === 'fileSize') return 'file_size';
+  if (str === 'fileType') return 'file_type';
+  if (str === 'lastMessageTimestamp') return 'last_message_timestamp';
+  if (str === 'lastMessageAt') return 'last_message_at';
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
@@ -251,7 +263,7 @@ const VALID_COLUMNS: Record<string, string[]> = {
   ],
   messages: [
     'id', 'chat_id', 'sender_id', 'sender_name', 'sender_role', 'role', 'text', 
-    'timestamp', 'created_at'
+    'timestamp', 'created_at', 'type', 'file_url', 'file_name', 'file_size', 'file_type', 'read', 'status'
   ],
   tax_refunds: [
     'id', 'user_id', 'amount', 'status', 'created_at', 'updated_at'
