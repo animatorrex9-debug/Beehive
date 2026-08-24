@@ -2184,13 +2184,19 @@ export const AdminPage = () => {
                     </div>
                   ) : (
                     [...chats].sort((a, b) => {
-                      const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : new Date(a.lastMessageAt).getTime();
-                      const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : new Date(b.lastMessageAt).getTime();
-                      return timeB - timeA;
+                      const parseT = (val: any) => {
+                        if (!val) return 0;
+                        if (typeof val.toMillis === 'function') return val.toMillis();
+                        if (typeof val.toDate === 'function') return val.toDate().getTime();
+                        const t = new Date(val).getTime();
+                        return isNaN(t) ? 0 : t;
+                      };
+                      return parseT(b.lastMessageAt) - parseT(a.lastMessageAt);
                     }).map((chat) => {
                       const manager = users.find(u => u.id === chat.managerId);
                       const client = users.find(u => u.id === chat.userId);
                       const isActive = selectedChatId === chat.id;
+                      const chatDate = chat.lastMessageAt ? (typeof chat.lastMessageAt.toDate === 'function' ? chat.lastMessageAt.toDate() : typeof chat.lastMessageAt.toMillis === 'function' ? new Date(chat.lastMessageAt.toMillis()) : new Date(chat.lastMessageAt)) : null;
                       
                       return (
                         <button 
@@ -2209,7 +2215,7 @@ export const AdminPage = () => {
                                   {client?.fullName || client?.email?.split('@')[0] || 'Unknown Client'}
                                 </p>
                                 <span className="text-[8px] font-mono text-gray-400 uppercase">
-                                  {chat.lastMessageAt ? format(chat.lastMessageAt.toMillis ? chat.lastMessageAt.toMillis() : new Date(chat.lastMessageAt), 'HH:mm') : ''}
+                                  {chatDate && !isNaN(chatDate.getTime()) ? format(chatDate, 'HH:mm') : ''}
                                 </span>
                               </div>
                               <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest truncate mt-0.5">
@@ -2278,14 +2284,24 @@ export const AdminPage = () => {
                           const sender = users.find(u => u.id === msg.senderId);
                           const isMe = msg.senderId === user?.uid;
                           const isManager = sender?.role === 'account_manager' || sender?.role === 'manager' || sender?.role === 'admin';
-                          const showDate = idx === 0 || (messages[idx-1] && format(messages[idx-1].timestamp?.toMillis ? messages[idx-1].timestamp.toMillis() : new Date(messages[idx-1].timestamp), 'yyyy-MM-dd') !== format(msg.timestamp?.toMillis ? msg.timestamp.toMillis() : new Date(msg.timestamp), 'yyyy-MM-dd'));
+                          const parseMsgDate = (val: any): Date | null => {
+                            if (!val) return null;
+                            if (typeof val.toDate === 'function') return val.toDate();
+                            if (typeof val.toMillis === 'function') return new Date(val.toMillis());
+                            if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+                            const d = new Date(val);
+                            return isNaN(d.getTime()) ? null : d;
+                          };
+                          const currentMsgDate = parseMsgDate(msg.timestamp);
+                          const prevMsgDate = idx > 0 ? parseMsgDate(messages[idx-1]?.timestamp) : null;
+                          const showDate = idx === 0 || (currentMsgDate && (!prevMsgDate || format(prevMsgDate, 'yyyy-MM-dd') !== format(currentMsgDate, 'yyyy-MM-dd')));
                           
                           return (
                             <React.Fragment key={msg.id}>
-                              {showDate && msg.timestamp && (
+                              {showDate && currentMsgDate && (
                                 <div className="flex justify-center my-8">
                                   <span className="px-4 py-1.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">
-                                    {format(msg.timestamp.toMillis ? msg.timestamp.toMillis() : new Date(msg.timestamp), 'MMMM d, yyyy')}
+                                    {format(currentMsgDate, 'MMMM d, yyyy')}
                                   </span>
                                 </div>
                               )}
@@ -2349,7 +2365,7 @@ export const AdminPage = () => {
                                   </div>
                                   <div className={`flex items-center gap-2 mt-2 px-1 ${isMe ? 'justify-end' : ''}`}>
                                     <p className="text-[8px] font-mono text-gray-400 uppercase tracking-tighter">
-                                      {msg.timestamp ? format(msg.timestamp.toMillis ? msg.timestamp.toMillis() : new Date(msg.timestamp), 'HH:mm:ss') : 'Sending...'}
+                                      {currentMsgDate ? format(currentMsgDate, 'HH:mm:ss') : 'Sending...'}
                                     </p>
                                     {isMe && <CheckCircle className="w-3 h-3 text-accent opacity-50" />}
                                   </div>

@@ -347,8 +347,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() as any }));
         // Sort by createdAt descending
         docs.sort((a, b) => {
-          const timeA = a.createdAt?.toMillis?.() || Date.now() + 1000;
-          const timeB = b.createdAt?.toMillis?.() || 0;
+          const parseTime = (val: any) => {
+            if (!val) return 0;
+            if (typeof val.toMillis === 'function') return val.toMillis();
+            if (typeof val.toDate === 'function') return val.toDate().getTime();
+            const t = new Date(val).getTime();
+            return isNaN(t) ? 0 : t;
+          };
+          const timeA = parseTime(a.createdAt);
+          const timeB = parseTime(b.createdAt);
           return timeB - timeA;
         });
         setActiveLoan(docs[0]);

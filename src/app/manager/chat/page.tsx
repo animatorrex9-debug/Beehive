@@ -37,6 +37,27 @@ import { format } from 'date-fns';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { LoadingLogo } from '../../../components/LoadingLogo';
 
+const getTimestampDate = (ts: any): Date | null => {
+  if (!ts) return null;
+  if (typeof ts.toDate === 'function') {
+    try { return ts.toDate(); } catch (e) {}
+  }
+  if (typeof ts.toMillis === 'function') {
+    try { return new Date(ts.toMillis()); } catch (e) {}
+  }
+  if (typeof ts.seconds === 'number') {
+    return new Date(ts.seconds * 1000);
+  }
+  if (ts instanceof Date) {
+    return isNaN(ts.getTime()) ? null : ts;
+  }
+  if (typeof ts === 'string' || typeof ts === 'number') {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
 export const ManagerChatPage = () => {
   const { user, userData } = useAuth();
   const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
@@ -474,14 +495,16 @@ export const ManagerChatPage = () => {
               ) : (
                 messages.map((msg, idx) => {
                   const isMe = msg.senderId === user?.uid;
-                  const showDate = idx === 0 || (messages[idx-1] && format(messages[idx-1].timestamp?.toMillis() || 0, 'yyyy-MM-dd') !== format(msg.timestamp?.toMillis() || 0, 'yyyy-MM-dd'));
+                  const currentDate = getTimestampDate(msg.timestamp);
+                  const prevDate = idx > 0 ? getTimestampDate(messages[idx - 1]?.timestamp) : null;
+                  const showDate = idx === 0 || (currentDate && (!prevDate || format(prevDate, 'yyyy-MM-dd') !== format(currentDate, 'yyyy-MM-dd')));
                   
                   return (
                     <React.Fragment key={msg.id}>
-                      {showDate && msg.timestamp && (
+                      {showDate && currentDate && (
                         <div className="flex justify-center my-8">
                           <span className="px-3 py-1 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
-                            {format(msg.timestamp.toMillis(), 'MMM d, yyyy')}
+                            {format(currentDate, 'MMM d, yyyy')}
                           </span>
                         </div>
                       )}
@@ -548,7 +571,7 @@ export const ManagerChatPage = () => {
                           </div>
                           <div className={`flex items-center gap-2 mt-1.5 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <span className="text-[8px] font-mono text-zinc-400 uppercase">
-                              {msg.timestamp?.toMillis ? format(msg.timestamp.toMillis(), 'HH:mm') : '...'}
+                              {currentDate ? format(currentDate, 'HH:mm') : '...'}
                             </span>
                             {isMe && (
                               <CheckCircle2 className={`w-2.5 h-2.5 ${msg.read ? 'text-accent' : 'text-zinc-300'}`} />
