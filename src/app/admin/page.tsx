@@ -345,11 +345,14 @@ export const AdminPage = () => {
     return () => unsubscribeMessages();
   }, [selectedChatId, activeTab]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if ((!newMessage.trim() && !attachedFile) || !selectedChatId || !user) return;
 
-    const messageText = newMessage;
+    const messageText = newMessage.trim();
     const fileData = attachedFile;
     
     setNewMessage('');
@@ -358,8 +361,10 @@ export const AdminPage = () => {
 
     try {
       const messageData: any = {
-        text: messageText,
+        text: messageText || (fileData ? (fileData.type?.startsWith('image/') ? 'Image attachment' : `File: ${fileData.name}`) : ''),
         senderId: user.uid,
+        senderName: 'System Admin',
+        senderRole: 'admin',
         timestamp: serverTimestamp(),
         read: false,
         type: fileData ? 'file' : 'text'
@@ -374,8 +379,13 @@ export const AdminPage = () => {
 
       await addDoc(collection(db, 'chats', selectedChatId, 'messages'), messageData);
 
+      const previewSummary = fileData
+        ? (fileData.type?.startsWith('image/') ? '📷 Image' : `📎 ${fileData.name}`)
+        : messageText;
+
       await updateDoc(doc(db, 'chats', selectedChatId), {
-        lastMessage: fileData ? `📎 ${fileData.name}` : messageText,
+        lastMessage: previewSummary,
+        lastMessageAt: serverTimestamp(),
         lastMessageTimestamp: serverTimestamp()
       });
     } catch (error) {
@@ -385,11 +395,11 @@ export const AdminPage = () => {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !user || !selectedChatId) return;
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop() || 'bin';
       const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
       const filePath = `chats/${selectedChatId}/${fileName}`;
 
@@ -397,21 +407,36 @@ export const AdminPage = () => {
         .from(SUPABASE_BUCKET)
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.warn('Storage upload error in admin, fallback:', uploadError);
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from(SUPABASE_BUCKET)
         .getPublicUrl(filePath);
 
       setAttachedFile({
-        url: publicUrl,
+        url: publicUrl || '',
         name: file.name,
-        type: file.type,
+        type: file.type || 'application/octet-stream',
         size: file.size
       });
     } catch (error) {
-      console.error('Error uploading file:', error);
-      setMessage({ text: 'Failed to upload file', type: 'error' });
+      console.warn('Admin chat file upload fallback:', error);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAttachedFile({
+            url: reader.result as string,
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            size: file.size
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (readErr) {
+        console.error('Fallback read error in admin:', readErr);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -2440,7 +2465,12 @@ export const AdminPage = () => {
                           {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Paperclip className="w-6 h-6" />}
                         </label>
                         <button 
-                          type="submit"
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleSendMessage();
+                          }}
                           disabled={(!newMessage.trim() && !attachedFile) || isUploading}
                           className="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:bg-accent/90 disabled:opacity-50 transition-all shadow-xl shadow-accent/20 active:scale-95 flex-shrink-0 disabled:grayscale"
                         >

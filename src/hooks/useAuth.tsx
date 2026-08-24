@@ -225,24 +225,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        console.log(`[Auth] User detected: ${user.email} (UID: ${user.uid})`);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
+      if (authUser) {
+        console.log(`[Auth] User detected: ${authUser.email} (UID: ${authUser.uid})`);
         
-        // Ensure loading is true until profile is ready
-        setLoading(true);
-        setLoanLoading(true);
+        setUser((prevUser) => {
+          if (prevUser && prevUser.uid === authUser.uid) {
+            return prevUser;
+          }
+          // Only trigger loading on new user switch
+          setLoading(true);
+          setLoanLoading(true);
+          return authUser;
+        });
         
         try {
           // Ensure user profile exists and is linked correctly
-          await ensureUserProfile(user);
+          await ensureUserProfile(authUser);
         } catch (err) {
-          console.error('[Auth] Critical error in onAuthStateChanged:', err instanceof Error ? err.message : String(err));
-          // We still set the user so the rest of the app can attempt to load/handle errors
+          console.error('[Auth] Error in ensureUserProfile:', err instanceof Error ? err.message : String(err));
         }
 
-        setUser(user);
-        setEmailVerified(user.emailVerified);
+        setEmailVerified(authUser.emailVerified);
       } else {
         console.log('[Auth] No user detected');
         setUser(null);

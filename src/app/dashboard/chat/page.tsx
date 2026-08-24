@@ -61,7 +61,7 @@ export const ChatPage = () => {
 
   // Fetch chats for managers and admins
   useEffect(() => {
-    if (!user || (!isManager && !isAdmin)) return;
+    if (!user?.uid || (!isManager && !isAdmin)) return;
 
     let q;
     if (isAdmin) {
@@ -84,11 +84,11 @@ export const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [user, isManager, isAdmin]);
+  }, [user?.uid, isManager, isAdmin]);
 
   // Fetch or create chat for regular users
   useEffect(() => {
-    if (!user || isManager || isAdmin) return;
+    if (!user?.uid || isManager || isAdmin) return;
 
     const fetchUserChat = async () => {
       try {
@@ -97,7 +97,10 @@ export const ChatPage = () => {
         
         if (!snapshot.empty) {
           const chatDoc = snapshot.docs[0];
-          setSelectedChat({ id: chatDoc.id, ...chatDoc.data() });
+          setSelectedChat((prev: any) => {
+            if (prev && prev.id === chatDoc.id) return prev;
+            return { id: chatDoc.id, ...chatDoc.data() };
+          });
           setView('chat');
         } else {
           // No chat yet, wait for manager assignment or create a support chat
@@ -128,11 +131,11 @@ export const ChatPage = () => {
     };
 
     fetchUserChat();
-  }, [user, isManager, isAdmin, userData?.managerId]);
+  }, [user?.uid, isManager, isAdmin, userData?.managerId]);
 
   // Fetch messages for selected chat
   useEffect(() => {
-    if (!selectedChat) return;
+    if (!selectedChat?.id) return;
 
     const q = query(
       collection(db, `chats/${selectedChat.id}/messages`),
@@ -148,7 +151,7 @@ export const ChatPage = () => {
     });
 
     return () => unsubscribe();
-  }, [selectedChat]);
+  }, [selectedChat?.id]);
 
   // Fetch manager details for users
   useEffect(() => {

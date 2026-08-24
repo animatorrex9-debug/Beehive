@@ -43,16 +43,30 @@ export class SupabaseAuthService {
     supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`[Supabase Auth Event] ${event}`, session?.user?.email);
       if (event === 'SIGNED_OUT' || !session) {
-        this.currentUser = null;
+        if (this.currentUser !== null) {
+          this.currentUser = null;
+          this.notifyListeners();
+        }
       } else if (session?.user) {
+        const prevUid = this.currentUser?.uid;
+        const newUid = session.user.id;
+        const prevEmail = this.currentUser?.email;
+        const newEmail = session.user.email;
+
+        // If it's the exact same user identity (e.g. token refreshed, window focus), do not re-emit to prevent resetting UI state
+        if (prevUid === newUid && prevEmail === newEmail && this.currentUser !== null) {
+          return;
+        }
+
         try {
           this.currentUser = await this.mapUser(session.user);
+          this.notifyListeners();
         } catch (e) {
           console.warn('[Supabase Auth] Error mapping user session:', e);
           this.currentUser = null;
+          this.notifyListeners();
         }
       }
-      this.notifyListeners();
     });
 
     // Fetch initial user
