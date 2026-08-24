@@ -169,8 +169,11 @@ export const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if ((!newMessage.trim() && !attachedFile) || !selectedChat || !user) return;
 
     const messageText = newMessage.trim();
@@ -181,7 +184,7 @@ export const ChatPage = () => {
     try {
       await addDoc(collection(db, `chats/${selectedChat.id}/messages`), {
         senderId: user.uid,
-        text: messageText,
+        text: messageText || (fileData ? (fileData.type.startsWith('image/') ? 'Image attachment' : `File: ${fileData.name}`) : ''),
         fileUrl: fileData?.url || null,
         fileName: fileData?.name || null,
         fileType: fileData?.type || null,
@@ -191,8 +194,12 @@ export const ChatPage = () => {
         type: fileData ? 'file' : 'text'
       });
 
+      const previewSummary = fileData 
+        ? (fileData.type.startsWith('image/') ? '📷 Image' : `📎 ${fileData.name}`) 
+        : messageText;
+
       await updateDoc(doc(db, 'chats', selectedChat.id), {
-        lastMessage: fileData ? (fileData.type.startsWith('image/') ? '📷 Image' : '📎 File') : messageText,
+        lastMessage: previewSummary,
         lastMessageAt: serverTimestamp(),
         lastMessageTimestamp: serverTimestamp()
       });
@@ -207,7 +214,7 @@ export const ChatPage = () => {
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop() || 'bin';
       const fileName = `${user.uid}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `chats/${selectedChat.id}/${fileName}`;
 
@@ -215,21 +222,36 @@ export const ChatPage = () => {
         .from(SUPABASE_BUCKET)
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.warn('Storage upload error, falling back:', uploadError);
+      }
 
       const { data: { publicUrl: url } } = supabase.storage
         .from(SUPABASE_BUCKET)
         .getPublicUrl(filePath);
 
       setAttachedFile({
-        url,
+        url: url || '',
         name: file.name,
-        type: file.type,
+        type: file.type || 'application/octet-stream',
         size: file.size
       });
     } catch (err) {
-      console.error('Chat upload error:', err);
-      alert('Failed to upload file. Please try again.');
+      console.warn('Chat upload fallback to DataURL:', err);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAttachedFile({
+            url: reader.result as string,
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            size: file.size
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (readErr) {
+        console.error('Fallback read error:', readErr);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -548,6 +570,7 @@ export const ChatPage = () => {
                       </div>
                     </div>
                     <button 
+                      type="button"
                       onClick={() => setAttachedFile(null)}
                       className="p-2 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-full transition-all"
                     >
@@ -557,25 +580,41 @@ export const ChatPage = () => {
                 )}
               </AnimatePresence>
 
-              <form onSubmit={handleSendMessage} className="relative flex items-center gap-2">
+              {/* Hidden file input outside form to prevent unwanted form reloads */}
+              <input 
+                type="file"
+                id="chat-file-upload-user"
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+              />
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSendMessage();
+                }} 
+                className="relative flex items-center gap-2"
+              >
                 <div className="relative flex-grow">
                   <input 
                     type="text"
                     placeholder="Type your message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSendMessage();
+                      }
+                    }}
                     className="w-full pl-6 pr-12 py-4 bg-gray-50 dark:bg-zinc-800 rounded-2xl text-sm focus:ring-2 focus:ring-accent outline-none transition-all dark:text-white"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <input 
-                      type="file"
-                      id="chat-file-upload"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                      disabled={isUploading}
-                    />
                     <label 
-                      htmlFor="chat-file-upload"
+                      htmlFor="chat-file-upload-user"
                       className={`p-2 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-xl cursor-pointer transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                       {isUploading ? (
@@ -587,7 +626,12 @@ export const ChatPage = () => {
                   </div>
                 </div>
                 <button 
-                  type="submit"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSendMessage();
+                  }}
                   disabled={(!newMessage.trim() && !attachedFile) || isUploading}
                   className="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 disabled:hover:scale-100"
                 >

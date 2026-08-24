@@ -4,21 +4,15 @@ import {
   MessageSquare, 
   Search, 
   Send, 
-  User as UserIcon,
-  Settings,
-  Bell,
-  CheckCircle2,
-  Clock,
-  ChevronRight,
-  MoreVertical,
-  Paperclip,
-  Smile,
-  ArrowLeft,
-  X,
-  FileText,
-  Image as ImageIcon,
-  Loader2,
-  AlertCircle
+  Settings, 
+  CheckCircle2, 
+  Paperclip, 
+  Smile, 
+  ArrowLeft, 
+  X, 
+  FileText, 
+  Loader2, 
+  AlertCircle 
 } from 'lucide-react';
 import { 
   collection, 
@@ -29,12 +23,12 @@ import {
   serverTimestamp, 
   orderBy, 
   doc, 
-  getDoc,
-  updateDoc,
-  getDocs,
-  limit
+  getDoc, 
+  updateDoc, 
+  getDocs, 
+  limit 
 } from 'supabase/db';
-import { db, auth } from '../../../lib/supabase-service';
+import { db } from '../../../lib/supabase-service';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -51,29 +45,46 @@ interface AttachedFile {
 
 const getTimestampDate = (ts: any): Date | null => {
   if (!ts) return null;
-  if (typeof ts.toDate === 'function') {
-    try { return ts.toDate(); } catch (e) {}
-  }
-  if (typeof ts.toMillis === 'function') {
-    try { return new Date(ts.toMillis()); } catch (e) {}
-  }
-  if (typeof ts.seconds === 'number') {
-    return new Date(ts.seconds * 1000);
-  }
-  if (ts instanceof Date) {
-    return isNaN(ts.getTime()) ? null : ts;
-  }
-  if (typeof ts === 'string' || typeof ts === 'number') {
-    const d = new Date(ts);
-    return isNaN(d.getTime()) ? null : d;
+  try {
+    if (typeof ts.toDate === 'function') {
+      const d = ts.toDate();
+      return d instanceof Date && !isNaN(d.getTime()) ? d : null;
+    }
+    if (typeof ts.toMillis === 'function') {
+      const d = new Date(ts.toMillis());
+      return !isNaN(d.getTime()) ? d : null;
+    }
+    if (typeof ts.seconds === 'number') {
+      const d = new Date(ts.seconds * 1000);
+      return !isNaN(d.getTime()) ? d : null;
+    }
+    if (ts instanceof Date) {
+      return isNaN(ts.getTime()) ? null : ts;
+    }
+    if (typeof ts === 'string' || typeof ts === 'number') {
+      const d = new Date(ts);
+      return isNaN(d.getTime()) ? null : d;
+    }
+  } catch (e) {
+    return null;
   }
   return null;
+};
+
+const safeFormatDate = (date: Date | null | undefined, formatStr: string, fallback: string = ''): string => {
+  if (!date || isNaN(date.getTime())) return fallback;
+  try {
+    return format(date, formatStr);
+  } catch (e) {
+    return fallback;
+  }
 };
 
 export const ManagerChatPage = () => {
   const { user, userData } = useAuth();
   const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserObj, setSelectedUserObj] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -82,12 +93,16 @@ export const ManagerChatPage = () => {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showList, setShowList] = useState(true);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  const selectedUser = assignedUsers.find(u => u.id === selectedUserId) || selectedUserObj;
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -101,7 +116,7 @@ export const ManagerChatPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.uid) {
       setLoading(false);
       return;
     }
@@ -175,26 +190,23 @@ export const ManagerChatPage = () => {
         if (unsub) unsub();
       });
     };
-  }, [user]);
+  }, [user?.uid]);
 
+  // Handle active chat subscription safely without tearing down on minor state updates
   useEffect(() => {
-    if (!selectedUser || !user) {
+    if (!selectedUserId || !user?.uid) {
       setMessages([]);
       setChatId(null);
-      setAttachedFile(null);
-      setUploadError(null);
       return;
     }
 
-    setAttachedFile(null);
-    setUploadError(null);
+    let isMounted = true;
 
-    // Find or create chat with this user
     const findChat = async () => {
       try {
         const chatsQuery = query(
           collection(db, 'chats'),
-          where('userId', '==', selectedUser.id),
+          where('userId', '==', selectedUserId),
           where('managerId', '==', user.uid),
           limit(1)
         );
@@ -203,10 +215,9 @@ export const ManagerChatPage = () => {
         let currentChatId = '';
 
         if (chatSnapshot.empty) {
-          // Check if any chat exists for this user
           const userChatQuery = query(
             collection(db, 'chats'),
-            where('userId', '==', selectedUser.id),
+            where('userId', '==', selectedUserId),
             limit(1)
           );
           const userChatSnap = await getDocs(userChatQuery);
@@ -219,11 +230,10 @@ export const ManagerChatPage = () => {
               });
             } catch (e) {}
           } else {
-            // Create new chat
             const newChat = await addDoc(collection(db, 'chats'), {
-              userId: selectedUser.id,
+              userId: selectedUserId,
               managerId: user.uid,
-              participants: [selectedUser.id, user.uid],
+              participants: [selectedUserId, user.uid],
               createdAt: serverTimestamp(),
               lastMessage: '',
               lastMessageTimestamp: serverTimestamp()
@@ -234,15 +244,16 @@ export const ManagerChatPage = () => {
           currentChatId = chatSnapshot.docs[0].id;
         }
 
+        if (!isMounted) return;
         setChatId(currentChatId);
 
-        // Listen for messages in this chat
         const messagesQuery = query(
           collection(db, 'chats', currentChatId, 'messages'),
           orderBy('timestamp', 'asc')
         );
 
         const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+          if (!isMounted) return;
           const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setMessages(msgs);
           scrollToBottom();
@@ -257,13 +268,14 @@ export const ManagerChatPage = () => {
 
     let unsubscribe: any;
     findChat().then(unsub => {
-      unsubscribe = unsub;
+      if (isMounted) unsubscribe = unsub;
     });
 
     return () => {
+      isMounted = false;
       if (unsubscribe) unsubscribe();
     };
-  }, [selectedUser, user]);
+  }, [selectedUserId, user?.uid]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -271,17 +283,23 @@ export const ManagerChatPage = () => {
     }, 100);
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!newMessage.trim() && !attachedFile) || !user) return;
+  const handleSendMessage = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if ((!newMessage.trim() && !attachedFile) || !user || isSending || isUploading) return;
+
+    setIsSending(true);
 
     let activeChatId = chatId;
-    if (!activeChatId && selectedUser) {
+    if (!activeChatId && selectedUserId) {
       try {
         const newChat = await addDoc(collection(db, 'chats'), {
-          userId: selectedUser.id,
+          userId: selectedUserId,
           managerId: user.uid,
-          participants: [selectedUser.id, user.uid],
+          participants: [selectedUserId, user.uid],
           createdAt: serverTimestamp(),
           lastMessage: '',
           lastMessageTimestamp: serverTimestamp()
@@ -290,14 +308,20 @@ export const ManagerChatPage = () => {
         setChatId(activeChatId);
       } catch (err) {
         console.error('Error initiating chat on message send:', err);
+        setIsSending(false);
         return;
       }
     }
 
-    if (!activeChatId) return;
+    if (!activeChatId) {
+      setIsSending(false);
+      return;
+    }
 
     const messageText = newMessage.trim();
     const fileData = attachedFile;
+
+    // Reset draft fields
     setNewMessage('');
     setAttachedFile(null);
     setUploadError(null);
@@ -331,6 +355,9 @@ export const ManagerChatPage = () => {
       scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error instanceof Error ? error.message : String(error));
+      setUploadError('Failed to deliver message. Please check your connection.');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -362,7 +389,7 @@ export const ManagerChatPage = () => {
         .upload(filePath, file);
 
       if (uploadErr) {
-        console.warn('Storage bucket notice:', uploadErr);
+        console.warn('Storage bucket upload notice:', uploadErr);
       }
 
       const { data: { publicUrl: url } } = supabase.storage
@@ -403,7 +430,7 @@ export const ManagerChatPage = () => {
       await updateDoc(doc(db, 'users', selectedUser.id), {
         kycStatus: status
       });
-      setSelectedUser({ ...selectedUser, kycStatus: status });
+      setSelectedUserObj({ ...selectedUser, kycStatus: status });
       setIsSettingsModalOpen(false);
     } catch (error) {
       console.error('Error updating status:', error instanceof Error ? error.message : String(error));
@@ -425,6 +452,15 @@ export const ManagerChatPage = () => {
 
   return (
     <div className="flex-grow p-2 sm:p-4 lg:p-6 pb-20 lg:pb-6 flex flex-col min-h-0">
+      {/* Hidden File Input placed outside the form to completely prevent implicit form submission */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        className="hidden" 
+        id="manager-chat-file-upload-hidden"
+      />
+
       <div className="flex-grow flex bg-white dark:bg-zinc-900 rounded-2xl md:rounded-3xl overflow-hidden shadow-xl border border-zinc-200 dark:border-zinc-800 relative w-full">
         {/* Sidebar - User List */}
         <AnimatePresence initial={false}>
@@ -438,7 +474,7 @@ export const ManagerChatPage = () => {
             >
               <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                 <h3 className="font-black tracking-tighter uppercase text-xs dark:text-white opacity-50">Clients</h3>
-                {typeof window !== 'undefined' && window.innerWidth < 768 && selectedUser && (
+                {typeof window !== 'undefined' && window.innerWidth < 768 && selectedUserId && (
                   <button type="button" onClick={() => setShowList(false)} className="p-2 text-zinc-400 hover:text-accent">
                     <ArrowLeft className="w-4 h-4" />
                   </button>
@@ -464,13 +500,16 @@ export const ManagerChatPage = () => {
                   </div>
                 ) : (
                   filteredUsers.map((client) => {
-                    const isSelected = selectedUser?.id === client.id;
+                    const isSelected = selectedUserId === client.id;
                     return (
                       <button
                         key={client.id}
                         type="button"
                         onClick={() => {
-                          setSelectedUser(client);
+                          setSelectedUserId(client.id);
+                          setSelectedUserObj(client);
+                          setAttachedFile(null);
+                          setUploadError(null);
                           if (typeof window !== 'undefined' && window.innerWidth < 768) setShowList(false);
                         }}
                         className={`w-full p-4 flex items-center gap-3 text-left transition-all relative ${
@@ -573,14 +612,14 @@ export const ManagerChatPage = () => {
                   const isMe = msg.senderId === user?.uid;
                   const currentDate = getTimestampDate(msg.timestamp);
                   const prevDate = idx > 0 ? getTimestampDate(messages[idx - 1]?.timestamp) : null;
-                  const showDate = idx === 0 || (currentDate && (!prevDate || format(prevDate, 'yyyy-MM-dd') !== format(currentDate, 'yyyy-MM-dd')));
+                  const showDate = idx === 0 || (currentDate && (!prevDate || safeFormatDate(prevDate, 'yyyy-MM-dd') !== safeFormatDate(currentDate, 'yyyy-MM-dd')));
                   
                   return (
-                    <React.Fragment key={msg.id}>
+                    <React.Fragment key={msg.id || `msg-${idx}`}>
                       {showDate && currentDate && (
                         <div className="flex justify-center my-6">
                           <span className="px-3 py-1 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
-                            {format(currentDate, 'MMM d, yyyy')}
+                            {safeFormatDate(currentDate, 'MMM d, yyyy')}
                           </span>
                         </div>
                       )}
@@ -649,7 +688,7 @@ export const ManagerChatPage = () => {
                           </div>
                           <div className={`flex items-center gap-2 mt-1.5 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <span className="text-[8px] font-mono text-zinc-400 uppercase">
-                              {currentDate ? format(currentDate, 'HH:mm') : '...'}
+                              {currentDate ? safeFormatDate(currentDate, 'HH:mm') : '...'}
                             </span>
                             {isMe && (
                               <CheckCircle2 className={`w-2.5 h-2.5 ${msg.read ? 'text-accent' : 'text-zinc-300'}`} />
@@ -712,15 +751,15 @@ export const ManagerChatPage = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSendMessage} className="flex items-center gap-3 md:gap-4 max-w-5xl mx-auto">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSendMessage();
+                }} 
+                className="flex items-center gap-3 md:gap-4 max-w-5xl mx-auto"
+              >
                 <div className="flex items-center gap-1">
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileUpload} 
-                    className="hidden" 
-                    id="manager-chat-file-upload"
-                  />
                   <button 
                     type="button" 
                     onClick={() => fileInputRef.current?.click()}
@@ -761,15 +800,31 @@ export const ManagerChatPage = () => {
                     placeholder="Type message or attach a file..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSendMessage();
+                      }
+                    }}
                     className="w-full px-5 py-3 bg-zinc-100 dark:bg-zinc-800/50 border border-transparent focus:border-accent/20 rounded-2xl text-sm transition-all dark:text-white outline-none font-medium"
                   />
                 </div>
                 <button 
-                  type="submit"
-                  disabled={(!newMessage.trim() && !attachedFile) || isUploading}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSendMessage();
+                  }}
+                  disabled={(!newMessage.trim() && !attachedFile) || isUploading || isSending}
                   className="w-12 h-12 md:w-14 md:h-14 bg-accent text-white rounded-2xl flex items-center justify-center hover:bg-accent/90 disabled:opacity-40 transition-all shadow-lg shadow-accent/20 flex-shrink-0 active:scale-95"
                 >
-                  <Send className="w-5 h-5" />
+                  {isSending ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
                 </button>
               </form>
             </div>
