@@ -660,7 +660,7 @@ export const SendPage = () => {
                       External Transfer Processing Notice
                     </p>
                     <p className="text-gray-600 dark:text-zinc-300 leading-relaxed">
-                      External network settlements (Local bank, International SWIFT/IBAN, or Third-Party Wallets) can take anywhere from a few minutes to standard banking processing days. 
+                      External network settlements (Local bank, International SWIFT/IBAN, or Third-Party Wallets) typically process within a few minutes. 
                       <strong className="text-gray-900 dark:text-white font-semibold"> If the recipient does not see the money credited afterwards, please contact Customer Support or your Account Manager immediately with your Reference ID ({completedTransfer.refId}).</strong>
                     </p>
                     <div className="pt-2">
