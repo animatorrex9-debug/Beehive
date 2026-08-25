@@ -10,21 +10,33 @@ interface ToastProps {
     type?: 'info' | 'success' | 'warning' | 'error';
   } | null;
   onClose: () => void;
+  onDismiss?: (id: string) => void;
 }
 
-export const Toast: React.FC<ToastProps> = ({ notification, onClose }) => {
+export const Toast: React.FC<ToastProps> = ({ notification, onClose, onDismiss }) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (notification) {
       setVisible(true);
       const timer = setTimeout(() => {
-        setVisible(false);
-        setTimeout(onClose, 300); // Wait for exit animation
-      }, 5000);
+        handleDismiss();
+      }, 7000);
       return () => clearTimeout(timer);
+    } else {
+      setVisible(false);
     }
-  }, [notification, onClose]);
+  }, [notification]);
+
+  const handleDismiss = () => {
+    setVisible(false);
+    if (notification?.id && onDismiss) {
+      onDismiss(notification.id);
+    }
+    setTimeout(() => {
+      onClose();
+    }, 300);
+  };
 
   if (!notification) return null;
 
@@ -46,7 +58,7 @@ export const Toast: React.FC<ToastProps> = ({ notification, onClose }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-black/20 backdrop-blur-[2px] pointer-events-auto"
-            onClick={() => setVisible(false)}
+            onClick={handleDismiss}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -66,13 +78,13 @@ export const Toast: React.FC<ToastProps> = ({ notification, onClose }) => {
               </p>
             </div>
             <button 
-              onClick={() => setVisible(false)}
-              className="w-full btn-primary py-4 rounded-2xl text-xs font-black uppercase tracking-widest"
+              onClick={handleDismiss}
+              className="w-full btn-primary py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity"
             >
               Dismiss
             </button>
             <button 
-              onClick={() => setVisible(false)}
+              onClick={handleDismiss}
               className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-full transition-colors"
             >
               <X className="w-5 h-5 text-gray-400" />

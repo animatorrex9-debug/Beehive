@@ -179,8 +179,10 @@ export const AdminPage = () => {
     const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'wallets'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setUsdtAddress(data.usdt_address || '');
-        setBtcAddress(data.btc_address || '');
+        const usdt = data?.usdtAddress || data?.usdt_address || '';
+        const btc = data?.btcAddress || data?.btc_address || '';
+        if (usdt) setUsdtAddress(usdt);
+        if (btc) setBtcAddress(btc);
       }
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'settings/wallets');
@@ -1092,12 +1094,27 @@ export const AdminPage = () => {
 
     setIsUpdatingSettings(true);
     try {
+      const cleanUsdt = usdtAddress.trim();
+      const cleanBtc = btcAddress.trim();
+      
       await setDoc(doc(db, 'settings', 'wallets'), {
-        usdt_address: usdtAddress,
-        btc_address: btcAddress,
+        usdt_address: cleanUsdt,
+        btc_address: cleanBtc,
+        usdtAddress: cleanUsdt,
+        btcAddress: cleanBtc,
         updatedAt: serverTimestamp(),
         updatedBy: user?.email
       }, { merge: true });
+
+      try {
+        localStorage.setItem('beehive_wallet_settings', JSON.stringify({
+          usdtAddress: cleanUsdt,
+          btcAddress: cleanBtc,
+          usdt_address: cleanUsdt,
+          btc_address: cleanBtc
+        }));
+      } catch {}
+
       setMessage({ text: 'Wallet addresses updated successfully!', type: 'success' });
     } catch (err: any) {
       console.error('Error updating settings:', err instanceof Error ? err.message : String(err));

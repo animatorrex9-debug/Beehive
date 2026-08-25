@@ -55,11 +55,20 @@ export const DepositPage = () => {
   const [btcAddress, setBtcAddress] = useState('');
 
   useEffect(() => {
+    // Initial fallback from storage if available
+    try {
+      const cached = JSON.parse(localStorage.getItem('beehive_wallet_settings') || '{}');
+      if (cached.usdtAddress || cached.usdt_address) setUsdtAddress(cached.usdtAddress || cached.usdt_address);
+      if (cached.btcAddress || cached.btc_address) setBtcAddress(cached.btcAddress || cached.btc_address);
+    } catch {}
+
     const unsubscribe = onSnapshot(doc(db, 'settings', 'wallets'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setUsdtAddress(data.usdt_address || '');
-        setBtcAddress(data.btc_address || '');
+        const usdt = data?.usdtAddress || data?.usdt_address || '';
+        const btc = data?.btcAddress || data?.btc_address || '';
+        if (usdt) setUsdtAddress(usdt);
+        if (btc) setBtcAddress(btc);
       }
     });
     return () => unsubscribe();
