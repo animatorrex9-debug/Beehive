@@ -518,7 +518,19 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
       }
     }
 
-    let rawRows = data || [];
+    let rawRows = Array.isArray(data) ? [...data] : [];
+
+    // Include any local fallback items for this table that aren't already in rawRows
+    try {
+      const localStored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+      if (Array.isArray(localStored)) {
+        for (const localItem of localStored) {
+          if (localItem && localItem.id && !rawRows.some(r => r.id === localItem.id)) {
+            rawRows.push(localItem);
+          }
+        }
+      }
+    } catch (e) {}
 
     // If query constraints were applied and we had to fallback, filter rows in memory
     if (constraints.length > 0) {
@@ -705,17 +717,26 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
           const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
           stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
           localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+          localStorage.setItem(`local_${table}_extras_${tempId}`, JSON.stringify(mergedData));
         } catch (e) {}
         notifyListeners(table, collectionRef.path);
         return new DocumentReference(`${collectionRef.path}/${tempId}`);
       }
-      if (table === 'notifications' || error.code === '42501' || error.message?.includes('row-level security')) {
-        console.warn(`[Supabase DB] RLS or notification policy warning adding doc to ${table}:`, error.message);
+      if (table === 'notifications') {
+        console.warn(`[Supabase DB] Notification policy warning adding doc to ${table}:`, error.message);
         return new DocumentReference(`${collectionRef.path}/notif-${Date.now()}`);
       }
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
-        console.warn(`[Supabase DB] Network error adding doc to ${table}: ${error.message}`);
-        return new DocumentReference(`${collectionRef.path}/temp-${Date.now()}`);
+      if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
+        console.warn(`[Supabase DB] RLS or network issue adding doc to ${table}. Storing in local fallback storage:`, error.message);
+        const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+          localStorage.setItem(`local_${table}_extras_${tempId}`, JSON.stringify(mergedData));
+        } catch (e) {}
+        notifyListeners(table, collectionRef.path);
+        return new DocumentReference(`${collectionRef.path}/${tempId}`);
       }
       console.error(`[Supabase DB] Error adding doc to ${table}:`, error);
       throw enhanceSupabaseError(error);
@@ -724,6 +745,12 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     if (inserted?.id) {
       try {
         localStorage.setItem(`local_${table}_extras_${inserted.id}`, JSON.stringify(mergedData));
+        // Keep a copy in local table as well for instant cache availability
+        const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        if (!stored.some((item: any) => item.id === inserted.id)) {
+          stored.push({ id: inserted.id, ...row, ...inserted });
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+        }
       } catch (e) {}
     }
 
@@ -731,20 +758,17 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     return new DocumentReference(`${collectionRef.path}/${inserted.id}`);
   } catch (err: any) {
     const msg = err?.message || String(err);
-    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
-      console.warn(`[Supabase DB] Table '${table}' missing in addDoc catch block.`);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
+      console.warn(`[Supabase DB] Exception adding doc to ${table}: ${msg}. Storing in fallback.`);
       const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       try {
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
         stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
         localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+        localStorage.setItem(`local_${table}_extras_${tempId}`, JSON.stringify(mergedData));
       } catch (e) {}
       notifyListeners(table, collectionRef.path);
       return new DocumentReference(`${collectionRef.path}/${tempId}`);
-    }
-    if (table === 'notifications' || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
-      console.warn(`[Supabase DB] Exception adding doc to ${table}: ${msg}. Returning fallback reference.`);
-      return new DocumentReference(`${collectionRef.path}/temp-${Date.now()}`);
     }
     throw enhanceSupabaseError(err);
   }

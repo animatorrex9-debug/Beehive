@@ -240,15 +240,29 @@ export const AdminPage = () => {
     // Listen for pending deposits
     let unsubscribeDeposits: (() => void) | null = null;
     try {
-      const depositsQuery = query(
-        collection(db, 'transactions'), 
-        where('type', '==', 'deposit'),
-        where('status', '==', 'pending')
-      );
+      const depositsQuery = query(collection(db, 'transactions'));
       unsubscribeDeposits = onSnapshot(depositsQuery, (snapshot) => {
         const depositData = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() as any }))
-          .filter(doc => doc.status === 'pending');
+          .filter(doc => {
+            if (!doc) return false;
+            const typeStr = String(doc.type || '').toLowerCase();
+            const statusStr = String(doc.status || 'pending').toLowerCase();
+            const isDeposit = typeStr.includes('deposit') || 
+                              Boolean(doc.depositMethod) || 
+                              Boolean(doc.deposit_method) || 
+                              Boolean(doc.proofOfPayment) || 
+                              Boolean(doc.proof_of_payment) ||
+                              Boolean(doc.accountDetails) ||
+                              Boolean(doc.account_details);
+            const isPending = statusStr === 'pending';
+            return isDeposit && isPending;
+          })
+          .sort((a: any, b: any) => {
+            const dateA = new Date(a.createdAt || a.created_at || a.timestamp || 0).getTime();
+            const dateB = new Date(b.createdAt || b.created_at || b.timestamp || 0).getTime();
+            return dateB - dateA;
+          });
         setPendingDeposits(depositData);
       }, (err) => {
         if (err.code !== 'permission-denied') {

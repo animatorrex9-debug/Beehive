@@ -352,24 +352,47 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_deposit_proof TEXT DEF
 CREATE OR REPLACE FUNCTION public.is_admin_or_manager()
 RETURNS BOOLEAN AS $$
 DECLARE
-  current_role TEXT;
-  current_email TEXT;
+  v_role TEXT;
+  v_email TEXT;
 BEGIN
-  -- Get user info from auth.users to completely avoid querying public.profiles
-  -- which would trigger infinite RLS recursion on public.profiles.
-  SELECT raw_user_meta_data->>'role', email 
-  INTO current_role, current_email
-  FROM auth.users 
-  WHERE id = auth.uid();
-  
-  -- Master administrator email bypass
-  IF current_email = 'animatorrex9@gmail.com' THEN
-    RETURN TRUE;
+  IF auth.uid() IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  -- 1. Master administrator email bypass
+  v_email := COALESCE(auth.jwt()->>'email', '');
+  IF v_email = '' THEN
+    SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
   END IF;
   
-  RETURN COALESCE(current_role, '') IN ('admin', 'account_manager');
+  IF v_email = 'animatorrex9@gmail.com' THEN
+    RETURN TRUE;
+  END IF;
+
+  -- 2. Check JWT metadata
+  v_role := auth.jwt()->'user_metadata'->>'role';
+  IF v_role IN ('admin', 'account_manager') THEN
+    RETURN TRUE;
+  END IF;
+
+  -- 3. Check auth.users table
+  SELECT raw_user_meta_data->>'role' INTO v_role FROM auth.users WHERE id = auth.uid();
+  IF v_role IN ('admin', 'account_manager') THEN
+    RETURN TRUE;
+  END IF;
+
+  -- 4. Check public.profiles directly (SECURITY DEFINER allows reading profiles safely)
+  IF EXISTS (
+    SELECT 1 FROM public.profiles 
+    WHERE id = auth.uid() 
+    AND (role IN ('admin', 'account_manager') OR is_admin = true)
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Profiles Policies
 DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
@@ -412,8 +435,9 @@ CREATE POLICY "Admins and managers can manage all loans" ON public.loans
 
 -- Transactions Policies
 DROP POLICY IF EXISTS "Users can view their own transactions" ON public.transactions;
-CREATE POLICY "Users can view their own transactions" ON public.transactions
-  FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users and admins can view transactions" ON public.transactions;
+CREATE POLICY "Users and admins can view transactions" ON public.transactions
+  FOR SELECT USING (auth.uid() = user_id OR public.is_admin_or_manager());
 
 DROP POLICY IF EXISTS "Users can insert their own transactions" ON public.transactions;
 DROP POLICY IF EXISTS "Users can insert transactions" ON public.transactions;
