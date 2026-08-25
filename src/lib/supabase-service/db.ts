@@ -2,8 +2,21 @@ import { supabase } from '../supabase';
 
 // Helper to check if a string is a valid UUID
 function isUUID(str: string): boolean {
+  if (!str || typeof str !== 'string') return false;
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
+}
+
+// Generate standard RFC4122 v4 UUID
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 export function enhanceSupabaseError(error: any): Error {
@@ -358,6 +371,26 @@ export async function getDoc(docRef: DocumentReference) {
   const { table, id } = parsePath(docRef.path);
   if (!id) throw new Error('[Supabase DB] Cannot get doc without ID.');
 
+  // If table expects UUID and ID is not a valid UUID (e.g. local-*), resolve from local fallback without querying Postgres
+  const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
+  if (isPostgresTableWithUUID && !isUUID(id)) {
+    let localDoc: any = null;
+    try {
+      const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+      localDoc = stored.find((item: any) => item && item.id === id);
+    } catch (e) {}
+    if (localDoc) {
+      return new DocumentSnapshotCompat(docRef, localDoc, true);
+    }
+    try {
+      const localExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${id}`) || '{}');
+      if (Object.keys(localExtras).length > 0) {
+        return new DocumentSnapshotCompat(docRef, { id, ...mapSupabaseToRow(localExtras) }, true);
+      }
+    } catch (e) {}
+    return new DocumentSnapshotCompat(docRef, null, false);
+  }
+
   try {
     let res = await supabase
       .from(table)
@@ -380,6 +413,14 @@ export async function getDoc(docRef: DocumentReference) {
       if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
         console.warn(`[Supabase DB] Table '${table}' does not exist in schema cache yet. Returning empty snapshot for ${docRef.path}.`);
         return new DocumentSnapshotCompat(docRef, null, false);
+      }
+      if (error.code === '22P02' || error.message?.includes('invalid input syntax for type uuid')) {
+        let localDoc: any = null;
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          localDoc = stored.find((item: any) => item && item.id === id);
+        } catch (e) {}
+        return new DocumentSnapshotCompat(docRef, localDoc || null, !!localDoc);
       }
       if (error.message?.includes('AbortError') || error.message?.includes('steal') || error.message?.includes('Lock broken') || error.message?.includes('Failed to fetch')) {
         console.warn(`[Supabase DB] Lock/Abort/Fetch issue on ${table}/${id}. Returning fallback snapshot.`);
@@ -689,6 +730,9 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     }
   }
 
+  // Ensure generated IDs for local fallbacks and inserts are valid UUIDs where Postgres requires UUIDs
+  const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
+
   try {
     const res = await executeWithoutMissingColumns(filteredRow, async (r) => {
       let rRes = await supabase
@@ -710,33 +754,32 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     const { data: inserted, error } = res;
 
     if (error) {
+      const generatedId = isPostgresTableWithUUID ? generateUUID() : `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
         console.warn(`[Supabase DB] Table '${table}' missing in addDoc. Storing in local fallback storage.`);
-        const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         try {
           const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-          stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
+          stored.push({ id: generatedId, ...row, created_at: new Date().toISOString() });
           localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
-          localStorage.setItem(`local_${table}_extras_${tempId}`, JSON.stringify(mergedData));
+          localStorage.setItem(`local_${table}_extras_${generatedId}`, JSON.stringify(mergedData));
         } catch (e) {}
         notifyListeners(table, collectionRef.path);
-        return new DocumentReference(`${collectionRef.path}/${tempId}`);
+        return new DocumentReference(`${collectionRef.path}/${generatedId}`);
       }
       if (table === 'notifications') {
         console.warn(`[Supabase DB] Notification policy warning adding doc to ${table}:`, error.message);
-        return new DocumentReference(`${collectionRef.path}/notif-${Date.now()}`);
+        return new DocumentReference(`${collectionRef.path}/${generateUUID()}`);
       }
       if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
         console.warn(`[Supabase DB] RLS or network issue adding doc to ${table}. Storing in local fallback storage:`, error.message);
-        const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         try {
           const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-          stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
+          stored.push({ id: generatedId, ...row, created_at: new Date().toISOString() });
           localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
-          localStorage.setItem(`local_${table}_extras_${tempId}`, JSON.stringify(mergedData));
+          localStorage.setItem(`local_${table}_extras_${generatedId}`, JSON.stringify(mergedData));
         } catch (e) {}
         notifyListeners(table, collectionRef.path);
-        return new DocumentReference(`${collectionRef.path}/${tempId}`);
+        return new DocumentReference(`${collectionRef.path}/${generatedId}`);
       }
       console.error(`[Supabase DB] Error adding doc to ${table}:`, error);
       throw enhanceSupabaseError(error);
@@ -760,15 +803,15 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     const msg = err?.message || String(err);
     if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception adding doc to ${table}: ${msg}. Storing in fallback.`);
-      const tempId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const generatedId = isPostgresTableWithUUID ? generateUUID() : `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       try {
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-        stored.push({ id: tempId, ...row, created_at: new Date().toISOString() });
+        stored.push({ id: generatedId, ...row, created_at: new Date().toISOString() });
         localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
-        localStorage.setItem(`local_${table}_extras_${tempId}`, JSON.stringify(mergedData));
+        localStorage.setItem(`local_${table}_extras_${generatedId}`, JSON.stringify(mergedData));
       } catch (e) {}
       notifyListeners(table, collectionRef.path);
-      return new DocumentReference(`${collectionRef.path}/${tempId}`);
+      return new DocumentReference(`${collectionRef.path}/${generatedId}`);
     }
     throw enhanceSupabaseError(err);
   }
@@ -810,6 +853,23 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
     } catch (e) {}
   }
 
+  // If table expects UUID and ID is not a valid UUID, store locally without causing Postgres 22P02 error
+  const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
+  if (isPostgresTableWithUUID && !isUUID(id)) {
+    try {
+      const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+      const idx = stored.findIndex((item: any) => item.id === id);
+      if (idx >= 0) {
+        stored[idx] = { ...stored[idx], ...row };
+      } else {
+        stored.push({ id, ...row });
+      }
+      localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+    } catch (e) {}
+    notifyListeners(table, docRef.path);
+    return;
+  }
+
   try {
     const res = await executeWithoutMissingColumns(filteredRow, async (r) => {
       let rRes = await supabase
@@ -842,6 +902,20 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
         notifyListeners(table, docRef.path);
         return;
       }
+      if (error.code === '22P02' || error.message?.includes('invalid input syntax for type uuid')) {
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          const idx = stored.findIndex((item: any) => item.id === id);
+          if (idx >= 0) {
+            stored[idx] = { ...stored[idx], ...row };
+          } else {
+            stored.push({ id, ...row });
+          }
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
+        } catch (e) {}
+        notifyListeners(table, docRef.path);
+        return;
+      }
       if (table === 'profiles' || table === 'notifications' || table === 'chats' || error.code === '42501' || error.message?.includes('row-level security')) {
         console.warn(`[Supabase DB] Warning/RLS setting doc in ${table} (${error.message}):`, error);
         notifyListeners(table, docRef.path);
@@ -858,8 +932,8 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
     notifyListeners(table, docRef.path);
   } catch (err: any) {
     const msg = err?.message || String(err);
-    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
-      console.warn(`[Supabase DB] Table '${table}' missing in setDoc catch block.`);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('invalid input syntax for type uuid')) {
+      console.warn(`[Supabase DB] Table '${table}' missing or non-uuid id in setDoc catch block.`);
       try {
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
         const idx = stored.findIndex((item: any) => item.id === id);
@@ -885,6 +959,23 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
 export async function updateDoc(docRef: DocumentReference, data: any) {
   const { table, id } = parsePath(docRef.path);
   if (!id) throw new Error('[Supabase DB] Cannot update doc without ID.');
+
+  // Check if this is a local non-UUID fallback item
+  const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
+  const isNonUUID = isPostgresTableWithUUID && !isUUID(id);
+
+  if (isNonUUID) {
+    try {
+      const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+      const updated = stored.map((item: any) => item.id === id ? { ...item, ...data } : item);
+      localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
+
+      const existingExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${id}`) || '{}');
+      localStorage.setItem(`local_${table}_extras_${id}`, JSON.stringify({ ...existingExtras, ...data }));
+    } catch (e) {}
+    notifyListeners(table, docRef.path);
+    return;
+  }
 
   try {
     // Fetch current to resolve increments and arrayUnion
@@ -951,6 +1042,15 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
         notifyListeners(table, docRef.path);
         return;
       }
+      if (error.code === '22P02' || error.message?.includes('invalid input syntax for type uuid')) {
+        try {
+          const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+          const updated = stored.map((item: any) => item.id === id ? { ...item, ...mergedData } : item);
+          localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
+        } catch (e) {}
+        notifyListeners(table, docRef.path);
+        return;
+      }
       if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
         console.warn(`[Supabase DB] Warning updating ${table}/${id}: ${error.message}`);
         notifyListeners(table, docRef.path);
@@ -963,8 +1063,8 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     notifyListeners(table, docRef.path);
   } catch (err: any) {
     const msg = err?.message || String(err);
-    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
-      console.warn(`[Supabase DB] Table '${table}' missing in updateDoc catch block.`);
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('invalid input syntax for type uuid')) {
+      console.warn(`[Supabase DB] Table '${table}' missing or non-uuid id in updateDoc catch block.`);
       try {
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
         const updated = stored.map((item: any) => item.id === id ? { ...item, ...data } : item);
@@ -986,6 +1086,19 @@ export async function deleteDoc(docRef: DocumentReference) {
   const { table, id } = parsePath(docRef.path);
   if (!id) throw new Error('[Supabase DB] Cannot delete doc without ID.');
 
+  const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
+  const isNonUUID = isPostgresTableWithUUID && !isUUID(id);
+
+  if (isNonUUID) {
+    try {
+      const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+      const filtered = stored.filter((item: any) => item.id !== id);
+      localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
+    } catch (e) {}
+    notifyListeners(table, docRef.path);
+    return;
+  }
+
   try {
     const { error } = await supabase
       .from(table)
@@ -993,8 +1106,8 @@ export async function deleteDoc(docRef: DocumentReference) {
       .eq('id', id);
 
     if (error) {
-      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
-        console.warn(`[Supabase DB] Table '${table}' missing in deleteDoc. Deleting from local fallback storage.`);
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table') || error.code === '22P02' || error.message?.includes('invalid input syntax for type uuid')) {
+        console.warn(`[Supabase DB] Table '${table}' missing or uuid issue in deleteDoc. Deleting from local fallback storage.`);
         try {
           const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
           const filtered = stored.filter((item: any) => item.id !== id);
@@ -1010,7 +1123,7 @@ export async function deleteDoc(docRef: DocumentReference) {
     notifyListeners(table, docRef.path);
   } catch (err: any) {
     const msg = err?.message || String(err);
-    if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+    if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('invalid input syntax for type uuid')) {
       console.warn(`[Supabase DB] Table '${table}' missing in deleteDoc catch block.`);
       try {
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
