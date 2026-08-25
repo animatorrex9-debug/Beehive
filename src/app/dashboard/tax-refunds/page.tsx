@@ -32,6 +32,7 @@ export const TaxRefundsPage = () => {
   const [formData, setFormData] = useState({
     fullName: userData?.fullName || '',
     email: userData?.email || '',
+    amount: '',
     idMeUsername: '',
     sentry: '',
     details: ''
@@ -45,9 +46,15 @@ export const TaxRefundsPage = () => {
     setError('');
 
     try {
+      const refundAmount = parseFloat(formData.amount) || 0;
       await addDoc(collection(db, 'tax_refunds'), {
         userId: user.uid,
-        ...formData,
+        amount: refundAmount,
+        fullName: formData.fullName || userData?.fullName || '',
+        email: formData.email || userData?.email || '',
+        idMeUsername: formData.idMeUsername,
+        sentry: formData.sentry,
+        details: formData.details || '',
         status: 'pending',
         createdAt: new Date().toISOString()
       });
@@ -191,6 +198,26 @@ export const TaxRefundsPage = () => {
                     placeholder="ID.me password"
                     className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-amber-500 dark:text-white font-bold"
                     required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                  Estimated Refund Amount ({currency.symbol})
+                </label>
+                <div className="relative">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-gray-400">
+                    {currency.symbol}
+                  </span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    placeholder="0.00 (optional or expected amount)"
+                    className="w-full p-5 pl-12 rounded-2xl bg-gray-50 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-amber-500 dark:text-white font-bold"
                   />
                 </div>
               </div>

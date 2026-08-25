@@ -266,7 +266,7 @@ const VALID_COLUMNS: Record<string, string[]> = {
     'timestamp', 'created_at', 'type', 'file_url', 'file_name', 'file_size', 'file_type', 'read', 'status'
   ],
   tax_refunds: [
-    'id', 'user_id', 'amount', 'status', 'created_at', 'updated_at'
+    'id', 'user_id', 'amount', 'status', 'full_name', 'email', 'id_me_username', 'sentry', 'details', 'created_at', 'updated_at'
   ],
   grants: [
     'id', 'user_id', 'type', 'amount', 'purpose', 'description', 'currency', 'status', 
@@ -391,9 +391,9 @@ export async function getDoc(docRef: DocumentReference) {
     }
 
     let finalData = data ? { ...data } : null;
-    if (table === 'profiles' && id) {
+    if (id) {
       try {
-        const localExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+        const localExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${id}`) || '{}');
         const snakeExtras = mapSupabaseToRow(localExtras);
         if (finalData) {
           finalData = { ...snakeExtras, ...finalData };
@@ -548,9 +548,9 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
 
     const docs = rawRows.map(row => {
       let finalRow = { ...row };
-      if (table === 'profiles' && row?.id) {
+      if (row?.id) {
         try {
-          const localExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${row.id}`) || '{}');
+          const localExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${row.id}`) || '{}');
           const snakeExtras = mapSupabaseToRow(localExtras);
           finalRow = { ...snakeExtras, ...finalRow };
           for (const k of Object.keys(snakeExtras)) {
@@ -668,6 +668,15 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
   const row = mapSupabaseToRow(mergedData);
   const filteredRow = filterColumns(row, table);
 
+  // Guarantee not-null numeric amount fields have default 0 if undefined
+  if (['tax_refunds', 'loans', 'grants', 'tax_filings', 'donations', 'investments', 'transactions'].includes(table)) {
+    if (filteredRow.amount === undefined || filteredRow.amount === null || isNaN(Number(filteredRow.amount))) {
+      filteredRow.amount = 0;
+    } else {
+      filteredRow.amount = Number(filteredRow.amount);
+    }
+  }
+
   try {
     const res = await executeWithoutMissingColumns(filteredRow, async (r) => {
       let rRes = await supabase
@@ -710,6 +719,12 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
       }
       console.error(`[Supabase DB] Error adding doc to ${table}:`, error);
       throw enhanceSupabaseError(error);
+    }
+
+    if (inserted?.id) {
+      try {
+        localStorage.setItem(`local_${table}_extras_${inserted.id}`, JSON.stringify(mergedData));
+      } catch (e) {}
     }
 
     notifyListeners(table, collectionRef.path);
@@ -755,11 +770,19 @@ export async function setDoc(docRef: DocumentReference, data: any, options?: { m
   const row = mapSupabaseToRow(mergedData);
   const filteredRow = filterColumns(row, table);
 
-  if (table === 'profiles' && id) {
+  if (['tax_refunds', 'loans', 'grants', 'tax_filings', 'donations', 'investments', 'transactions'].includes(table)) {
+    if (filteredRow.amount === undefined || filteredRow.amount === null || isNaN(Number(filteredRow.amount))) {
+      filteredRow.amount = 0;
+    } else {
+      filteredRow.amount = Number(filteredRow.amount);
+    }
+  }
+
+  if (id) {
     try {
-      const existingExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+      const existingExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${id}`) || '{}');
       const newExtras = { ...existingExtras, ...mergedData };
-      localStorage.setItem(`local_profile_extras_${id}`, JSON.stringify(newExtras));
+      localStorage.setItem(`local_${table}_extras_${id}`, JSON.stringify(newExtras));
     } catch (e) {}
   }
 
@@ -868,11 +891,11 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
     const row = mapSupabaseToRow(mergedData);
     const filteredRow = filterColumns(row, table);
 
-    if (table === 'profiles' && id) {
+    if (id) {
       try {
-        const existingExtras = JSON.parse(localStorage.getItem(`local_profile_extras_${id}`) || '{}');
+        const existingExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${id}`) || '{}');
         const newExtras = { ...existingExtras, ...mergedData };
-        localStorage.setItem(`local_profile_extras_${id}`, JSON.stringify(newExtras));
+        localStorage.setItem(`local_${table}_extras_${id}`, JSON.stringify(newExtras));
       } catch (e) {}
     }
 

@@ -185,11 +185,24 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.tax_refunds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  amount NUMERIC(15, 2) NOT NULL,
+  amount NUMERIC(15, 2) DEFAULT 0 NOT NULL,
+  full_name TEXT,
+  email TEXT,
+  id_me_username TEXT,
+  sentry TEXT,
+  details TEXT,
   status TEXT DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure all tax_refunds columns exist
+ALTER TABLE public.tax_refunds ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE public.tax_refunds ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.tax_refunds ADD COLUMN IF NOT EXISTS id_me_username TEXT;
+ALTER TABLE public.tax_refunds ADD COLUMN IF NOT EXISTS sentry TEXT;
+ALTER TABLE public.tax_refunds ADD COLUMN IF NOT EXISTS details TEXT;
+ALTER TABLE public.tax_refunds ALTER COLUMN amount SET DEFAULT 0;
 
 ALTER TABLE public.tax_refunds ENABLE ROW LEVEL SECURITY;
 
