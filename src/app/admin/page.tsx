@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy, getDocs } from 'supabase/db';
+import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy, getDocs } from 'supabase/db';
 import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { CurrencyInfo, getCurrencyByCountry, DEFAULT_CURRENCY, useCurrency } from '../../context/CurrencyContext';
@@ -43,7 +43,8 @@ import {
   Loader2,
   Download,
   Image as ImageIcon,
-  CreditCard
+  CreditCard,
+  Trash2
 } from 'lucide-react';
 import { auth } from '../../lib/supabase-service';
 import { useNavigate } from 'react-router-dom';
@@ -252,19 +253,25 @@ export const AdminPage = () => {
           .filter(doc => {
             if (!doc) return false;
             const typeStr = String(doc.type || '').toLowerCase();
-            const statusStr = String(doc.status || 'pending').toLowerCase();
+            const statusStr = String(doc.status || '').toLowerCase().trim();
             const descStr = String(doc.description || '').toLowerCase();
+
+            // Explicitly exclude any rejected, completed, declined or cancelled deposits
+            if (['rejected', 'completed', 'declined', 'cancelled', 'failed'].includes(statusStr)) {
+              return false;
+            }
+
             const isDeposit = typeStr.includes('deposit') || 
                               Boolean(doc.depositMethod) || 
                               Boolean(doc.deposit_method) || 
                               Boolean(doc.paymentMethod) || 
                               Boolean(doc.payment_method) || 
                               Boolean(doc.proofOfPayment) || 
-                              Boolean(doc.proof_of_payment) ||
-                              Boolean(doc.proofImage) ||
-                              Boolean(doc.proof_image) ||
-                              Boolean(doc.accountDetails) ||
-                              Boolean(doc.account_details) ||
+                              Boolean(doc.proof_of_payment) || 
+                              Boolean(doc.proofImage) || 
+                              Boolean(doc.proof_image) || 
+                              Boolean(doc.accountDetails) || 
+                              Boolean(doc.account_details) || 
                               descStr.includes('deposit');
             const isPending = statusStr === 'pending' || statusStr === '' || statusStr === 'processing';
             return isDeposit && isPending;
@@ -779,19 +786,25 @@ export const AdminPage = () => {
         .filter(doc => {
           if (!doc) return false;
           const typeStr = String(doc.type || '').toLowerCase();
-          const statusStr = String(doc.status || 'pending').toLowerCase();
+          const statusStr = String(doc.status || '').toLowerCase().trim();
           const descStr = String(doc.description || '').toLowerCase();
+
+          // Explicitly exclude any rejected, completed, declined or cancelled deposits
+          if (['rejected', 'completed', 'declined', 'cancelled', 'failed'].includes(statusStr)) {
+            return false;
+          }
+
           const isDeposit = typeStr.includes('deposit') || 
                             Boolean(doc.depositMethod) || 
                             Boolean(doc.deposit_method) || 
                             Boolean(doc.paymentMethod) || 
                             Boolean(doc.payment_method) || 
                             Boolean(doc.proofOfPayment) || 
-                            Boolean(doc.proof_of_payment) ||
-                            Boolean(doc.proofImage) ||
-                            Boolean(doc.proof_image) ||
-                            Boolean(doc.accountDetails) ||
-                            Boolean(doc.account_details) ||
+                            Boolean(doc.proof_of_payment) || 
+                            Boolean(doc.proofImage) || 
+                            Boolean(doc.proof_image) || 
+                            Boolean(doc.accountDetails) || 
+                            Boolean(doc.account_details) || 
                             descStr.includes('deposit');
           const isPending = statusStr === 'pending' || statusStr === '' || statusStr === 'processing';
           return isDeposit && isPending;
@@ -972,6 +985,20 @@ export const AdminPage = () => {
         reviewedBy: user?.email,
       });
 
+      if (status === 'rejected') {
+        // Clean up any local storage backup proofs
+        try {
+          if (deposit.userId) {
+            window.localStorage.removeItem(`deposit_proof_${deposit.userId}`);
+            await updateDoc(doc(db, 'users', deposit.userId), {
+              lastDepositProof: null,
+              last_deposit_proof: null
+            });
+          }
+          window.localStorage.removeItem(`deposit_proof_${depositId}`);
+        } catch (e) {}
+      }
+
       if (status === 'completed') {
         const targetUser = users.find(u => u.id === deposit.userId);
         const userCurr = getUserCurrency(targetUser);
@@ -1038,6 +1065,35 @@ export const AdminPage = () => {
     } catch (err: any) {
       console.error('Error updating deposit status:', err instanceof Error ? err.message : String(err));
       setMessage({ text: `Failed to update deposit status: ${err.message}`, type: 'error' });
+    }
+  };
+
+  const handleDepositDelete = async (depositId: string) => {
+    if (!window.confirm('Are you sure you want to permanently delete this deposit request? This cannot be undone.')) {
+      return;
+    }
+    try {
+      const deposit = pendingDeposits.find(d => d.id === depositId);
+      await deleteDoc(doc(db, 'transactions', depositId));
+      if (deposit?.userId) {
+        try {
+          window.localStorage.removeItem(`deposit_proof_${deposit.userId}`);
+          await updateDoc(doc(db, 'users', deposit.userId), {
+            lastDepositProof: null,
+            last_deposit_proof: null
+          });
+        } catch (e) {}
+      }
+      try {
+        window.localStorage.removeItem(`deposit_proof_${depositId}`);
+      } catch (e) {}
+
+      setPendingDeposits(prev => prev.filter(d => d.id !== depositId));
+      setMessage({ text: 'Deposit request deleted permanently!', type: 'success' });
+      setSelectedDeposit(null);
+    } catch (err: any) {
+      console.error('Error deleting deposit record:', err);
+      setMessage({ text: `Failed to delete deposit record: ${err.message}`, type: 'error' });
     }
   };
 
@@ -2941,13 +2997,30 @@ export const AdminPage = () => {
                               {dateStr}
                             </td>
                             <td className="py-4 text-right">
-                              <button 
-                                onClick={() => setSelectedDeposit(deposit)}
-                                className="btn-secondary px-4 py-2 text-xs flex items-center gap-2 ml-auto hover:border-accent"
-                              >
-                                <Eye className="w-4 h-4 text-accent" />
-                                Review Details
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                <button 
+                                  onClick={() => setSelectedDeposit(deposit)}
+                                  className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5 hover:border-accent"
+                                  title="Review Deposit Details"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-accent" />
+                                  Review
+                                </button>
+                                <button 
+                                  onClick={() => handleDepositUpdate(deposit.id, 'rejected')}
+                                  className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-900/30 transition-colors"
+                                  title="Quick Reject"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => handleDepositDelete(deposit.id)}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors"
+                                  title="Permanently Delete Record"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -3090,20 +3163,30 @@ export const AdminPage = () => {
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row justify-end gap-4 pt-6 border-t border-gray-100 dark:border-zinc-800">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-gray-100 dark:border-zinc-800">
                       <button 
-                        onClick={() => handleDepositUpdate(selectedDeposit.id, 'rejected')}
-                        className="btn-secondary px-8 py-3.5 text-red-500 border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold"
+                        onClick={() => handleDepositDelete(selectedDeposit.id)}
+                        className="btn-secondary px-5 py-3 text-red-500 hover:text-red-700 border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold flex items-center gap-2 text-xs"
                       >
-                        Reject Deposit
+                        <Trash2 className="w-4 h-4" />
+                        Delete Request
                       </button>
-                      <button 
-                        onClick={() => handleDepositUpdate(selectedDeposit.id, 'completed')}
-                        className="btn-primary px-8 py-3.5 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 font-bold flex items-center justify-center gap-2"
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                        Approve & Credit Balance (+{formatDepositAmount(selectedDeposit)})
-                      </button>
+
+                      <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                        <button 
+                          onClick={() => handleDepositUpdate(selectedDeposit.id, 'rejected')}
+                          className="btn-secondary px-6 py-3 text-red-500 border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold text-sm"
+                        >
+                          Reject Deposit
+                        </button>
+                        <button 
+                          onClick={() => handleDepositUpdate(selectedDeposit.id, 'completed')}
+                          className="btn-primary px-8 py-3 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 font-bold flex items-center justify-center gap-2 text-sm"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                          Approve & Credit Balance (+{formatDepositAmount(selectedDeposit)})
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );

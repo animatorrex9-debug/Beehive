@@ -1008,6 +1008,10 @@ export async function updateDoc(docRef: DocumentReference, data: any) {
 
     if (id) {
       try {
+        const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        const updated = stored.map((item: any) => item.id === id ? { ...item, ...mergedData } : item);
+        localStorage.setItem(`local_table_${table}`, JSON.stringify(updated));
+
         const existingExtras = JSON.parse(localStorage.getItem(`local_${table}_extras_${id}`) || '{}');
         const newExtras = { ...existingExtras, ...mergedData };
         localStorage.setItem(`local_${table}_extras_${id}`, JSON.stringify(newExtras));
@@ -1086,15 +1090,18 @@ export async function deleteDoc(docRef: DocumentReference) {
   const { table, id } = parsePath(docRef.path);
   if (!id) throw new Error('[Supabase DB] Cannot delete doc without ID.');
 
+  // Always purge from local storage cache
+  try {
+    const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+    const filtered = stored.filter((item: any) => item.id !== id);
+    localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
+    localStorage.removeItem(`local_${table}_extras_${id}`);
+  } catch (e) {}
+
   const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
   const isNonUUID = isPostgresTableWithUUID && !isUUID(id);
 
   if (isNonUUID) {
-    try {
-      const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-      const filtered = stored.filter((item: any) => item.id !== id);
-      localStorage.setItem(`local_table_${table}`, JSON.stringify(filtered));
-    } catch (e) {}
     notifyListeners(table, docRef.path);
     return;
   }
