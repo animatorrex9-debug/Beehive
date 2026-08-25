@@ -31,3 +31,4 @@ export interface UserProfile {
   emailVerified: boolean;
   photoURL?: string;
 }
+

@@ -36,6 +36,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { auth } from '../../lib/supabase-service';
 import { CharityTab } from './CharityTab';
 import { LoansTab } from './LoansTab';
+import heroBackground from '../../assets/images/digital_bank_hero_1787673123426.jpg';
 
 export const LandingPage = () => {
   const { user } = useAuth();
@@ -215,8 +216,24 @@ export const LandingPage = () => {
       {activeTab === 'home' && (
         <>
           {/* HERO SECTION */}
-          <section id="home" className="pt-20 pb-32 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
+          <section id="home" className="relative pt-24 pb-36 px-6 overflow-hidden">
+            {/* Background Image & Overlay Effects */}
+            <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+              <img 
+                src={heroBackground} 
+                alt="Digital Bank Hero Background" 
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover object-center opacity-25 dark:opacity-30 scale-105 transform filter blur-[0.5px]"
+              />
+              {/* Light mode gradient wash */}
+              <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/85 to-white dark:hidden" />
+              {/* Dark mode gradient wash */}
+              <div className="absolute inset-0 hidden dark:block bg-gradient-to-b from-zinc-950/70 via-zinc-950/85 to-zinc-950" />
+              {/* Radial emerald aura */}
+              <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-accent/15 rounded-full blur-3xl pointer-events-none" />
+            </div>
+
+            <div className="max-w-7xl mx-auto flex flex-col items-center text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
