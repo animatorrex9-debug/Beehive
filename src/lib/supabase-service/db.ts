@@ -1181,6 +1181,13 @@ export function onSnapshot(
   const unregisterPath = registerListener(targetRef.path, run);
   const unregisterTable = registerListener(table, run);
 
+  // Background polling fallback every 8 seconds for cross-browser synchronization when Realtime WebSockets are blocked or in incognito mode
+  const pollInterval = setInterval(() => {
+    if (active) {
+      run();
+    }
+  }, 8000);
+
   const channel = supabase
     .channel(`supabase-onSnapshot-${targetRef.path}-${Math.random()}`)
     .on(
@@ -1200,6 +1207,7 @@ export function onSnapshot(
 
   return () => {
     active = false;
+    clearInterval(pollInterval);
     unregisterPath();
     unregisterTable();
     supabase.removeChannel(channel);

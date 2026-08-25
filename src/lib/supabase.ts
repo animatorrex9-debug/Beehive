@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { compressImageFile, isImageLike } from './image-compressor';
 
 const metaEnv = (import.meta as any).env || {};
 const supabaseUrl = metaEnv.VITE_SUPABASE_URL || 'https://apgoxuogcgyibygfnlkq.supabase.co';
@@ -40,21 +41,35 @@ if (originalStorage) {
     return {
       ...originalBucketClient,
       upload: async (path: string, file: File | Blob | any, options?: any) => {
+        let uploadPayload = file;
+        let precomputedDataUrl: string | null = null;
+
+        // Auto-compress any image before transfer
+        if (isImageLike(file) || (file instanceof File && file.type?.startsWith('image/')) || (file instanceof Blob && file.type?.startsWith('image/'))) {
+          try {
+            const compressed = await compressImageFile(file, { maxWidth: 1200, quality: 0.75 });
+            uploadPayload = compressed.file;
+            precomputedDataUrl = compressed.dataUrl;
+          } catch (compErr) {
+            console.warn('[Image Compressor] Pre-compression skipped:', compErr);
+          }
+        }
+
         try {
-          // Attempt the original upload first
-          const result = await originalBucketClient.upload(path, file, options);
+          // Attempt the remote storage upload with compressed payload
+          const result = await originalBucketClient.upload(path, uploadPayload, options);
           if (result && result.error) {
             throw result.error;
           }
           return result;
         } catch (err) {
-          console.warn('[Supabase Fallback] Upload failed. Falling back to local Base64/DataURL.', err);
+          console.warn('[Supabase Fallback] Remote upload failed. Falling back to compressed local DataURL.', err);
           try {
-            const dataUrl = await new Promise<string>((resolve, reject) => {
+            const dataUrl = precomputedDataUrl || await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onloadend = () => resolve(reader.result as string);
               reader.onerror = reject;
-              reader.readAsDataURL(file);
+              reader.readAsDataURL(uploadPayload);
             });
             
             // Store fallback value
@@ -91,3 +106,4 @@ if (originalStorage) {
 }
 
 export const SUPABASE_BUCKET = metaEnv.VITE_SUPABASE_BUCKET || 'Uploads';
+

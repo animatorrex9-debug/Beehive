@@ -8,6 +8,7 @@ import { db } from '../../../lib/supabase-service';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, arrayUnion } from 'supabase/db';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
+import { compressImageFile } from '../../../lib/image-compressor';
 
 export const DepositPage = () => {
   const { user, userData } = useAuth();
@@ -166,55 +167,28 @@ export const DepositPage = () => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        setError('Image size must be less than 10MB');
+      if (file.size > 15 * 1024 * 1024) {
+        setError('Image size must be less than 15MB');
         return;
       }
-      setProofFile(file);
       setError('');
       
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const rawBase64 = reader.result as string;
-        // Optimize/compress image for instant display & reliability
-        try {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const maxDim = 1280;
-            let { width, height } = img;
-            if (width > maxDim || height > maxDim) {
-              if (width > height) {
-                height = Math.round((height * maxDim) / width);
-                width = maxDim;
-              } else {
-                width = Math.round((width * maxDim) / height);
-                height = maxDim;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              const compressedData = canvas.toDataURL('image/jpeg', 0.85);
-              setProofImage(compressedData);
-            } else {
-              setProofImage(rawBase64);
-            }
-          };
-          img.onerror = () => {
-            setProofImage(rawBase64);
-          };
-          img.src = rawBase64;
-        } catch {
-          setProofImage(rawBase64);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImageFile(file, { maxWidth: 800, quality: 0.70 });
+        setProofFile(compressed.file);
+        setProofImage(compressed.dataUrl);
+      } catch (compErr) {
+        console.warn('Image compression fallback:', compErr);
+        setProofFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setProofImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -270,7 +244,7 @@ export const DepositPage = () => {
         method: selectedMethodName,
         userEmail: userEmailResolved,
         userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
-        proofOfPayment: resolvedProof,
+        hasProof: !!resolvedProof,
         createdAt: new Date().toISOString()
       };
       

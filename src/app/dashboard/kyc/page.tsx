@@ -15,6 +15,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/supabase-service';
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'supabase/db';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
+import { compressImageFile } from '../../../lib/image-compressor';
 
 const STEPS = [
   { id: 'personal', label: 'Personal', icon: User },
@@ -58,13 +59,22 @@ export const KYCPage = () => {
     if (file && user) {
       setUploading(prev => ({ ...prev, [field]: true }));
       try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.uid}/${field}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        // Compress the image before transfer (max 1200px, 0.75 quality)
+        let uploadFile: File = file;
+        try {
+          const compressed = await compressImageFile(file, { maxWidth: 1200, quality: 0.75 });
+          uploadFile = compressed.file;
+        } catch (cErr) {
+          console.warn('KYC compression fallback:', cErr);
+        }
+
+        const fileExt = uploadFile.name.split('.').pop() || 'jpg';
+        const fileName = `${user.uid}/${field}_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `kyc/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from(SUPABASE_BUCKET)
-          .upload(filePath, file);
+          .upload(filePath, uploadFile);
 
         if (uploadError) throw uploadError;
 

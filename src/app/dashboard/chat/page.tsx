@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../../../hooks/useAuth';
 import { db } from '../../../lib/supabase-service';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
+import { compressImageFile, isImageLike } from '../../../lib/image-compressor';
 import { 
   collection, 
   query, 
@@ -217,13 +218,26 @@ export const ChatPage = () => {
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop() || 'bin';
+      let uploadFile: File = file;
+      let compressedDataUrl = '';
+
+      if (isImageLike(file)) {
+        try {
+          const compressed = await compressImageFile(file, { maxWidth: 1000, quality: 0.75 });
+          uploadFile = compressed.file;
+          compressedDataUrl = compressed.dataUrl;
+        } catch (compErr) {
+          console.warn('Image compression fallback:', compErr);
+        }
+      }
+
+      const fileExt = uploadFile.name.split('.').pop() || 'bin';
       const fileName = `${user.uid}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `chats/${selectedChat.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from(SUPABASE_BUCKET)
-        .upload(filePath, file);
+        .upload(filePath, uploadFile);
 
       if (uploadError) {
         console.warn('Storage upload error, falling back:', uploadError);
@@ -234,24 +248,34 @@ export const ChatPage = () => {
         .getPublicUrl(filePath);
 
       setAttachedFile({
-        url: url || '',
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-        size: file.size
+        url: url || compressedDataUrl || '',
+        name: uploadFile.name,
+        type: uploadFile.type || 'application/octet-stream',
+        size: uploadFile.size
       });
     } catch (err) {
       console.warn('Chat upload fallback to DataURL:', err);
       try {
-        const reader = new FileReader();
-        reader.onloadend = () => {
+        if (isImageLike(file)) {
+          const comp = await compressImageFile(file, { maxWidth: 1000, quality: 0.75 });
           setAttachedFile({
-            url: reader.result as string,
-            name: file.name,
-            type: file.type || 'application/octet-stream',
-            size: file.size
+            url: comp.dataUrl,
+            name: comp.file.name,
+            type: comp.file.type,
+            size: comp.file.size
           });
-        };
-        reader.readAsDataURL(file);
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setAttachedFile({
+              url: reader.result as string,
+              name: file.name,
+              type: file.type || 'application/octet-stream',
+              size: file.size
+            });
+          };
+          reader.readAsDataURL(file);
+        }
       } catch (readErr) {
         console.error('Fallback read error:', readErr);
       }

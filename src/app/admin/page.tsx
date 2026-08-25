@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy } from 'supabase/db';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, increment, setDoc, orderBy, getDocs } from 'supabase/db';
 import { db, handleSupabaseError as handleFirestoreError, OperationType } from '../../lib/supabase-service';
 import { useAuth } from '../../hooks/useAuth';
 import { CurrencyInfo, getCurrencyByCountry, DEFAULT_CURRENCY, useCurrency } from '../../context/CurrencyContext';
@@ -38,6 +38,7 @@ import {
   Smile,
   User as UserIcon,
   ArrowLeft,
+  RefreshCw,
   Clock,
   Loader2,
   Download,
@@ -50,6 +51,7 @@ import { format } from 'date-fns';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { useRef } from 'react';
 import { supabase, SUPABASE_BUCKET } from '../../lib/supabase';
+import { compressImageFile, isImageLike } from '../../lib/image-compressor';
 
 export const AdminPage = () => {
   const { user, userData, isAdmin, loading: authLoading } = useAuth();
@@ -140,6 +142,7 @@ export const AdminPage = () => {
   const [usdtAddress, setUsdtAddress] = useState('');
   const [btcAddress, setBtcAddress] = useState('');
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [isRefreshingDeposits, setIsRefreshingDeposits] = useState(false);
 
   // Chat State
   const [messages, setMessages] = useState<any[]>([]);
@@ -250,19 +253,32 @@ export const AdminPage = () => {
             if (!doc) return false;
             const typeStr = String(doc.type || '').toLowerCase();
             const statusStr = String(doc.status || 'pending').toLowerCase();
+            const descStr = String(doc.description || '').toLowerCase();
             const isDeposit = typeStr.includes('deposit') || 
                               Boolean(doc.depositMethod) || 
                               Boolean(doc.deposit_method) || 
+                              Boolean(doc.paymentMethod) || 
+                              Boolean(doc.payment_method) || 
                               Boolean(doc.proofOfPayment) || 
                               Boolean(doc.proof_of_payment) ||
+                              Boolean(doc.proofImage) ||
+                              Boolean(doc.proof_image) ||
                               Boolean(doc.accountDetails) ||
-                              Boolean(doc.account_details);
-            const isPending = statusStr === 'pending';
+                              Boolean(doc.account_details) ||
+                              descStr.includes('deposit');
+            const isPending = statusStr === 'pending' || statusStr === '' || statusStr === 'processing';
             return isDeposit && isPending;
           })
           .sort((a: any, b: any) => {
-            const dateA = new Date(a.createdAt || a.created_at || a.timestamp || 0).getTime();
-            const dateB = new Date(b.createdAt || b.created_at || b.timestamp || 0).getTime();
+            const parseDateVal = (val: any) => {
+              if (!val) return 0;
+              if (typeof val.toMillis === 'function') return val.toMillis();
+              if (typeof val.toDate === 'function') return val.toDate().getTime();
+              const t = new Date(val).getTime();
+              return isNaN(t) ? 0 : t;
+            };
+            const dateA = parseDateVal(a.createdAt || a.created_at || a.timestamp);
+            const dateB = parseDateVal(b.createdAt || b.created_at || b.timestamp);
             return dateB - dateA;
           });
         setPendingDeposits(depositData);
@@ -415,13 +431,26 @@ export const AdminPage = () => {
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop() || 'bin';
+      let uploadFile: File = file;
+      let compressedDataUrl = '';
+
+      if (isImageLike(file)) {
+        try {
+          const compressed = await compressImageFile(file, { maxWidth: 1000, quality: 0.75 });
+          uploadFile = compressed.file;
+          compressedDataUrl = compressed.dataUrl;
+        } catch (compErr) {
+          console.warn('Image compression fallback in admin:', compErr);
+        }
+      }
+
+      const fileExt = uploadFile.name.split('.').pop() || 'bin';
       const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
       const filePath = `chats/${selectedChatId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from(SUPABASE_BUCKET)
-        .upload(filePath, file);
+        .upload(filePath, uploadFile);
 
       if (uploadError) {
         console.warn('Storage upload error in admin, fallback:', uploadError);
@@ -432,24 +461,34 @@ export const AdminPage = () => {
         .getPublicUrl(filePath);
 
       setAttachedFile({
-        url: publicUrl || '',
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-        size: file.size
+        url: publicUrl || compressedDataUrl || '',
+        name: uploadFile.name,
+        type: uploadFile.type || 'application/octet-stream',
+        size: uploadFile.size
       });
     } catch (error) {
       console.warn('Admin chat file upload fallback:', error);
       try {
-        const reader = new FileReader();
-        reader.onloadend = () => {
+        if (isImageLike(file)) {
+          const comp = await compressImageFile(file, { maxWidth: 1000, quality: 0.75 });
           setAttachedFile({
-            url: reader.result as string,
-            name: file.name,
-            type: file.type || 'application/octet-stream',
-            size: file.size
+            url: comp.dataUrl,
+            name: comp.file.name,
+            type: comp.file.type,
+            size: comp.file.size
           });
-        };
-        reader.readAsDataURL(file);
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setAttachedFile({
+              url: reader.result as string,
+              name: file.name,
+              type: file.type || 'application/octet-stream',
+              size: file.size
+            });
+          };
+          reader.readAsDataURL(file);
+        }
       } catch (readErr) {
         console.error('Fallback read error in admin:', readErr);
       }
@@ -728,6 +767,55 @@ export const AdminPage = () => {
     }
 
     return null;
+  };
+
+  const handleRefreshDeposits = async () => {
+    setIsRefreshingDeposits(true);
+    try {
+      const depositsQuery = query(collection(db, 'transactions'));
+      const snapshot = await getDocs(depositsQuery);
+      const depositData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() as any }))
+        .filter(doc => {
+          if (!doc) return false;
+          const typeStr = String(doc.type || '').toLowerCase();
+          const statusStr = String(doc.status || 'pending').toLowerCase();
+          const descStr = String(doc.description || '').toLowerCase();
+          const isDeposit = typeStr.includes('deposit') || 
+                            Boolean(doc.depositMethod) || 
+                            Boolean(doc.deposit_method) || 
+                            Boolean(doc.paymentMethod) || 
+                            Boolean(doc.payment_method) || 
+                            Boolean(doc.proofOfPayment) || 
+                            Boolean(doc.proof_of_payment) ||
+                            Boolean(doc.proofImage) ||
+                            Boolean(doc.proof_image) ||
+                            Boolean(doc.accountDetails) ||
+                            Boolean(doc.account_details) ||
+                            descStr.includes('deposit');
+          const isPending = statusStr === 'pending' || statusStr === '' || statusStr === 'processing';
+          return isDeposit && isPending;
+        })
+        .sort((a: any, b: any) => {
+          const parseDateVal = (val: any) => {
+            if (!val) return 0;
+            if (typeof val.toMillis === 'function') return val.toMillis();
+            if (typeof val.toDate === 'function') return val.toDate().getTime();
+            const t = new Date(val).getTime();
+            return isNaN(t) ? 0 : t;
+          };
+          const dateA = parseDateVal(a.createdAt || a.created_at || a.timestamp);
+          const dateB = parseDateVal(b.createdAt || b.created_at || b.timestamp);
+          return dateB - dateA;
+        });
+      setPendingDeposits(depositData);
+      setMessage({ text: 'Deposits refreshed successfully.', type: 'success' });
+    } catch (err: any) {
+      console.error('Error manually refreshing deposits:', err);
+      setMessage({ text: 'Failed to refresh deposits.', type: 'error' });
+    } finally {
+      setIsRefreshingDeposits(false);
+    }
   };
 
   const formatUserBalance = (user: any) => {
@@ -2769,12 +2857,24 @@ export const AdminPage = () => {
         ) : activeTab === 'deposits' ? (
           <div className="space-y-6">
             <div className="card">
-              <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
-                Pending Deposits
-                <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-black">
-                  {pendingDeposits.length}
-                </span>
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
+                  Pending Deposits
+                  <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-black">
+                    {pendingDeposits.length}
+                  </span>
+                </h2>
+                <button
+                  id="admin-refresh-deposits-btn"
+                  onClick={handleRefreshDeposits}
+                  disabled={isRefreshingDeposits}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-zinc-200 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+                  title="Reload deposits from database"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingDeposits ? 'animate-spin' : ''}`} />
+                  {isRefreshingDeposits ? 'Refreshing...' : 'Refresh Deposits'}
+                </button>
+              </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left">

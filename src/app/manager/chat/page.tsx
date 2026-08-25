@@ -30,6 +30,7 @@ import {
 } from 'supabase/db';
 import { db } from '../../../lib/supabase-service';
 import { supabase, SUPABASE_BUCKET } from '../../../lib/supabase';
+import { compressImageFile, isImageLike } from '../../../lib/image-compressor';
 import { useAuth } from '../../../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -379,14 +380,27 @@ export const ManagerChatPage = () => {
     setUploadError(null);
 
     try {
-      const fileExt = file.name.split('.').pop() || 'bin';
+      let uploadFile: File = file;
+      let compressedDataUrl = '';
+
+      if (isImageLike(file)) {
+        try {
+          const compressed = await compressImageFile(file, { maxWidth: 1000, quality: 0.75 });
+          uploadFile = compressed.file;
+          compressedDataUrl = compressed.dataUrl;
+        } catch (compErr) {
+          console.warn('Image compression notice:', compErr);
+        }
+      }
+
+      const fileExt = uploadFile.name.split('.').pop() || 'bin';
       const fileName = `${user.uid}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const targetChatId = chatId || 'general';
       const filePath = `chats/${targetChatId}/${fileName}`;
 
       const { error: uploadErr } = await supabase.storage
         .from(SUPABASE_BUCKET)
-        .upload(filePath, file);
+        .upload(filePath, uploadFile);
 
       if (uploadErr) {
         console.warn('Storage bucket upload notice:', uploadErr);
@@ -397,24 +411,34 @@ export const ManagerChatPage = () => {
         .getPublicUrl(filePath);
 
       setAttachedFile({
-        url: url || '',
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-        size: file.size
+        url: url || compressedDataUrl || '',
+        name: uploadFile.name,
+        type: uploadFile.type || 'application/octet-stream',
+        size: uploadFile.size
       });
     } catch (error) {
       console.warn('Upload fallback to dataURL:', error);
       try {
-        const reader = new FileReader();
-        reader.onloadend = () => {
+        if (isImageLike(file)) {
+          const comp = await compressImageFile(file, { maxWidth: 1000, quality: 0.75 });
           setAttachedFile({
-            url: reader.result as string,
-            name: file.name,
-            type: file.type || 'application/octet-stream',
-            size: file.size
+            url: comp.dataUrl,
+            name: comp.file.name,
+            type: comp.file.type,
+            size: comp.file.size
           });
-        };
-        reader.readAsDataURL(file);
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setAttachedFile({
+              url: reader.result as string,
+              name: file.name,
+              type: file.type || 'application/octet-stream',
+              size: file.size
+            });
+          };
+          reader.readAsDataURL(file);
+        }
       } catch (readErr) {
         setUploadError('Could not process attachment. Please try again.');
       }
