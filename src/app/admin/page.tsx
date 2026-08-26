@@ -813,24 +813,6 @@ export const AdminPage = () => {
       return targetUser.last_deposit_proof;
     }
 
-    // 6. Local storage fallback
-    if (typeof window !== 'undefined') {
-      try {
-        if (deposit.storagePath) {
-          const local = window.localStorage.getItem(`sb_fallback_${deposit.storagePath}`);
-          if (local) return local;
-        }
-        if (deposit.storage_path) {
-          const local = window.localStorage.getItem(`sb_fallback_${deposit.storage_path}`);
-          if (local) return local;
-        }
-        if (deposit.userId) {
-          const local = window.localStorage.getItem(`deposit_proof_${deposit.userId}`);
-          if (local) return local;
-        }
-      } catch (e) {}
-    }
-
     return null;
   };
 

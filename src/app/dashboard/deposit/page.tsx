@@ -252,34 +252,11 @@ export const DepositPage = () => {
       }
 
       const userEmailResolved = user.email || userData?.email || '';
-
-      const metaPayload = {
-        method: selectedMethodName,
-        userEmail: userEmailResolved,
-        userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
-        proofUrl: finalProofUrl || '',
-        storagePath: filePath || '',
-        accountDetails: selectedAccount || null,
-        createdAt: new Date().toISOString()
-      };
-      
-      const descriptionPayload = `Deposit via ${selectedMethodName} | __META__:${JSON.stringify(metaPayload)}`;
-
-      // Save local backup in localStorage for quick client access
-      if (typeof window !== 'undefined' && proofImage) {
-        try {
-          window.localStorage.setItem(`deposit_proof_${user.uid}`, proofImage);
-          if (filePath) {
-            window.localStorage.setItem(`sb_fallback_${filePath}`, proofImage);
-          }
-        } catch (e) {}
-      }
-
       const depositCurrency = selectedMethodName === 'Bitcoin' 
         ? 'BTC' 
         : (selectedMethodName === 'USDT' ? 'USDT' : (userData?.currency?.code || currency.code || 'USD'));
 
-      // Record transaction in Supabase with clean, lightweight payload
+      // Record transaction in Supabase database exactly like loan application
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         userEmail: userEmailResolved,
@@ -292,14 +269,31 @@ export const DepositPage = () => {
         method: selectedMethodName,
         paymentMethod: selectedMethodName,
         depositMethod: selectedMethodName,
-        description: descriptionPayload,
-        proofUrl: finalProofUrl || '',
-        proofOfPayment: finalProofUrl || '',
-        storagePath: filePath || '',
+        description: `Deposit via ${selectedMethodName}`,
+        proofUrl: finalProofUrl,
+        proof_url: finalProofUrl,
+        proofOfPayment: finalProofUrl,
+        proof_of_payment: finalProofUrl,
+        storagePath: filePath,
+        storage_path: filePath,
         accountDetails: selectedAccount || null,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         timestamp: new Date().toISOString()
       });
+
+      // Send user notification exactly like loan application
+      try {
+        await addDoc(collection(db, 'notifications', user.uid, 'items'), {
+          type: 'deposit_request',
+          title: 'Deposit Received',
+          message: `Your deposit request for ${formatAmount(depositAmount)} via ${selectedMethodName} has been submitted and is pending verification.`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+      } catch (notifErr) {
+        console.warn('Notification error:', notifErr);
+      }
 
       if (selectedMethodName === 'Bank Transfer' || selectedMethodName === 'Credit Card') {
         setProcessing(true);

@@ -1,5 +1,12 @@
 import { supabase } from '../supabase';
 
+// Purge any stale local fallback transactions so transactions strictly reflect the remote database
+if (typeof window !== 'undefined') {
+  try {
+    window.localStorage.removeItem('local_table_transactions');
+  } catch (e) {}
+}
+
 // Helper to check if a string is a valid UUID
 function isUUID(str: string): boolean {
   if (!str || typeof str !== 'string') return false;
@@ -563,11 +570,13 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
 
     // Include any local fallback items for this table that aren't already in rawRows
     try {
-      const localStored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-      if (Array.isArray(localStored)) {
-        for (const localItem of localStored) {
-          if (localItem && localItem.id && !rawRows.some(r => r.id === localItem.id)) {
-            rawRows.push(localItem);
+      if (table !== 'transactions' && table !== 'loans') {
+        const localStored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
+        if (Array.isArray(localStored)) {
+          for (const localItem of localStored) {
+            if (localItem && localItem.id && !rawRows.some(r => r.id === localItem.id)) {
+              rawRows.push(localItem);
+            }
           }
         }
       }
@@ -859,6 +868,10 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     }
 
     if (error) {
+      if (table === 'transactions' || table === 'loans') {
+        console.error(`[Supabase DB] Direct database error on ${table}:`, error);
+        throw enhanceSupabaseError(error);
+      }
       const generatedId = targetId;
       if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
         console.warn(`[Supabase DB] Table '${table}' missing in addDoc. Storing in local fallback storage.`);
@@ -891,7 +904,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     }
 
     const finalInsertedId = inserted?.id || targetId;
-    if (finalInsertedId) {
+    if (finalInsertedId && table !== 'transactions' && table !== 'loans') {
       try {
         localStorage.setItem(`local_${table}_extras_${finalInsertedId}`, JSON.stringify(mergedData));
         // Keep a copy in local table as well for instant cache availability
@@ -906,6 +919,10 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     notifyListeners(table, collectionRef.path);
     return new DocumentReference(`${collectionRef.path}/${finalInsertedId}`);
   } catch (err: any) {
+    if (table === 'transactions' || table === 'loans') {
+      console.error(`[Supabase DB] Database exception adding doc to ${table}:`, err);
+      throw enhanceSupabaseError(err);
+    }
     const msg = err?.message || String(err);
     if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception adding doc to ${table}: ${msg}. Storing in fallback.`);
