@@ -273,7 +273,7 @@ const VALID_COLUMNS: Record<string, string[]> = {
     'id', 'user_id', 'type', 'amount', 'currency', 'status', 'description', 'timestamp',
     'proof_of_payment', 'proof_image', 'proof_url', 'image_url', 'storage_path', 
     'account_details', 'user_email', 'user_name', 'email', 'method', 'payment_method', 
-    'deposit_method', 'created_at', 'reviewed_at', 'reviewed_by', 'note', 'network',
+    'deposit_method', 'created_at', 'updated_at', 'reviewed_at', 'reviewed_by', 'note', 'network',
     'local_amount', 'tx_hash', 'to_address', 'from_address', 'recipient_name',
     'recipient_bank', 'recipient_account', 'metadata'
   ],
@@ -786,18 +786,6 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
   const targetId = filteredRow.id || (isPostgresTableWithUUID ? generateUUID() : `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
   if (!filteredRow.id && isPostgresTableWithUUID) {
     filteredRow.id = targetId;
-  }
-
-  // Ensure user profile exists in public.profiles to satisfy Foreign Key constraints
-  if (table === 'transactions' && filteredRow.user_id && isUUID(filteredRow.user_id)) {
-    try {
-      await supabase.from('profiles').upsert({
-        id: filteredRow.user_id,
-        email: mergedData.email || mergedData.userEmail || 'user@example.com',
-        full_name: mergedData.userName || mergedData.displayName || 'User',
-        role: 'user'
-      }, { onConflict: 'id', ignoreDuplicates: true });
-    } catch (e) {}
   }
 
   try {

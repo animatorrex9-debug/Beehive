@@ -359,12 +359,8 @@ BEGIN
     RETURN FALSE;
   END IF;
 
-  -- 1. Master administrator email bypass
+  -- 1. Master administrator email bypass via JWT claim
   v_email := COALESCE(auth.jwt()->>'email', '');
-  IF v_email = '' THEN
-    SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
-  END IF;
-  
   IF v_email = 'animatorrex9@gmail.com' THEN
     RETURN TRUE;
   END IF;
@@ -375,13 +371,7 @@ BEGIN
     RETURN TRUE;
   END IF;
 
-  -- 3. Check auth.users table
-  SELECT raw_user_meta_data->>'role' INTO v_role FROM auth.users WHERE id = auth.uid();
-  IF v_role IN ('admin', 'account_manager') THEN
-    RETURN TRUE;
-  END IF;
-
-  -- 4. Check public.profiles directly (SECURITY DEFINER allows reading profiles safely)
+  -- 3. Check public.profiles directly (SECURITY DEFINER allows reading profiles safely)
   IF EXISTS (
     SELECT 1 FROM public.profiles 
     WHERE id = auth.uid() 
@@ -442,7 +432,7 @@ CREATE POLICY "Users and admins can view transactions" ON public.transactions
 DROP POLICY IF EXISTS "Users can insert their own transactions" ON public.transactions;
 DROP POLICY IF EXISTS "Users can insert transactions" ON public.transactions;
 CREATE POLICY "Users can insert transactions" ON public.transactions
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Admins and managers can manage all transactions" ON public.transactions;
 CREATE POLICY "Admins and managers can manage all transactions" ON public.transactions
