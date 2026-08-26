@@ -44,7 +44,7 @@ const ALL_COUNTRIES = [
 ];
 
 export const CompleteProfilePage = () => {
-  const { user, userData, loading: authLoading, refreshUserData } = useAuth();
+  const { user, userData, isAdmin, loading: authLoading, refreshUserData } = useAuth();
   const { setCurrencyByCountry } = useCurrency();
   const [country, setCountry] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -54,16 +54,30 @@ export const CompleteProfilePage = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!authLoading && userData?.country) {
-      if (userData.role === 'admin') {
+    if (!authLoading) {
+      if (!user) {
+        navigate('/auth/login');
+        return;
+      }
+      
+      const isGoogleSignup = sessionStorage.getItem('google_signup_in_progress') === 'true';
+      
+      // Admins and managers never need complete-profile
+      if (isAdmin || userData?.role === 'admin' || user.email === 'animatorrex9@gmail.com') {
         navigate('/admin');
-      } else if (userData.role === 'account_manager') {
+        return;
+      }
+      if (userData?.role === 'account_manager') {
         navigate('/manager');
-      } else {
+        return;
+      }
+
+      // If user already has a country or did not come from the Google signup flow, redirect to dashboard
+      if (userData?.country || !isGoogleSignup) {
         navigate('/dashboard');
       }
     }
-  }, [userData, authLoading, navigate]);
+  }, [user, userData, isAdmin, authLoading, navigate]);
 
   useEffect(() => {
     // Detect country based on IP
@@ -129,6 +143,7 @@ export const CompleteProfilePage = () => {
         throw new Error('Verification failed: The country field was not successfully saved to your database. Please check your Supabase schema and RLS policies.');
       }
 
+      sessionStorage.removeItem('google_signup_in_progress');
       console.log('[CompleteProfile] Navigating to target dashboard...');
       const targetRole = freshData?.role || userData?.role || 'user';
       if (targetRole === 'admin') {
@@ -159,8 +174,10 @@ export const CompleteProfilePage = () => {
     );
   }
 
-  // If country is already set, don't show the form (useEffect will handle navigation)
-  if (userData?.country) {
+  const isGoogleSignup = typeof window !== 'undefined' && sessionStorage.getItem('google_signup_in_progress') === 'true';
+
+  // If country is already set, or admin/manager, or not in google signup flow, don't show the form (useEffect will handle navigation)
+  if (userData?.country || isAdmin || userData?.role === 'admin' || userData?.role === 'account_manager' || !isGoogleSignup) {
     return null;
   }
 

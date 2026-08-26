@@ -26,10 +26,12 @@ export const VerifyEmailPage = () => {
   useEffect(() => {
     if (user) {
       if (user.emailVerified || user.email === 'animatorrex9@gmail.com') {
-        if (userData?.country) {
-          navigate('/dashboard');
+        if (userData?.role === 'admin' || user.email === 'animatorrex9@gmail.com') {
+          navigate('/admin');
+        } else if (userData?.role === 'account_manager') {
+          navigate('/manager');
         } else {
-          navigate('/auth/complete-profile');
+          navigate('/dashboard');
         }
       }
     } else if (!loading && !isRegistered) {

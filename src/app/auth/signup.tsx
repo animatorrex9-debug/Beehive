@@ -30,22 +30,19 @@ export const SignupPage = () => {
 
   useEffect(() => {
     if (!authLoading && user) {
+      const isGoogleSignup = sessionStorage.getItem('google_signup_in_progress') === 'true';
       if (!user.emailVerified && user.email !== 'animatorrex9@gmail.com') {
         navigate('/auth/verify-email');
+      } else if (isGoogleSignup && !userData?.country) {
+        navigate('/auth/complete-profile');
       } else if (userData) {
-        if (isAdmin) {
+        if (isAdmin || userData.role === 'admin' || user.email === 'animatorrex9@gmail.com') {
           navigate('/admin');
         } else if (userData.role === 'account_manager') {
           navigate('/manager');
-        } else if (!userData.country) {
-          navigate('/auth/complete-profile');
         } else {
           navigate('/dashboard');
         }
-      } else {
-        // If user is authenticated but userData is still loading/null, redirect to complete-profile
-        // as a safe transition stage (which redirects to dashboard once userData loads if country is present).
-        navigate('/auth/complete-profile');
       }
     }
   }, [user, userData, isAdmin, authLoading, navigate]);
@@ -108,8 +105,10 @@ export const SignupPage = () => {
     setError('');
     const provider = new GoogleAuthProvider();
     try {
+      sessionStorage.setItem('google_signup_in_progress', 'true');
       await signInWithPopup(auth, provider);
     } catch (err: any) {
+      sessionStorage.removeItem('google_signup_in_progress');
       console.error('Google signup error:', err);
       setError(err.message || 'Google signup failed');
     } finally {

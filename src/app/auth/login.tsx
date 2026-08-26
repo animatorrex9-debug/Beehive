@@ -28,19 +28,13 @@ export const LoginPage = () => {
       if (!user.emailVerified && user.email !== 'animatorrex9@gmail.com') {
         navigate('/auth/verify-email');
       } else if (userData) {
-        if (isAdmin) {
+        if (isAdmin || userData.role === 'admin' || user.email === 'animatorrex9@gmail.com') {
           navigate('/admin');
         } else if (userData.role === 'account_manager') {
           navigate('/manager');
-        } else if (!userData.country) {
-          navigate('/auth/complete-profile');
         } else {
           navigate('/dashboard');
         }
-      } else {
-        // If user is authenticated but userData is still loading/null, redirect to complete-profile
-        // as a safe transition stage (which redirects to dashboard once userData loads if country is present).
-        navigate('/auth/complete-profile');
       }
     }
   }, [user, userData, isAdmin, authLoading, navigate]);
