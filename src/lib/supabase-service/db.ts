@@ -680,6 +680,31 @@ export async function getDocs(queryRef: CollectionReference | QueryCompat) {
   }
 }
 
+function extractMissingColumnName(errorMessage: string): string | null {
+  if (!errorMessage) return null;
+  // Pattern 1: Could not find the 'xyz' column of 'table' in the schema cache
+  let match = errorMessage.match(/Could not find the ['"](.*?)['"] column/i);
+  if (match && match[1]) return match[1];
+
+  // Pattern 2: Could not find column 'xyz' of 'table'
+  match = errorMessage.match(/Could not find (?:the )?column ['"](.*?)['"]/i);
+  if (match && match[1]) return match[1];
+
+  // Pattern 3: column "xyz" of relation "table" does not exist / column "xyz" does not exist (PostgreSQL code 42703)
+  match = errorMessage.match(/column ['"](.*?)['"] (?:of relation .*? )?does not exist/i);
+  if (match && match[1]) return match[1];
+
+  // Pattern 4: relation "table" has no column named "xyz"
+  match = errorMessage.match(/has no column (?:named )?['"](.*?)['"]/i);
+  if (match && match[1]) return match[1];
+
+  // Pattern 5: column 'xyz' does not exist
+  match = errorMessage.match(/column ['"](.*?)['"] does not exist/i);
+  if (match && match[1]) return match[1];
+
+  return null;
+}
+
 // Helper to automatically retry database operations stripping columns that don't exist in remote schema cache
 async function executeWithoutMissingColumns<T>(
   row: any,
@@ -687,15 +712,26 @@ async function executeWithoutMissingColumns<T>(
 ): Promise<{ data: T | null; error: any }> {
   let currentRow = { ...row };
   let attempts = 0;
-  while (attempts < 6) {
+  while (attempts < 12) {
     attempts++;
     const res = await action(currentRow);
-    if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('Could not find the') || res.error.message?.includes('schema cache'))) {
-      const match = res.error.message.match(/Could not find the ['"](.*?)['"] column/i);
-      if (match && match[1] && match[1] in currentRow) {
-        console.warn(`[Supabase DB] Column '${match[1]}' missing from table. Retrying without '${match[1]}'.`);
-        delete currentRow[match[1]];
-        continue;
+    if (res.error) {
+      const errMsg = res.error.message || '';
+      const errCode = res.error.code || '';
+      if (
+        errCode === 'PGRST204' || 
+        errCode === '42703' || 
+        errMsg.includes('Could not find') || 
+        errMsg.includes('schema cache') || 
+        errMsg.includes('does not exist') ||
+        errMsg.includes('column')
+      ) {
+        const col = extractMissingColumnName(errMsg);
+        if (col && col in currentRow) {
+          console.warn(`[Supabase DB] Column '${col}' missing from remote schema. Retrying without '${col}'.`);
+          delete currentRow[col];
+          continue;
+        }
       }
     }
     return res;
@@ -732,29 +768,33 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
 
   // Ensure generated IDs for local fallbacks and inserts are valid UUIDs where Postgres requires UUIDs
   const isPostgresTableWithUUID = ['profiles', 'loans', 'transactions', 'chats', 'messages', 'tax_refunds', 'grants', 'tax_filings', 'donations', 'investments'].includes(table);
+  const targetId = filteredRow.id || (isPostgresTableWithUUID ? generateUUID() : `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
+  if (!filteredRow.id && isPostgresTableWithUUID) {
+    filteredRow.id = targetId;
+  }
 
   try {
     const res = await executeWithoutMissingColumns(filteredRow, async (r) => {
       let rRes = await supabase
         .from(table)
         .insert(r)
-        .select('*')
-        .single();
+        .select('*');
 
       if (rRes.error && (rRes.error.message?.includes('Failed to fetch') || rRes.error.message?.includes('AbortError') || rRes.error.message?.includes('steal') || rRes.error.message?.includes('Lock broken'))) {
         rRes = await supabase
           .from(table)
           .insert(r)
-          .select('*')
-          .single();
+          .select('*');
       }
-      return rRes;
+
+      const insertedItem = Array.isArray(rRes.data) && rRes.data.length > 0 ? rRes.data[0] : (rRes.data || { id: targetId });
+      return { data: insertedItem, error: rRes.error };
     });
 
     const { data: inserted, error } = res;
 
     if (error) {
-      const generatedId = isPostgresTableWithUUID ? generateUUID() : `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const generatedId = targetId;
       if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
         console.warn(`[Supabase DB] Table '${table}' missing in addDoc. Storing in local fallback storage.`);
         try {
@@ -768,7 +808,7 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
       }
       if (table === 'notifications') {
         console.warn(`[Supabase DB] Notification policy warning adding doc to ${table}:`, error.message);
-        return new DocumentReference(`${collectionRef.path}/${generateUUID()}`);
+        return new DocumentReference(`${collectionRef.path}/${generatedId}`);
       }
       if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('Failed to fetch') || error.message?.includes('AbortError')) {
         console.warn(`[Supabase DB] RLS or network issue adding doc to ${table}. Storing in local fallback storage:`, error.message);
@@ -785,25 +825,26 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
       throw enhanceSupabaseError(error);
     }
 
-    if (inserted?.id) {
+    const finalInsertedId = inserted?.id || targetId;
+    if (finalInsertedId) {
       try {
-        localStorage.setItem(`local_${table}_extras_${inserted.id}`, JSON.stringify(mergedData));
+        localStorage.setItem(`local_${table}_extras_${finalInsertedId}`, JSON.stringify(mergedData));
         // Keep a copy in local table as well for instant cache availability
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
-        if (!stored.some((item: any) => item.id === inserted.id)) {
-          stored.push({ id: inserted.id, ...row, ...inserted });
+        if (!stored.some((item: any) => item.id === finalInsertedId)) {
+          stored.push({ id: finalInsertedId, ...row, ...inserted });
           localStorage.setItem(`local_table_${table}`, JSON.stringify(stored));
         }
       } catch (e) {}
     }
 
     notifyListeners(table, collectionRef.path);
-    return new DocumentReference(`${collectionRef.path}/${inserted.id}`);
+    return new DocumentReference(`${collectionRef.path}/${finalInsertedId}`);
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('PGRST205') || msg.includes('Could not find the table') || msg.includes('row-level security') || msg.includes('Failed to fetch') || msg.includes('AbortError') || err?.name === 'TypeError') {
       console.warn(`[Supabase DB] Exception adding doc to ${table}: ${msg}. Storing in fallback.`);
-      const generatedId = isPostgresTableWithUUID ? generateUUID() : `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const generatedId = targetId;
       try {
         const stored = JSON.parse(localStorage.getItem(`local_table_${table}`) || '[]');
         stored.push({ id: generatedId, ...row, created_at: new Date().toISOString() });

@@ -664,6 +664,33 @@ export const AdminPage = () => {
     return deposit?.userId ? `User ID: ${deposit.userId.slice(0, 8)}...` : 'Unknown User';
   };
 
+  const getDepositAccountDetails = (deposit: any) => {
+    if (!deposit) return null;
+    if (deposit.accountDetails && typeof deposit.accountDetails === 'object') {
+      return deposit.accountDetails;
+    }
+    if (deposit.account_details && typeof deposit.account_details === 'object') {
+      return deposit.account_details;
+    }
+    if (typeof deposit.accountDetails === 'string') {
+      try { return JSON.parse(deposit.accountDetails); } catch (e) {}
+    }
+    if (typeof deposit.account_details === 'string') {
+      try { return JSON.parse(deposit.account_details); } catch (e) {}
+    }
+    if (deposit.description && typeof deposit.description === 'string' && deposit.description.includes('__META__:')) {
+      try {
+        const metaStr = deposit.description.split('__META__:')[1]?.trim();
+        if (metaStr) {
+          const parsed = JSON.parse(metaStr);
+          if (parsed.accountDetails) return parsed.accountDetails;
+          if (parsed.account_details) return parsed.account_details;
+        }
+      } catch (e) {}
+    }
+    return null;
+  };
+
   const getDepositMethod = (deposit: any) => {
     if (deposit?.method) return deposit.method;
     if (deposit?.paymentMethod) return deposit.paymentMethod;
@@ -684,8 +711,9 @@ export const AdminPage = () => {
       const cleanDesc = deposit.description.split('| __META__:')[0].replace(/^Deposit via\s*/i, '').trim();
       if (cleanDesc && cleanDesc.length < 50) return cleanDesc;
     }
-    if (deposit?.accountDetails?.bankName) return `Bank Transfer (${deposit.accountDetails.bankName})`;
-    if (deposit?.accountDetails?.cardNumber) return `Credit Card (****${deposit.accountDetails.cardNumber.slice(-4)})`;
+    const acc = getDepositAccountDetails(deposit);
+    if (acc?.bankName) return `Bank Transfer (${acc.bankName})`;
+    if (acc?.cardNumber) return `Credit Card (****${acc.cardNumber.slice(-4)})`;
     return 'Crypto / Transfer';
   };
 
@@ -3096,18 +3124,22 @@ export const AdminPage = () => {
                           <DetailItem label="Deposit Method" value={methodStr} />
                           <DetailItem label="User Email" value={userEmailStr} />
                           <DetailItem label="Date Submitted" value={dateStr} />
-                          {selectedDeposit.accountDetails && (
-                            <DetailItem 
-                              label="Connected Account Info" 
-                              value={
-                                selectedDeposit.accountDetails.bankName 
-                                  ? `${selectedDeposit.accountDetails.bankName} • Acc: ${selectedDeposit.accountDetails.accountNumber} (${selectedDeposit.accountDetails.accountName})`
-                                  : selectedDeposit.accountDetails.cardNumber 
-                                    ? `Card ending in ${selectedDeposit.accountDetails.cardNumber.slice(-4)} (Exp: ${selectedDeposit.accountDetails.expiryDate})`
-                                    : 'Account Details Attached'
-                              } 
-                            />
-                          )}
+                          {(() => {
+                            const acc = getDepositAccountDetails(selectedDeposit);
+                            if (!acc) return null;
+                            return (
+                              <DetailItem 
+                                label="Connected Account Info" 
+                                value={
+                                  acc.bankName 
+                                    ? `${acc.bankName} • Acc: ${acc.accountNumber} (${acc.accountName || 'Primary'})`
+                                    : acc.cardNumber 
+                                      ? `Card ending in ${acc.cardNumber.slice(-4)} (Exp: ${acc.expiryDate || acc.expiry || 'N/A'}${acc.cardHolder ? ` • ${acc.cardHolder}` : ''})`
+                                      : 'Account Details Attached'
+                                } 
+                              />
+                            );
+                          })()}
                         </div>
                       </div>
 

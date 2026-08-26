@@ -245,6 +245,7 @@ export const DepositPage = () => {
         userEmail: userEmailResolved,
         userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
         hasProof: !!resolvedProof,
+        accountDetails: selectedAccount || null,
         createdAt: new Date().toISOString()
       };
       
