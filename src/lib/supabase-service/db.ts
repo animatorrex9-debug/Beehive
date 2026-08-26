@@ -811,16 +811,38 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
     // Guaranteed core column fallback for transactions if custom columns fail
     if (error && table === 'transactions') {
       console.warn('[Supabase DB] Retrying transaction insert with guaranteed core schema fields:', error.message);
+      
+      // Clean meta object with no huge Base64 strings to prevent HTTP 413 or payload rejections
+      const safeMeta: any = {};
+      for (const k of Object.keys(mergedData)) {
+        const v = mergedData[k];
+        if (typeof v === 'string' && v.startsWith('data:image/')) {
+          safeMeta[k] = '[IMAGE_ATTACHED]';
+        } else {
+          safeMeta[k] = v;
+        }
+      }
+
+      let cleanDesc = mergedData.description;
+      if (cleanDesc && typeof cleanDesc === 'string' && cleanDesc.includes('data:image/')) {
+        cleanDesc = cleanDesc.replace(/data:image\/[^;]+;base64,[^"'\s,}]+/g, '[IMAGE_ATTACHED]');
+      }
+      if (!cleanDesc) {
+        cleanDesc = `Deposit via ${mergedData.method || 'Transfer'} | __META__:${JSON.stringify(safeMeta)}`;
+      }
+
       const coreRecord: any = {
-        id: targetId,
+        id: isUUID(targetId) ? targetId : undefined,
         user_id: filteredRow.user_id,
         type: filteredRow.type || 'deposit',
         amount: Number(filteredRow.amount) || 0,
         currency: filteredRow.currency || 'USD',
         status: filteredRow.status || 'pending',
-        description: mergedData.description || `Deposit via ${mergedData.method || 'Card'} | __META__:${JSON.stringify(mergedData)}`,
+        description: cleanDesc,
         created_at: filteredRow.created_at || new Date().toISOString()
       };
+
+      if (!coreRecord.id) delete coreRecord.id;
 
       let coreRes = await supabase.from('transactions').insert(coreRecord);
       if (coreRes.error && coreRes.error.message?.includes('id')) {
@@ -828,8 +850,11 @@ export async function addDoc(collectionRef: CollectionReference, data: any) {
         coreRes = await supabase.from('transactions').insert(coreRecord);
       }
       if (!coreRes.error) {
+        console.log('[Supabase DB] Successfully inserted transaction to Supabase via core schema fallback!');
         error = null;
         inserted = { id: targetId, ...coreRecord };
+      } else {
+        console.error('[Supabase DB] Core transaction fallback error:', coreRes.error);
       }
     }
 

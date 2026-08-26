@@ -722,60 +722,90 @@ export const AdminPage = () => {
     
     // 1. Check direct properties on deposit
     const directFields = [
+      deposit.proofUrl,
+      deposit.proof_url,
       deposit.proofOfPayment,
       deposit.proof_of_payment,
       deposit.proofImage,
       deposit.proof_image,
-      deposit.proofUrl,
-      deposit.proof_url,
       deposit.imageUrl,
       deposit.image_url
     ];
     for (const field of directFields) {
-      if (typeof field === 'string' && field.trim() && field !== 'null' && field !== 'undefined') {
+      if (typeof field === 'string' && field.trim() && field !== 'null' && field !== 'undefined' && field !== '[IMAGE_ATTACHED]') {
         return field.trim();
       }
     }
 
-    // 2. Check embedded __META__ in description
+    // 2. Check storagePath on deposit and resolve via Supabase Storage
+    const storagePath = deposit.storagePath || deposit.storage_path;
+    if (storagePath && typeof storagePath === 'string' && storagePath.trim()) {
+      try {
+        const { data: { publicUrl } } = supabase.storage
+          .from(SUPABASE_BUCKET)
+          .getPublicUrl(storagePath.trim());
+        if (publicUrl) return publicUrl;
+      } catch (e) {}
+    }
+
+    // 3. Check embedded __META__ in description
     if (deposit.description && typeof deposit.description === 'string') {
       if (deposit.description.includes('__META__:')) {
         try {
           const metaStr = deposit.description.split('__META__:')[1]?.trim();
           if (metaStr) {
             const parsed = JSON.parse(metaStr);
-            if (parsed.proofOfPayment && typeof parsed.proofOfPayment === 'string' && parsed.proofOfPayment.trim()) {
+            if (parsed.proofUrl && typeof parsed.proofUrl === 'string' && parsed.proofUrl.trim() && parsed.proofUrl !== '[IMAGE_ATTACHED]') {
+              return parsed.proofUrl.trim();
+            }
+            if (parsed.proof_url && typeof parsed.proof_url === 'string' && parsed.proof_url.trim() && parsed.proof_url !== '[IMAGE_ATTACHED]') {
+              return parsed.proof_url.trim();
+            }
+            if (parsed.proofOfPayment && typeof parsed.proofOfPayment === 'string' && parsed.proofOfPayment.trim() && parsed.proofOfPayment !== '[IMAGE_ATTACHED]') {
               return parsed.proofOfPayment.trim();
             }
-            if (parsed.proof_of_payment && typeof parsed.proof_of_payment === 'string' && parsed.proof_of_payment.trim()) {
+            if (parsed.proof_of_payment && typeof parsed.proof_of_payment === 'string' && parsed.proof_of_payment.trim() && parsed.proof_of_payment !== '[IMAGE_ATTACHED]') {
               return parsed.proof_of_payment.trim();
             }
-            if (parsed.proofImage && typeof parsed.proofImage === 'string' && parsed.proofImage.trim()) {
+            if (parsed.proofImage && typeof parsed.proofImage === 'string' && parsed.proofImage.trim() && parsed.proofImage !== '[IMAGE_ATTACHED]') {
               return parsed.proofImage.trim();
+            }
+            if (parsed.storagePath || parsed.storage_path) {
+              const p = (parsed.storagePath || parsed.storage_path).trim();
+              if (p) {
+                try {
+                  const { data: { publicUrl } } = supabase.storage
+                    .from(SUPABASE_BUCKET)
+                    .getPublicUrl(p);
+                  if (publicUrl) return publicUrl;
+                } catch (e) {}
+              }
             }
           }
         } catch (e) {}
       }
-      if (deposit.description.startsWith('data:image/')) {
+      if (deposit.description.startsWith('data:image/') || deposit.description.startsWith('http')) {
         return deposit.description;
       }
     }
 
-    // 3. Check accountDetails object
+    // 4. Check accountDetails object
     if (deposit.accountDetails) {
       if (typeof deposit.accountDetails === 'object') {
+        if (deposit.accountDetails.proofUrl) return deposit.accountDetails.proofUrl;
         if (deposit.accountDetails.proofOfPayment) return deposit.accountDetails.proofOfPayment;
         if (deposit.accountDetails.proofImage) return deposit.accountDetails.proofImage;
       } else if (typeof deposit.accountDetails === 'string') {
         try {
           const parsed = JSON.parse(deposit.accountDetails);
+          if (parsed?.proofUrl) return parsed.proofUrl;
           if (parsed?.proofOfPayment) return parsed.proofOfPayment;
           if (parsed?.proofImage) return parsed.proofImage;
         } catch (e) {}
       }
     }
 
-    // 4. Check target user backup proof
+    // 5. Check target user backup proof
     if (targetUser?.lastDepositProof && typeof targetUser.lastDepositProof === 'string' && targetUser.lastDepositProof.trim()) {
       return targetUser.lastDepositProof;
     }
@@ -783,7 +813,7 @@ export const AdminPage = () => {
       return targetUser.last_deposit_proof;
     }
 
-    // 5. Local storage fallback
+    // 6. Local storage fallback
     if (typeof window !== 'undefined') {
       try {
         if (deposit.storagePath) {

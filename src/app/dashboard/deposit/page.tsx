@@ -202,7 +202,7 @@ export const DepositPage = () => {
     try {
       const depositAmount = parseFloat(amount);
       const selectedMethodName = method || (selectedAccount ? 'Bank Transfer' : 'USDT');
-      let finalProofUrl = proofImage || '';
+      let finalProofUrl = '';
       let filePath = '';
 
       if (selectedMethodName !== 'Bank Transfer' && selectedMethodName !== 'Credit Card') {
@@ -212,39 +212,53 @@ export const DepositPage = () => {
           return;
         }
 
-        // Attempt Supabase Storage upload if file is present
-        if (proofFile) {
+        // Upload proof to Supabase Storage - exactly matching the chat upload pipeline
+        let uploadPayload: File | Blob | null = proofFile;
+        if (!uploadPayload && proofImage && proofImage.startsWith('data:')) {
           try {
-            const fileExt = proofFile.name.split('.').pop() || 'png';
-            const fileName = `${user.uid}-${Date.now()}.${fileExt}`;
+            const res = await fetch(proofImage);
+            uploadPayload = await res.blob();
+          } catch (e) {}
+        }
+
+        if (uploadPayload) {
+          try {
+            const fileExt = proofFile?.name?.split('.').pop() || 'jpg';
+            const fileName = `${user.uid}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
             filePath = `proofs/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
               .from(SUPABASE_BUCKET)
-              .upload(filePath, proofFile);
+              .upload(filePath, uploadPayload, {
+                cacheControl: '3600',
+                upsert: true
+              });
 
-            if (!uploadError) {
-              const { data: { publicUrl: url } } = supabase.storage
-                .from(SUPABASE_BUCKET)
-                .getPublicUrl(filePath);
-              if (url && url.startsWith('http') && !url.includes('localhost') && !url.includes('sb_fallback')) {
-                finalProofUrl = url;
-              }
+            if (uploadError) {
+              console.warn('[Deposit] Supabase storage upload notice:', uploadError);
+            }
+
+            const { data: { publicUrl: url } } = supabase.storage
+              .from(SUPABASE_BUCKET)
+              .getPublicUrl(filePath);
+
+            if (url) {
+              finalProofUrl = url;
             }
           } catch (storageErr) {
-            console.warn('Supabase storage upload notice (using direct proof image):', storageErr);
+            console.warn('[Deposit] Storage upload exception:', storageErr);
           }
         }
       }
 
       const userEmailResolved = user.email || userData?.email || '';
-      const resolvedProof = finalProofUrl || proofImage || '';
 
       const metaPayload = {
         method: selectedMethodName,
         userEmail: userEmailResolved,
         userName: userData?.fullName || userData?.displayName || user.displayName || userEmailResolved.split('@')[0] || 'User',
-        hasProof: !!resolvedProof,
+        proofUrl: finalProofUrl || '',
+        storagePath: filePath || '',
         accountDetails: selectedAccount || null,
         createdAt: new Date().toISOString()
       };
@@ -252,32 +266,20 @@ export const DepositPage = () => {
       const descriptionPayload = `Deposit via ${selectedMethodName} | __META__:${JSON.stringify(metaPayload)}`;
 
       // Save local backup in localStorage for quick client access
-      if (typeof window !== 'undefined' && resolvedProof) {
+      if (typeof window !== 'undefined' && proofImage) {
         try {
-          window.localStorage.setItem(`deposit_proof_${user.uid}`, resolvedProof);
+          window.localStorage.setItem(`deposit_proof_${user.uid}`, proofImage);
           if (filePath) {
-            window.localStorage.setItem(`sb_fallback_${filePath}`, resolvedProof);
+            window.localStorage.setItem(`sb_fallback_${filePath}`, proofImage);
           }
         } catch (e) {}
       }
 
-      // Also update user profile with latest proof as backup
-      if (resolvedProof) {
-        try {
-          await updateDoc(doc(db, 'users', user.uid), {
-            lastDepositProof: resolvedProof,
-            last_deposit_proof: resolvedProof
-          });
-        } catch (profileErr) {
-          console.warn('Notice updating user profile backup proof:', profileErr);
-        }
-      }
-      
       const depositCurrency = selectedMethodName === 'Bitcoin' 
         ? 'BTC' 
         : (selectedMethodName === 'USDT' ? 'USDT' : (userData?.currency?.code || currency.code || 'USD'));
 
-      // Record transaction in Firestore / Supabase with all complete metadata
+      // Record transaction in Supabase with clean, lightweight payload
       await addDoc(collection(db, 'transactions'), {
         userId: user.uid,
         userEmail: userEmailResolved,
@@ -291,12 +293,9 @@ export const DepositPage = () => {
         paymentMethod: selectedMethodName,
         depositMethod: selectedMethodName,
         description: descriptionPayload,
-        proofOfPayment: resolvedProof || null,
-        proof_of_payment: resolvedProof || null,
-        proofImage: resolvedProof || null,
-        proof_image: resolvedProof || null,
-        proofUrl: finalProofUrl || null,
-        storagePath: filePath || null,
+        proofUrl: finalProofUrl || '',
+        proofOfPayment: finalProofUrl || '',
+        storagePath: filePath || '',
         accountDetails: selectedAccount || null,
         createdAt: serverTimestamp(),
         timestamp: new Date().toISOString()
